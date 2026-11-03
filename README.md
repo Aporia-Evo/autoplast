@@ -64,10 +64,13 @@ cargo build --release
 python verify/verify.py runs/seed1/best.json     # needs jax, numpy
 ./target/release/autoplast sweep                 # tuned known families, fair baselines
 
-# many seeds on Modal (CPU containers), results copied to runs/<tag>/
-modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v2
-modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v2-noaddnode --no-split-edge
+# many seeds: run locally, one `search` per seed, results in runs/<tag>/seed<N>/
+./target/release/autoplast search --seed 3 --budget 1500000 --threads 8 --out runs/v2/seed3
 ```
+
+Compute policy (3 Nov 2026): CPU searches, including multi-seed fan-outs, run on the local
+machine (Ryzen 5700G, 8 cores / 16 threads). Modal is reserved for GPU runs.
+`modal_runner.py` (CPU fan-out on Modal) is kept for reference but is not used.
 
 ## Reference rules (from `baselines`)
 

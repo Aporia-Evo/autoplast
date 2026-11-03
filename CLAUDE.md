@@ -37,16 +37,20 @@ Stages:
 
 ## Compute
 
-Modal credits are limited. Use `modal_runner.py` (CPU containers only, 8 CPUs each).
-Before any launch larger than 8 seeds, run 2 seeds with a small budget, measure wall time,
-and state the expected total container-hours. The local machine is fine for single seeds
-and for `sweep` / `verify`.
+Decision (3 Nov 2026): Modal is for GPU runs only. All CPU work, including multi-seed
+search fan-outs, runs locally on the Ryzen 5700G (8 cores, 16 threads), because CPU
+containers on Modal spend limited credits on work the local machine can do. Do not launch
+`modal_runner.py` for CPU searches; it stays in the repo only as a reference.
+Before any local launch larger than 8 seeds, run 2 seeds with a small budget, measure wall
+time, and state the expected total hours on the local machine. Any GPU run on Modal needs
+explicit approval first.
 
 ## Next experiments, in order
 
-1. Rediscovery rate: `modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v2`.
+1. Rediscovery rate: seeds 1-16, `--budget 1500000`, tag `v2`, run locally with
+   `autoplast search` (see Compute).
    Report how many seeds reach the delta milestones and the median candidates.
-2. Ablation: same seeds with `--no-split-edge --tag v2-noaddnode`. Does the NEAT-style
+2. Ablation: same seeds locally with `--no-split-edge`, tag `v2-noaddnode`. Does the NEAT-style
    add-node mutation actually matter? (It looked decisive, but that was 1 vs 2 seeds.)
 3. Task fixes before stage 2: long episodes (T = 64 and more) so growth factors > 1 are
    punished; resample or enlarge train episodes; keep the held-out suites.
