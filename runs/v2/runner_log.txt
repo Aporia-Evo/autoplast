@@ -1,0 +1,44 @@
+16 seeds, 2 at a time x 8 threads, budget 1500000
+seed 2: exit 0, 504 s (elapsed 504 s)
+seed 1: exit 0, 510 s (elapsed 510 s)
+seed 4: exit 0, 527 s (elapsed 1037 s)
+seed 3: exit 0, 717 s (elapsed 1221 s)
+seed 5: exit 0, 445 s (elapsed 1483 s)
+seed 6: exit 0, 934 s (elapsed 2155 s)
+seed 7: exit 0, 1114 s (elapsed 2597 s)
+seed 8: exit 0, 785 s (elapsed 2941 s)
+seed 9: exit 0, 464 s (elapsed 3061 s)
+seed 10: exit 0, 358 s (elapsed 3298 s)
+seed 11: exit 0, 2279 s (elapsed 5340 s)
+seed 12: exit 0, 2107 s (elapsed 5406 s)
+seed 13: exit 0, 248 s (elapsed 5588 s)
+seed 15: exit 0, 1625 s (elapsed 7214 s)
+seed 14: exit 0, 1813 s (elapsed 7218 s)
+seed 16: exit 0, 387 s (elapsed 7600 s)
+# v2: 16 seeds, budget 1500000, add-node on, local
+
+| seed | linear attention | delta rule (beta=1) | delta rule (beta=0.5) | gated delta (alpha=0.9) | wall s | best rule |
+|---|---|---|---|---|---|---|
+| 1 | 71,156 | no | no | 71,156 | 510 | `S' = ((0.479·S + 0.479·S) - (v)⊗((0 - k)))` |
+| 2 | 65,012 | no | no | 65,012 | 504 | `S' = (<v, tanh(v)>·S + (tanh(tanh(v)))⊗(k))` |
+| 3 | 23,412 | 58,612 | 61,044 | 23,156 | 717 | `S' = 1.098·((0.750·(v - S·k))⊗(tanh(tanh(k))) + S)` |
+| 4 | 4,724 | no | no | 4,724 | 527 | `S' = ((tanh(tanh(v)))⊗(k) + |tanh(v)|·S)` |
+| 5 | 79,988 | no | no | 78,708 | 445 | `S' = ((v)⊗(k) + 0.958·S)` |
+| 6 | 47,988 | 1,206,260 | 1,207,284 | 47,988 | 934 | `S' = (((v - S·k))⊗(tanh(tanh(tanh(norm(tanh(k)))))) - 1.153·(0 - S))` |
+| 7 | 52,212 | 439,924 | 440,436 | 48,244 | 1114 | `S' = ((0.824·((0 - S)·k + v))⊗(tanh(tanh(k))) - 1.098·(0 - S))` |
+| 8 | 6,388 | 44,404 | 111,476 | 5,748 | 785 | `S' = 1.055·(S - (((S·tanh(k) - norm((v + tanh(S·tanh(k))))) - ((v + tanh(S·tanh(k))) - S·tanh(k))))⊗(k))` |
+| 9 | 101,108 | no | no | 101,108 | 464 | `S' = ((tanh(tanh(v)))⊗(k) + <v, tanh(v)>·S)` |
+| 10 | 14,964 | no | no | 14,708 | 358 | `S' = 0.958·((v)⊗(k) + S)` |
+| 11 | 10,484 | no | no | 10,484 | 2279 | `S' = 0.952·(((0 - S))((((tanh(v))⊗(k))(((tanh(v))⊗(k) + (tanh(v))⊗(k))))ᵀ) + ((tanh(v))⊗(k) - (0 - S)))` |
+| 12 | 19,060 | 41,332 | 41,588 | 19,060 | 2107 | `S' = ((σ(0.179)·S + σ(0.179)·S) + ((tanh(v))⊗(tanh(k)) - (σ(σ(0.179))·(σ(0.179)·S)((k)⊗(k)) + σ(σ(0.179))·(σ(0.179)·S)((` |
+| 13 | 24,308 | no | no | 24,308 | 248 | `S' = 0.958·((v)⊗(k) + S)` |
+| 14 | 5,620 | no | no | 5,620 | 1812 | `S' = ((((tanh(norm(tanh(v))))⊗(k) + |tanh(v)|·S) + |tanh(v)|·(tanh(norm(tanh(v))))⊗(k)) + ((σ(0)·|tanh(v)|·(tanh(norm(ta` |
+| 15 | 13,428 | no | no | 13,428 | 1625 | `S' = 0.954·((S + (norm(tanh(v)))⊗(k)) - (((S + S) + (((norm(tanh(v)))⊗(k))((norm(tanh(v)))⊗(k)))ᵀ))((((norm(tanh(v)))⊗(k` |
+| 16 | 6,644 | 14,068 | 14,836 | 6,644 | 387 | `S' = (0.492 + 0.616)·(S + ((v - S·((k ⊙ (v ⊙ v)) + k)))⊗(0.616·((k ⊙ (v ⊙ v)) + k)))` |
+
+- linear attention: reached by 16/16 seeds, median 23,412 candidates
+- delta rule (beta=1): reached by 6/16 seeds, median 58,612 candidates
+- delta rule (beta=0.5): reached by 6/16 seeds, median 111,476 candidates
+- gated delta (alpha=0.9): reached by 16/16 seeds, median 23,156 candidates
+
+total wall 7600 s

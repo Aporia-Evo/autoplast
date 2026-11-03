@@ -121,3 +121,14 @@ Local timing pilot (3 Nov 2026, runs/v2-localpilot): seeds 1 and 2, 300k candida
 processes with 8 threads each on a Ryzen 5700G: 57 s per seed. Both found decayed linear
 attention, neither the delta rule (as expected at this budget). Extrapolated cost of the
 16-seed v2 run at 1.5M: 1.5 to 3.1 hours locally.
+
+Run v2 at scale (3 Nov 2026, runs/v2, local, commit 62cbf63): 16 seeds, 1.5M candidates,
+add-node on. 6 of 16 seeds reach the delta rule (beta=0.5 level), Wilson 95 % interval
+18 % to 61 %, median 86k candidates when reached. All six are the Gated DeltaNet form
+`a·S + b·v kᵀ - c·(S k) kᵀ` with a = 1.055 to 1.153 and test ow0.3 0.961 to 0.967, the level
+of tuned Gated DeltaNet (0.968), not above it. The other 10 seeds stay at decayed linear
+attention (test ow0.3 about 0.79). No seed found a state-dependent gate. All 16 rules
+reproduce in JAX within 0.018. Details: runs/v2/v2_ERGEBNIS.md.
+
+Stage 1 rate: the search rediscovers the delta family from an empty program in about one
+third of seeds at this budget. The remaining seeds get stuck at decayed linear attention.
