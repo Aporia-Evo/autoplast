@@ -116,3 +116,8 @@ Stage 1 criterion ("rediscover the delta family from an empty program") is met b
 seeds. Open: more seeds for a rate, long-sequence tasks that punish a > 1, a gate analysis
 that does not saturate (the linear decomposition in `verify.py` cannot see state-dependent
 gates such as seed 1's), and whether seed 1's occupancy gate is known in the literature.
+
+Local timing pilot (3 Nov 2026, runs/v2-localpilot): seeds 1 and 2, 300k candidates, two
+processes with 8 threads each on a Ryzen 5700G: 57 s per seed. Both found decayed linear
+attention, neither the delta rule (as expected at this budget). Extrapolated cost of the
+16-seed v2 run at 1.5M: 1.5 to 3.1 hours locally.
