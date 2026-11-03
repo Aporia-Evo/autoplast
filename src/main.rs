@@ -179,6 +179,9 @@ fn main() {
             println!("{}", report(&prog));
         }
         "search" => {
+            if args.iter().any(|a| a == "--no-split-edge") {
+                program::SPLIT_EDGE.store(false, std::sync::atomic::Ordering::Relaxed);
+            }
             let cfg = evolve::SearchCfg {
                 seed: arg(&args, "--seed", 0),
                 budget: arg(&args, "--budget", 200_000),
@@ -201,8 +204,10 @@ fn main() {
             let res = evolve::search(&cfg, &task, milestones, &mut log);
             fs::write(format!("{out}/best.json"), res.best.prog.effective().to_json()).unwrap();
             let mut summary = format!(
-                "# Search seed {}\n\ncandidates: {}  real evaluations (after cache): {}  time: {:.0}s  pop: {}  tournament: {}\n\n",
-                cfg.seed, res.evals, res.real_evals, res.seconds, cfg.pop, cfg.tournament
+                "# Search seed {}\n\nadd-node mutation: {}  candidates: {}  real evaluations (after cache): {}  time: {:.0}s  pop: {}  tournament: {}\n\n",
+                cfg.seed,
+                if program::SPLIT_EDGE.load(std::sync::atomic::Ordering::Relaxed) { "on" } else { "off" },
+                res.evals, res.real_evals, res.seconds, cfg.pop, cfg.tournament
             );
             summary += "## Milestones (first candidate count where best train acc reached the reference rule)\n\n";
             for m in &res.milestones {
@@ -221,7 +226,7 @@ fn main() {
             std::io::stdout().flush().ok();
         }
         _ => {
-            eprintln!("usage: rule-discovery baselines | search [--seed N --budget N --pop N --out DIR] | eval --prog FILE");
+            eprintln!("usage: autoplast baselines | search [--seed N --budget N --pop N --threads N --batch N --no-split-edge --out DIR] | sweep | eval --prog FILE");
         }
     }
 }

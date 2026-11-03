@@ -1,4 +1,4 @@
-# rule-discovery
+# autoplast
 
 Gradient-free discovery of associative-memory update rules, starting from an empty program.
 
@@ -54,12 +54,19 @@ Linear attention is (1, 1, 0); the delta rule with step β is (1, β, −β).
 
 ## Usage
 
+Repository: github.com/Aporia-Evo/autoplast. Agent instructions: CLAUDE.md.
+
 ```bash
 cargo build --release
-./target/release/rule-discovery baselines
-./target/release/rule-discovery search --seed 1 --budget 3000000 --out runs/seed1
-./target/release/rule-discovery eval --prog runs/seed1/best.json
+./target/release/autoplast baselines
+./target/release/autoplast search --seed 1 --budget 3000000 --out runs/seed1
+./target/release/autoplast eval --prog runs/seed1/best.json
 python verify/verify.py runs/seed1/best.json     # needs jax, numpy
+./target/release/autoplast sweep                 # tuned known families, fair baselines
+
+# many seeds on Modal (CPU containers), results copied to runs/<tag>/
+modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v2
+modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v2-noaddnode --no-split-edge
 ```
 
 ## Reference rules (from `baselines`)
@@ -89,7 +96,7 @@ Seed 2 reached the β=0.5 delta level after 865k candidates. Simplified by hand
 (unit v): `S' = γ·[S(I − η kkᵀ) + (1−η) v kᵀ]`, which is the DeltaNet transition form
 `S(I − β kkᵀ) + β v kᵀ` with a gate γ.
 
-Fair baselines (`rule-discovery sweep`: grid-tuned on the train task, reported on tests):
+Fair baselines (`autoplast sweep`: grid-tuned on the train task, reported on tests):
 
 | family | a | e | w | train | test ow0.3 | test ow0.0 | test ow0.6 | test d32 T24 | test d8 T6 |
 |---|---|---|---|---|---|---|---|---|---|

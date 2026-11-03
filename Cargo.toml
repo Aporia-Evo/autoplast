@@ -1,5 +1,5 @@
 [package]
-name = "rule-discovery"
+name = "autoplast"
 version = "0.1.0"
 edition = "2021"
 description = "Gradient-free discovery of associative-memory update rules from an empty program"

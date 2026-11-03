@@ -10,6 +10,10 @@
 //! other program in the space. The readout is fixed for every rule: o = S q.
 
 use crate::rng::Rng;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Ablation switch for the NEAT-style add-node mutation (on by default).
+pub static SPLIT_EDGE: AtomicBool = AtomicBool::new(true);
 
 pub const NM: usize = 4;
 pub const NV: usize = 6;
@@ -283,7 +287,7 @@ impl Program {
     }
 
     pub fn mutate(&mut self, rng: &mut Rng) {
-        if rng.below(6) == 5 && self.split_edge(rng) {
+        if SPLIT_EDGE.load(Ordering::Relaxed) && rng.below(6) == 5 && self.split_edge(rng) {
             return;
         }
         let len = self.instrs.len();
