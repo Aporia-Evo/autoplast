@@ -1,0 +1,73 @@
+# rule-discovery
+
+Gradient-free discovery of associative-memory update rules, starting from an empty program.
+
+## Question
+
+Can an evolutionary search, given only elementary linear-algebra operations and a recall task,
+assemble a working memory update rule on its own? And once it reliably rediscovers known rules
+(linear attention, the delta rule), can it find rules that are not known yet?
+
+Stage 1 (this repo, now) is the rediscovery test. It decides whether the search is a usable
+discovery engine at all. Stage 2 points the same search at regimes where known rules are weak.
+Stage 3 transfers the best rules into small language models.
+
+## Search space
+
+A rule is a straight-line program over typed registers, run once per write step:
+
+| registers | on entry | meaning |
+|---|---|---|
+| `M0..M3` (d×d) | `M0 = S`, rest 0 | `M0` on exit is the new memory `S'` |
+| `V0..V5` (d) | `V0 = k`, `V1 = v`, rest 0 | |
+| `s0..s3` | 0 | |
+
+19 operations: `Outer, MatAdd, MatSub, MatScale, Transpose, MatMul, MatVec, VecAdd, VecSub,
+VecScale, Hadamard, Normalize, Tanh, Dot, Const, SAdd, SMul, Sigmoid, Norm`.
+
+Readout is identical for every rule: `o = S q`, decoded to the closest value embedding.
+No rule family is built in. Linear attention, the delta rule and gated variants are just
+particular programs in this space (`program::baselines()`), the same as any other.
+
+## Task
+
+Multi-query associative recall with overwrites: 12 writes per episode into an empty memory,
+d = 16, 64 keys and 64 values as fixed random unit vectors. With probability 0.3 a write
+reuses an earlier key with a new value. Every key is queried at the end; the target is its
+latest value. Fitness = accuracy + 0.05 · mean margin − 1e-4 · program length.
+
+Held-out tests use fresh embeddings and episodes, other overwrite rates and other sizes
+(d = 32 / T = 24, d = 8 / T = 6) the search never saw.
+
+## Search
+
+Regularized (aging) evolution as in AutoML-Zero: population 500, tournament 10, the whole
+population starts as the empty program (`S' = S`, accuracy 0). Mutations insert, delete,
+replace or rewire one instruction or perturb a constant. Programs with identical effective
+code share a cached score.
+
+## Verification
+
+`verify/verify.py` re-implements the interpreter in JAX with its own episodes and RNG, and
+decomposes a rule's update by least squares into `a·S + b·(v kᵀ) + c·((S k) kᵀ)` with R².
+Linear attention is (1, 1, 0); the delta rule with step β is (1, β, −β).
+
+## Usage
+
+```bash
+cargo build --release
+./target/release/rule-discovery baselines
+./target/release/rule-discovery search --seed 1 --budget 3000000 --out runs/seed1
+./target/release/rule-discovery eval --prog runs/seed1/best.json
+python verify/verify.py runs/seed1/best.json     # needs jax, numpy
+```
+
+## Reference rules (from `baselines`)
+
+| rule | train | test ow0.3 | test ow0.0 | test ow0.6 | test d32 T24 | test d8 T6 |
+|---|---|---|---|---|---|---|
+| no write (start of search) | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
+| linear attention | 0.778 | 0.750 | 0.917 | 0.549 | 0.828 | 0.615 |
+| delta rule β=1 | 0.872 | 0.862 | 0.788 | 0.922 | 0.948 | 0.744 |
+| delta rule β=0.5 | 0.935 | 0.924 | 0.900 | 0.941 | 0.987 | 0.793 |
+| gated delta α=0.9 | 0.751 | 0.714 | 0.620 | 0.837 | 0.639 | 0.685 |
