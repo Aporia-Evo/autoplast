@@ -71,3 +71,38 @@ python verify/verify.py runs/seed1/best.json     # needs jax, numpy
 | delta rule β=1 | 0.872 | 0.862 | 0.788 | 0.922 | 0.948 | 0.744 |
 | delta rule β=0.5 | 0.935 | 0.924 | 0.900 | 0.941 | 0.987 | 0.793 |
 | gated delta α=0.9 | 0.751 | 0.714 | 0.620 | 0.837 | 0.639 | 0.685 |
+
+## Results so far (3 Nov 2026)
+
+Run v1 (48 train episodes, no add-node mutation), seed 1, 3M candidates: linear attention
+after 17k candidates, then decayed linear attention `S' = 0.936·(S + v⊗k)` (RetNet-style).
+Best rule overfit the small train set (train 0.848, test 0.782). Delta rule not reached.
+
+Run v2 (96 train episodes, NEAT-style add-node mutation), 1.5M candidates per seed:
+
+| seed | what it found | train | test ow0.3 | test ow0.0 | test ow0.6 | test d32 T24 | test d8 T6 |
+|---|---|---|---|---|---|---|---|
+| 1 | occupancy-gated write `S + σ(‖S k̃‖⁴)·v⊗k` | 0.853 | 0.832 | 0.919 | 0.689 | 0.932 | 0.639 |
+| 2 | Gated DeltaNet form `γ(S + v kᵀ)(I − η kkᵀ)`, γ=1.098, η=0.726 | 0.971 | 0.967 | 0.947 | 0.964 | 0.978 | 0.836 |
+
+Seed 2 reached the β=0.5 delta level after 865k candidates. Simplified by hand
+(unit v): `S' = γ·[S(I − η kkᵀ) + (1−η) v kᵀ]`, which is the DeltaNet transition form
+`S(I − β kkᵀ) + β v kᵀ` with a gate γ.
+
+Fair baselines (`rule-discovery sweep`: grid-tuned on the train task, reported on tests):
+
+| family | a | e | w | train | test ow0.3 | test ow0.0 | test ow0.6 | test d32 T24 | test d8 T6 |
+|---|---|---|---|---|---|---|---|---|---|
+| DeltaNet (a=1, w=e) | 1 | 0.50 | 0.50 | 0.932 | 0.924 | 0.900 | 0.941 | 0.987 | 0.793 |
+| Gated DeltaNet (w=e) | 1.1 | 0.65 | 0.65 | 0.970 | 0.968 | 0.957 | 0.964 | 0.957 | 0.841 |
+| untied a, e, w | 1.1 | 0.65 | 0.05 | 0.970 | 0.968 | 0.957 | 0.964 | 0.957 | 0.841 |
+
+Reading: seed 2 is a rediscovery of tuned Gated DeltaNet, not an improvement. The apparent
+erase/write decoupling is not a real degree of freedom here: the rule is linear in (S, v),
+so the write gain only rescales S and argmax decoding ignores it. The optimum a > 1
+(amplification) is an artefact of short episodes and should vanish with long sequences.
+
+Stage 1 criterion ("rediscover the delta family from an empty program") is met by 1 of 2
+seeds. Open: more seeds for a rate, long-sequence tasks that punish a > 1, a gate analysis
+that does not saturate (the linear decomposition in `verify.py` cannot see state-dependent
+gates such as seed 1's), and whether seed 1's occupancy gate is known in the literature.

@@ -580,7 +580,7 @@ fn parse_line(line: &str) -> Instr {
     }
 }
 
-fn prog(lines: &[&str]) -> Program {
+pub fn prog(lines: &[&str]) -> Program {
     Program {
         instrs: lines.iter().map(|l| parse_line(l)).collect(),
     }

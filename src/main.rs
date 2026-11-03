@@ -122,6 +122,56 @@ fn main() {
                 println!("{name}: {}", p.formula());
             }
         }
+        "sweep" => {
+            // Fair baselines: tune the known family S' = a·S(I - e·kkᵀ) + w·v kᵀ on the TRAIN
+            // task, report held-out tests. Tied (w = e, a = 1) is DeltaNet; tied with free a
+            // is Gated DeltaNet; untied is the family the search landed in.
+            let train = TaskCfg::search_default(TRAIN_TASK_SEED);
+            let task = Task::new(train);
+            let mut regs = Regs::new(task.cfg.d);
+            let mk = |a: f32, e: f32, w: f32| {
+                let l = [
+                    format!("Const 0 0 0 {e}"),
+                    "Outer 1 0 0".to_string(),
+                    "MatScale 1 0 1".to_string(),
+                    "MatMul 2 0 1".to_string(),
+                    "MatSub 0 0 2".to_string(),
+                    format!("Const 1 0 0 {a}"),
+                    "MatScale 0 1 0".to_string(),
+                    "Outer 3 1 0".to_string(),
+                    format!("Const 2 0 0 {w}"),
+                    "MatScale 3 2 3".to_string(),
+                    "MatAdd 0 0 3".to_string(),
+                ];
+                program::prog(&l.iter().map(|x| x.as_str()).collect::<Vec<_>>())
+            };
+            let alphas = [0.85f32, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2];
+            let grid: Vec<f32> = (1..=20).map(|i| i as f32 * 0.05).collect();
+            let mut best: Vec<(&str, f32, (f32, f32, f32))> =
+                vec![("DeltaNet (a=1, w=e)", -1.0, (0., 0., 0.)), ("Gated DeltaNet (w=e)", -1.0, (0., 0., 0.)), ("untied a, e, w", -1.0, (0., 0., 0.))];
+            for &a in &alphas {
+                for &e in &grid {
+                    for &w in &grid {
+                        let p = mk(a, e, w);
+                        let sc = evaluate(&p.effective(), &task, &mut regs).acc;
+                        let tied = (w - e).abs() < 1e-6;
+                        let fams = [tied && (a - 1.0).abs() < 1e-6, tied, true];
+                        for (i, ok) in fams.iter().enumerate() {
+                            if *ok && sc > best[i].1 {
+                                best[i] = (best[i].0, sc, (a, e, w));
+                            }
+                        }
+                    }
+                }
+            }
+            let suites = test_suites();
+            println!("| family (tuned on train) | a | e | w | train | {} |", suites.iter().map(|x| x.0).collect::<Vec<_>>().join(" | "));
+            for (name, tr, (a, e, w)) in best {
+                let p = mk(a, e, w);
+                let row: Vec<String> = suites.iter().map(|(_, c)| format!("{:.3}", eval_on(&p, c).acc)).collect();
+                println!("| {name} | {a} | {e:.2} | {w:.2} | {tr:.3} | {} |", row.join(" | "));
+            }
+        }
         "eval" => {
             let path: String = arg(&args, "--prog", String::new());
             let prog = Program::from_json(&fs::read_to_string(&path).expect("read prog"))
