@@ -94,10 +94,30 @@ the v2/v3 suites are still reported. Without the flag everything is unchanged (c
 - `noisyq`: queries use normalize(c·k + √(1−c²)·u) with c = 0.9 instead of k (measured mean
   cosine 0.902); writes use the exact keys.
 - `longgap`: 48 episodes of 128 writes with at most 8 distinct keys.
+- `collision3` (added after the first regime baselines, before any collision3 result): the
+  collision keys with the v3 episode mix (96 standard plus 48 episodes of 64 writes with at
+  most 8 keys; the test suite has 512 plus 256). Reason: on the short collision episodes the
+  tuned Gated DeltaNet optimum was a = 1.15, which collapses on long episodes.
 `autoplast dump --regime NAME [--split test]` writes the task as JSON. `verify/ceiling.py`
 fits, per episode, the best linear memory for the final latest pairs by ridge least squares
 and decodes like the evaluator. It is an offline reference for headroom, not a rule and not
 an upper bound on accuracy.
+
+### Evolved readout (queue item 5a, added 5 Nov 2026, before any 5a result)
+
+Reason: the readout o = S q was fixed for every rule, so the search could only change how S is
+written. With correlated keys (collision3) a linear readout of a single matrix limits what any
+write rule can reach. `--evolve-readout` gives every individual a second program, run once per
+query with M0 = S, V0 = q, V1 = S q (all else zero); V1 on exit is the readout o. The empty
+read program is exactly the fixed readout, and the search starts from it (a first version
+that started from a one-instruction MatVec read program deadlocked: with the empty write
+program every candidate scores 0, the length penalty then deletes the read instruction, and
+the search never climbs; seen in a 60k-candidate smoke test, not a result). Mutations go to
+the read or the write program with probability 1/2 each; the length penalty counts both.
+Programs without a read program (all earlier runs) behave as before (checked: v3 seed 4 log
+rows and an old best.json evaluate identically). verify.py runs the read program in JAX
+(checked on a hand-written read program: Rust 0.210 vs JAX 0.211 on T12). verify.py does not
+yet generate the stage-2 regimes, so JAX checks of regime results use the standard suites.
 
 ## Search
 
