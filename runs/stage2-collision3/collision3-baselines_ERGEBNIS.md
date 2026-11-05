@@ -20,3 +20,8 @@ the train set where it scores 0.620 vs 0.617: within noise.)
 Predictions vs outcome: GDN optimum a <= 1.01 (p 0.7): yes, 1.00. DeltaNet test 0.60 to 0.72
 (p 0.6): yes, 0.631. GDN at most 0.02 above DeltaNet (p 0.65): yes, 0. LS at least 0.95 (p 0.8):
 yes, 1.000. Headroom at least 0.2 (p 0.65): yes, 0.369.
+
+## Wording note (added 2026-11-05, after review; text above unchanged)
+The LS reference from verify/ceiling.py is an in-sample oracle (it fits the pairs it is scored on), not reachable
+headroom. Only M0 persists between write steps, so RLS/Mesa-type rules are not expressible in the search space.
+Read "headroom" above as "gap to the in-sample oracle".

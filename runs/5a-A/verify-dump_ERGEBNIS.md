@@ -64,3 +64,26 @@ On identical data the JAX interpreter reproduces Rust to rounding, including evo
 The earlier JAX deviations on collision suites (about 0.03) came from verify.py drawing its own embeddings,
 not from an interpreter difference. The JAX step of rule 2 can now be done on the exact collision3 test.
 The T128 K8 suite is not part of the dump (it has no regime); its JAX check stays with the standard verify.py suites.
+
+## Arm C (added 2026-11-05 15:43 UTC)
+| seed | delta reached | Rust collision3 test | JAX on dumped data | diff |
+|---|---|---|---|---|
+| 1 | no | 0.517 | 0.5170 | +0.0000 |
+| 2 | no | 0.517 | 0.5171 | +0.0001 |
+| 3 | no | 0.512 | 0.5121 | +0.0001 |
+| 4 | no | 0.517 | 0.5165 | -0.0005 |
+| 5 | no | 0.518 | 0.5176 | -0.0004 |
+| 6 | no | 0.521 | 0.5213 | +0.0003 |
+| 7 | yes | 0.638 | 0.6377 | -0.0003 |
+| 8 | no | 0.517 | 0.5170 | +0.0000 |
+| 9 | no | 0.517 | 0.5168 | -0.0002 |
+| 10 | no | 0.516 | 0.5162 | +0.0002 |
+| 11 | no | 0.517 | 0.5170 | +0.0000 |
+| 12 | no | 0.514 | 0.5139 | -0.0001 |
+| 13 | no | 0.515 | 0.5150 | +0.0000 |
+| 14 | no | 0.537 | 0.5371 | +0.0001 |
+| 15 | no | 0.516 | 0.5162 | +0.0002 |
+| 16 | yes | 0.638 | 0.6376 | -0.0004 |
+
+Max |diff| 0.0005. No program flagged as diverged.
+7. all 16 C within 0.002 (p 0.90, added before running C): correct.

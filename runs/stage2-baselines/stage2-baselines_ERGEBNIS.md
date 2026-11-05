@@ -36,3 +36,8 @@ Predictions vs outcome:
 - longgap: DeltaNet 0.83 to 0.87 (p 0.7): no, 0.875. LS at least 0.95 (p 0.7): yes, 1.000.
 - GDN gains at most 0.01 over DeltaNet everywhere (p 0.6): no (+0.067, +0.060, +0.033, 0).
 - Largest headroom on longgap or collision (p 0.6): yes, collision.
+
+## Wording note (added 2026-11-05, after review; text above unchanged)
+The LS reference from verify/ceiling.py is an in-sample oracle (it fits the pairs it is scored on), not reachable
+headroom. Only M0 persists between write steps, so RLS/Mesa-type rules are not expressible in the search space.
+Read "headroom" above as "gap to the in-sample oracle".

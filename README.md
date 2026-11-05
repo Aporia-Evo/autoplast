@@ -100,8 +100,10 @@ the v2/v3 suites are still reported. Without the flag everything is unchanged (c
   tuned Gated DeltaNet optimum was a = 1.15, which collapses on long episodes.
 `autoplast dump --regime NAME [--split test]` writes the task as JSON. `verify/ceiling.py`
 fits, per episode, the best linear memory for the final latest pairs by ridge least squares
-and decodes like the evaluator. It is an offline reference for headroom, not a rule and not
-an upper bound on accuracy.
+and decodes like the evaluator. It is an offline in-sample oracle (it fits the very pairs it is
+scored on, at most 12 keys at d = 16), not a rule, not reachable headroom and not an upper bound on
+accuracy. Only M0 persists between write steps, so RLS/Mesa-type rules are not expressible in the
+search space (wording corrected 5 Nov 2026 after review).
 
 ### Evolved readout (queue item 5a, added 5 Nov 2026, before any 5a result)
 
@@ -276,8 +278,18 @@ rate must be reported together with the alphabet. Details: runs/v3-nomatvec/v3-n
 
 Stage-2 baselines (5 Nov 2026, runs/stage2-baselines): on the regime test suites tuned DeltaNet
 reaches 0.658 (collision), 0.663 (overload), 0.901 (noisyq) and 0.875 (longgap), against an offline
-least-squares reference of 1.000, 0.956, 0.971 and 1.000. Collision and overload leave the largest
-headroom. Tuned Gated DeltaNet leads on the three short-episode regimes only with a > 1 and then
+least-squares reference of 1.000, 0.956, 0.971 and 1.000. Collision and overload show the largest gap to
+that oracle (an in-sample oracle, not reachable headroom; see Task). Tuned Gated DeltaNet leads on the three short-episode regimes only with a > 1 and then
 collapses on T128 K8, so those regimes need long episodes (as in v3) before a fair search.
 Details: runs/stage2-baselines/stage2-baselines_ERGEBNIS.md.
 
+Stage 2, queue item 5a on collision3 (5 Nov 2026, JupyterHub, 3 arms x 16 seeds x 1.5M, one binary):
+A default alphabet with fixed readout, B evolved readout plus ten extra ops, C evolved readout only.
+Delta reached in 7/16, 4/16 and 2/16 seeds; median collision3 test 0.517, 0.521, 0.517; best seeds
+0.660, 0.640, 0.638. Pre-registered rule 1 (Mann-Whitney vs A): B p = 0.82, C p = 0.77, not
+significant. Rule 2 (test > 0.651, T128 K8 >= 0.838, train - test <= 0.03): no seed passes; the only
+seed above 0.651 (A seed 2, delta-like with a |S k| step and tanh terms) reaches only 0.777 on T128 K8.
+All delta-reaching seeds sit around untuned delta beta = 0.5 (0.640) and tuned DeltaNet (0.631).
+At equal budget neither a free readout nor extra ops help, and no evolved rule beats tuned DeltaNet
+here. All 48 best programs reproduce in JAX on the exact Rust test data (max |diff| 0.0005).
+Details: runs/5a-A/5a_ERGEBNIS.md, addendum runs/5a-A/5a_NACHTRAG_2026-11-05.md.

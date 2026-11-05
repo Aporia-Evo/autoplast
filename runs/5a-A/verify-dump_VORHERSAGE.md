@@ -23,3 +23,6 @@ Predictions:
 ## Extension to arm B (written 2026-11-05 14:16 UTC, after the A comparison, before running B)
 A matched Rust to rounding (see verify-dump_ERGEBNIS.md). B best programs carry evolved read programs.
 6. All 16 B programs: |JAX - Rust| <= 0.002 on collision3 test. p = 0.80 (read path and extra ops are new risk)
+
+## Extension to arm C (written 2026-11-05 15:29 UTC, after A and B matched, before running C)
+7. All 16 C programs: |JAX - Rust| <= 0.002 on collision3 test. p = 0.90
