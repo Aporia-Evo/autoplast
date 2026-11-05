@@ -14,7 +14,34 @@ const TRAIN_TASK_SEED: u64 = 1;
 /// 8 distinct keys), so that growth factors a > 1 are punished. Default is the v2 task.
 static TASK_V3: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// `--regime NAME` (any command): stage-2 regime as the train task and as an extra held-out
+/// suite. Overrides `--task`. Names: collision, overload, noisyq, longgap.
+static REGIME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+fn regime_cfg(name: &str, seed: u64, n_ep: usize) -> TaskCfg {
+    let mut c = TaskCfg { n_episodes: n_ep, ..TaskCfg::search_default(seed) };
+    match name {
+        "collision" => {
+            c.key_clusters = 8;
+            c.cluster_cos = 0.85;
+        }
+        "overload" => c.t_writes = 32,
+        "noisyq" => c.query_noise_cos = 0.9,
+        "longgap" => {
+            c.n_episodes = 0;
+            c.long_episodes = n_ep / 2;
+            c.long_t = 128;
+            c.long_max_keys = 8;
+        }
+        _ => panic!("unknown regime {name}"),
+    }
+    c
+}
+
 fn train_cfg() -> TaskCfg {
+    if let Some(r) = REGIME.get() {
+        return regime_cfg(r, TRAIN_TASK_SEED, 96);
+    }
     let mut c = TaskCfg::search_default(TRAIN_TASK_SEED);
     if TASK_V3.load(std::sync::atomic::Ordering::Relaxed) {
         c.long_episodes = 48;
@@ -24,13 +51,25 @@ fn train_cfg() -> TaskCfg {
     c
 }
 
-fn task_name() -> &'static str {
-    if TASK_V3.load(std::sync::atomic::Ordering::Relaxed) { "v3" } else { "v2" }
+fn task_name() -> String {
+    if let Some(r) = REGIME.get() {
+        return format!("regime {r}");
+    }
+    (if TASK_V3.load(std::sync::atomic::Ordering::Relaxed) { "v3" } else { "v2" }).to_string()
 }
 
 /// Held-out evaluation suites: fresh episodes and embeddings, plus shifted sizes the rule
 /// never saw during search (rules are dimension-agnostic programs, so they run unchanged).
-fn test_suites() -> Vec<(&'static str, TaskCfg)> {
+fn test_suites() -> Vec<(String, TaskCfg)> {
+    let mut v: Vec<(String, TaskCfg)> = Vec::new();
+    if let Some(r) = REGIME.get() {
+        v.push((format!("test regime {r}"), regime_cfg(r, 9, 512)));
+    }
+    v.extend(base_suites().into_iter().map(|(n, c)| (n.to_string(), c)));
+    v
+}
+
+fn base_suites() -> Vec<(&'static str, TaskCfg)> {
     vec![
         (
             "test d16 T12 ow0.3",
@@ -118,7 +157,7 @@ fn baseline_table() -> String {
     let train = train_cfg();
     let suites = test_suites();
     let mut s = String::from("| rule | train acc | ");
-    s += &suites.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(" | ");
+    s += &suites.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(" | ");
     s += " |\n|---|---|";
     s += &"---|".repeat(suites.len());
     s += "\n";
@@ -155,6 +194,11 @@ fn main() {
     let cmd = args.get(1).map(String::as_str).unwrap_or("help");
     if arg(&args, "--task", String::from("v2")) == "v3" {
         TASK_V3.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    let regime: String = arg(&args, "--regime", String::new());
+    if !regime.is_empty() {
+        regime_cfg(&regime, 0, 2); // validate the name early
+        REGIME.set(regime).ok();
     }
     // alphabet-sensitivity switches (queue item 3a); without them the alphabet is unchanged
     let no_ops: Vec<program::Op> = arg(&args, "--no-op", String::new())
@@ -222,12 +266,23 @@ fn main() {
                 }
             }
             let suites = test_suites();
-            println!("| family (tuned on train) | a | e | w | train | {} |", suites.iter().map(|x| x.0).collect::<Vec<_>>().join(" | "));
+            println!("| family (tuned on train) | a | e | w | train | {} |", suites.iter().map(|x| x.0.as_str()).collect::<Vec<_>>().join(" | "));
             for (name, tr, (a, e, w)) in best {
                 let p = mk(a, e, w);
                 let row: Vec<String> = suites.iter().map(|(_, c)| format!("{:.3}", eval_on(&p, c).acc)).collect();
                 println!("| {name} | {a} | {e:.2} | {w:.2} | {tr:.3} | {} |", row.join(" | "));
             }
+        }
+        "dump" => {
+            // dump the train task or the regime test suite as JSON for offline references
+            let split: String = arg(&args, "--split", String::from("train"));
+            let cfg = if split == "train" {
+                train_cfg()
+            } else {
+                test_suites().into_iter().find(|(n, _)| n.starts_with("test regime")).expect("--regime needed").1
+            };
+            let out: String = arg(&args, "--out", String::from("task.json"));
+            fs::write(&out, Task::new(cfg).to_json()).unwrap();
         }
         "eval" => {
             let path: String = arg(&args, "--prog", String::new());

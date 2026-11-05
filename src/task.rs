@@ -23,6 +23,13 @@ pub struct TaskCfg {
     pub long_t: usize,
     /// Cap on distinct keys per long episode; once reached, every further write overwrites.
     pub long_max_keys: usize,
+    /// Stage-2 regimes (0 / 1.0 = off, v2/v3 behaviour). Keys drawn around `key_clusters`
+    /// random centres with expected within-cluster cosine `cluster_cos`.
+    pub key_clusters: usize,
+    pub cluster_cos: f32,
+    /// Query vectors are normalize(c·k + √(1−c²)·u), u a random unit vector, so cos(q, k) ≈ c;
+    /// 1.0 = exact keys.
+    pub query_noise_cos: f32,
 }
 
 impl TaskCfg {
@@ -38,6 +45,9 @@ impl TaskCfg {
             long_episodes: 0,
             long_t: 0,
             long_max_keys: 0,
+            key_clusters: 0,
+            cluster_cos: 0.0,
+            query_noise_cos: 1.0,
         }
     }
 }
@@ -45,6 +55,8 @@ impl TaskCfg {
 pub struct Episode {
     pub writes: Vec<(usize, usize)>,  // (key id, value id)
     pub queries: Vec<(usize, usize)>, // (key id, target value id)
+    /// Noisy query vectors (queries.len() * d), empty when queries use the exact keys.
+    pub qvecs: Vec<f32>,
 }
 
 pub struct Task {
@@ -72,7 +84,25 @@ fn unit_vectors(rng: &mut Rng, n: usize, d: usize) -> Vec<f32> {
 impl Task {
     pub fn new(cfg: TaskCfg) -> Task {
         let mut rng = Rng::new(cfg.seed);
-        let keys = unit_vectors(&mut rng, cfg.n_keys, cfg.d);
+        let keys = if cfg.key_clusters == 0 {
+            unit_vectors(&mut rng, cfg.n_keys, cfg.d)
+        } else {
+            // clustered keys: k = normalize(√c·centre + √(1−c)·u); key i belongs to centre i % C
+            let centres = unit_vectors(&mut rng, cfg.key_clusters, cfg.d);
+            let noise = unit_vectors(&mut rng, cfg.n_keys, cfg.d);
+            let (a, b) = (cfg.cluster_cos.sqrt(), (1.0 - cfg.cluster_cos).sqrt());
+            let mut out = vec![0.0; cfg.n_keys * cfg.d];
+            for i in 0..cfg.n_keys {
+                let c = i % cfg.key_clusters;
+                let row = &mut out[i * cfg.d..(i + 1) * cfg.d];
+                for j in 0..cfg.d {
+                    row[j] = a * centres[c * cfg.d + j] + b * noise[i * cfg.d + j];
+                }
+                let n = row.iter().map(|x| x * x).sum::<f32>().sqrt();
+                row.iter_mut().for_each(|x| *x /= n);
+            }
+            out
+        };
         let vals = unit_vectors(&mut rng, cfg.n_vals, cfg.d);
         let mut episodes = Vec::with_capacity(cfg.n_episodes + cfg.long_episodes);
         // Standard episodes first, then long ones from the same RNG stream, so a config with
@@ -104,7 +134,24 @@ impl Task {
                     (k, latest)
                 })
                 .collect();
-            episodes.push(Episode { writes, queries });
+            episodes.push(Episode { writes, queries, qvecs: Vec::new() });
+        }
+        if cfg.query_noise_cos < 1.0 {
+            // drawn after all episodes so the episode stream is the same as without noise
+            let (a, b) = (cfg.query_noise_cos, (1.0 - cfg.query_noise_cos * cfg.query_noise_cos).sqrt());
+            for ep in episodes.iter_mut() {
+                let u = unit_vectors(&mut rng, ep.queries.len(), cfg.d);
+                let mut q = vec![0.0; ep.queries.len() * cfg.d];
+                for (qi, &(k, _)) in ep.queries.iter().enumerate() {
+                    let row = &mut q[qi * cfg.d..(qi + 1) * cfg.d];
+                    for j in 0..cfg.d {
+                        row[j] = a * keys[k * cfg.d + j] + b * u[qi * cfg.d + j];
+                    }
+                    let n = row.iter().map(|x| x * x).sum::<f32>().sqrt();
+                    row.iter_mut().for_each(|x| *x /= n);
+                }
+                ep.qvecs = q;
+            }
         }
         Task {
             cfg,
@@ -112,6 +159,24 @@ impl Task {
             vals,
             episodes,
         }
+    }
+
+    /// JSON dump of embeddings and episodes, for offline references (verify/ceiling.py).
+    pub fn to_json(&self) -> String {
+        let f = |v: &[f32]| v.iter().map(|x| format!("{x}")).collect::<Vec<_>>().join(",");
+        let eps: Vec<String> = self
+            .episodes
+            .iter()
+            .map(|e| {
+                let w = e.writes.iter().map(|(k, v)| format!("[{k},{v}]")).collect::<Vec<_>>().join(",");
+                let q = e.queries.iter().map(|(k, v)| format!("[{k},{v}]")).collect::<Vec<_>>().join(",");
+                format!("{{\"w\":[{w}],\"q\":[{q}],\"qv\":[{}]}}", f(&e.qvecs))
+            })
+            .collect();
+        format!(
+            "{{\"d\":{},\"keys\":[{}],\"vals\":[{}],\"episodes\":[{}]}}",
+            self.cfg.d, f(&self.keys), f(&self.vals), eps.join(",")
+        )
     }
 
     fn key(&self, i: usize) -> &[f32] {
@@ -151,8 +216,8 @@ pub fn evaluate(prog: &Program, task: &Task, regs: &mut Regs) -> Score {
             }
             s_mem.copy_from_slice(out);
         }
-        for &(k, target) in &ep.queries {
-            let q = task.key(k);
+        for (qi, &(k, target)) in ep.queries.iter().enumerate() {
+            let q = if ep.qvecs.is_empty() { task.key(k) } else { &ep.qvecs[qi * d..(qi + 1) * d] };
             for i in 0..d {
                 o[i] = (0..d).map(|j| s_mem[i * d + j] * q[j]).sum();
             }
