@@ -218,8 +218,21 @@ pub fn evaluate(prog: &Program, task: &Task, regs: &mut Regs) -> Score {
         }
         for (qi, &(k, target)) in ep.queries.iter().enumerate() {
             let q = if ep.qvecs.is_empty() { task.key(k) } else { &ep.qvecs[qi * d..(qi + 1) * d] };
-            for i in 0..d {
-                o[i] = (0..d).map(|j| s_mem[i * d + j] * q[j]).sum();
+            match &prog.read {
+                None => {
+                    for i in 0..d {
+                        o[i] = (0..d).map(|j| s_mem[i * d + j] * q[j]).sum();
+                    }
+                }
+                Some(read) => {
+                    regs.load_read(&s_mem, q);
+                    regs.run_instrs(read);
+                    o.copy_from_slice(&regs.v[1]);
+                    if o.iter().any(|x| !x.is_finite()) {
+                        total += 1;
+                        continue; // invalid readout: wrong, zero margin
+                    }
+                }
             }
             let norm = o.iter().map(|x| x * x).sum::<f32>().sqrt();
             total += 1;
@@ -251,7 +264,7 @@ pub fn evaluate(prog: &Program, task: &Task, regs: &mut Regs) -> Score {
     let acc = correct as f32 / total.max(1) as f32;
     let margin = margin_sum / total.max(1) as f32;
     Score {
-        fitness: acc + MARGIN_WEIGHT * margin - LEN_PENALTY * prog.instrs.len() as f32,
+        fitness: acc + MARGIN_WEIGHT * margin - LEN_PENALTY * prog.total_len() as f32,
         acc,
         margin,
         valid: true,

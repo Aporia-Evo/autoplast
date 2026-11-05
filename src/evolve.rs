@@ -107,7 +107,7 @@ pub fn search(
     let t0 = Instant::now();
     let mut rng = Rng::new(cfg.seed);
     let mut cache: HashMap<String, Score> = HashMap::new();
-    let (init, mut real_evals) = eval_batch(vec![Program::default(); cfg.pop], task, cfg.threads, &mut cache);
+    let (init, mut real_evals) = eval_batch(vec![crate::program::initial_program(); cfg.pop], task, cfg.threads, &mut cache);
     let mut pop: VecDeque<Indiv> = init.into_iter().collect();
     let mut evals = cfg.pop;
     let mut best = pop[0].clone();

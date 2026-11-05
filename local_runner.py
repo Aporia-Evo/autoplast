@@ -98,10 +98,13 @@ def main():
     ap.add_argument("--task", default="v2")
     ap.add_argument("--no-op", default="")
     ap.add_argument("--extra-ops", action="store_true")
+    ap.add_argument("--evolve-readout", action="store_true")
+    ap.add_argument("--regime", default="")
     a = ap.parse_args()
     global TASK, EXTRA_ARGS
     TASK = a.task
-    EXTRA_ARGS = (["--no-op", a.no_op] if a.no_op else []) + (["--extra-ops"] if a.extra_ops else [])
+    EXTRA_ARGS = ((["--no-op", a.no_op] if a.no_op else []) + (["--extra-ops"] if a.extra_ops else [])
+                  + (["--evolve-readout"] if a.evolve_readout else []) + (["--regime", a.regime] if a.regime else []))
     lo, hi = (int(x) for x in a.seeds.split("-"))
     if (ROOT / "runs" / a.tag / "PAUSE").exists():
         print(f"runs/{a.tag}/PAUSE exists: not starting. Delete it to run.", flush=True)

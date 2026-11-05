@@ -22,8 +22,9 @@ import numpy as np
 NM, NV, NS = 4, 6, 4
 
 
-def build_step(instrs):
-    """Return step(S, k, v) -> S' for a program, traced once by jit."""
+def build_step(instrs, read=False):
+    """Return step(S, k, v) -> S' for a write program, or, with read=True, read(S, q) -> o for
+    an evolved readout program (M0 = S, V0 = q, V1 = S q on entry, output V1)."""
 
     def step(S, k, v):
         d = S.shape[0]
@@ -93,8 +94,10 @@ def build_step(instrs):
                 s[o] = jnp.abs(s[a])
             else:
                 raise ValueError(op)
-        return m[0]
+        return vec[1] if read else m[0]
 
+    if read:
+        return lambda S, q: step(S, q, S @ q)
     return step
 
 
@@ -124,7 +127,7 @@ def make_task(rng, d, n_keys, n_vals, T, p_ow, n_ep, max_keys=None):
     return jnp.array(keys), jnp.array(vals), jnp.array(W), jnp.array(Q), jnp.array(Qmask)
 
 
-def accuracy(step, task):
+def accuracy(step, task, read=None):
     keys, vals, W, Q, Qmask = task
     d = keys.shape[1]
 
@@ -136,7 +139,8 @@ def accuracy(step, task):
             return (S, jnp.maximum(mx, bad)), None
 
         (S, mx), _ = jax.lax.scan(body, (jnp.zeros((d, d)), jnp.float32(0.0)), w)
-        o = (S @ keys[q[:, 0]].T).T  # (T, d)
+        qk = keys[q[:, 0]]
+        o = (S @ qk.T).T if read is None else jax.vmap(lambda x: read(S, x))(qk)  # (T, d)
         scores = o @ vals.T
         pred = jnp.argmax(scores, axis=1)
         ok = (pred == q[:, 1]) & (jnp.linalg.norm(o, axis=1) > 1e-6)
@@ -192,10 +196,11 @@ REFERENCES = {
 }
 
 
-def report(name, instrs, rng_seed=12345):
+def report(name, instrs, rng_seed=12345, read_instrs=None):
     step = build_step(instrs)
+    read = build_step(read_instrs, read=True) if read_instrs is not None else None
     rng = np.random.default_rng(rng_seed)
-    accs = {sname: accuracy(step, make_task(rng, **cfg)) for sname, cfg in SUITES}
+    accs = {sname: accuracy(step, make_task(rng, **cfg), read) for sname, cfg in SUITES}
     coef, r2 = decompose(step)
     print(f"\n## {name}")
     for sname, (a, div) in accs.items():
@@ -207,4 +212,5 @@ if __name__ == "__main__":
     for name, instrs in REFERENCES.items():
         report(f"reference: {name}", instrs)
     for path in sys.argv[1:]:
-        report(path, json.load(open(path))["instrs"])
+        prog = json.load(open(path))
+        report(path, prog["instrs"], read_instrs=prog.get("read"))

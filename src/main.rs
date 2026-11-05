@@ -27,6 +27,14 @@ fn regime_cfg(name: &str, seed: u64, n_ep: usize) -> TaskCfg {
         }
         "overload" => c.t_writes = 32,
         "noisyq" => c.query_noise_cos = 0.9,
+        "collision3" => {
+            // collision keys plus v3-style long episodes, so that a > 1 is punished
+            c.key_clusters = 8;
+            c.cluster_cos = 0.85;
+            c.long_episodes = n_ep / 2;
+            c.long_t = 64;
+            c.long_max_keys = 8;
+        }
         "longgap" => {
             c.n_episodes = 0;
             c.long_episodes = n_ep / 2;
@@ -207,6 +215,9 @@ fn main() {
         .map(|s| program::Op::from_name(s).expect("unknown op in --no-op"))
         .collect();
     let extra = args.iter().any(|a| a == "--extra-ops");
+    if args.iter().any(|a| a == "--evolve-readout") {
+        program::READ_EVOLVE.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
     if !no_ops.is_empty() || extra {
         program::set_alphabet(&no_ops, extra);
     }
@@ -316,10 +327,11 @@ fn main() {
             let res = evolve::search(&cfg, &task, milestones, &mut log);
             fs::write(format!("{out}/best.json"), res.best.prog.effective().to_json()).unwrap();
             let mut summary = format!(
-                "# Search seed {}\n\ntask: {}  alphabet: {}  add-node mutation: {}  candidates: {}  real evaluations (after cache): {}  time: {:.0}s  pop: {}  tournament: {}\n\n",
+                "# Search seed {}\n\ntask: {}  alphabet: {}  readout: {}  add-node mutation: {}  candidates: {}  real evaluations (after cache): {}  time: {:.0}s  pop: {}  tournament: {}\n\n",
                 cfg.seed,
                 task_name(),
                 alphabet,
+                if program::READ_EVOLVE.load(std::sync::atomic::Ordering::Relaxed) { "evolved" } else { "fixed o = S q" },
                 if program::SPLIT_EDGE.load(std::sync::atomic::Ordering::Relaxed) { "on" } else { "off" },
                 res.evals, res.real_evals, res.seconds, cfg.pop, cfg.tournament
             );
