@@ -80,6 +80,27 @@ finds it because of the task or because of the alphabet.
   log rows identical up to 50,036 candidates).
 
 
+### Stage-2 regimes (added 5 Nov 2026, before any regime result)
+
+Reason: on v2/v3 the delta rule is near-optimal, so a found rule cannot beat tuned DeltaNet
+there (CLAUDE.md item 5). `--regime NAME` (any command) replaces the train task by a regime
+(96 episodes, train seed 1) and adds a held-out suite `test regime NAME` (512 episodes, seed 9);
+the v2/v3 suites are still reported. Without the flag everything is unchanged (checked:
+`sweep --task v3` output identical; `baselines` numbers identical).
+- `collision`: the 64 keys are drawn around 8 random centres, k = normalize(√c·centre +
+  √(1−c)·u) with c = 0.85, giving within-cluster cosine 0.854 (measured), across −0.08.
+- `overload`: 32 writes per episode at overwrite rate 0.3, 22.4 distinct keys on average for
+  d = 16 (more keys than dimensions).
+- `noisyq`: queries use normalize(c·k + √(1−c²)·u) with c = 0.9 instead of k (measured mean
+  cosine 0.902); writes use the exact keys.
+- `longgap`: 48 episodes of 128 writes with at most 8 distinct keys.
+`autoplast dump --regime NAME [--split test]` writes the task as JSON. `verify/ceiling.py`
+fits, per episode, the best linear memory for the final latest pairs by ridge least squares
+and decodes like the evaluator. It is an offline reference for headroom, not a rule and not
+an upper bound on accuracy.
+
+## Search
+
 Regularized (aging) evolution as in AutoML-Zero: population 500, tournament 10, the whole
 population starts as the empty program (`S' = S`, accuracy 0). Mutations insert, delete,
 replace or rewire one instruction or perturb a constant. Programs with identical effective
@@ -222,4 +243,11 @@ decayed linear attention (0.907·S + v kᵀ). Delta seeds reach T128 K8 0.842 to
 level. Summary of 3a: the task makes the search find delta (it appears in every alphabet), but the
 rate within the budget depends strongly on how short the rule is in the alphabet; any rediscovery
 rate must be reported together with the alphabet. Details: runs/v3-nomatvec/v3-nomatvec_ERGEBNIS.md.
+
+Stage-2 baselines (5 Nov 2026, runs/stage2-baselines): on the regime test suites tuned DeltaNet
+reaches 0.658 (collision), 0.663 (overload), 0.901 (noisyq) and 0.875 (longgap), against an offline
+least-squares reference of 1.000, 0.956, 0.971 and 1.000. Collision and overload leave the largest
+headroom. Tuned Gated DeltaNet leads on the three short-episode regimes only with a > 1 and then
+collapses on T128 K8, so those regimes need long episodes (as in v3) before a fair search.
+Details: runs/stage2-baselines/stage2-baselines_ERGEBNIS.md.
 

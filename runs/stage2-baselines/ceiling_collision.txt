@@ -1,0 +1,2 @@
+ap/runs/stage2-baselines/test_collision.json: offline least-squares reference acc 1.000 (lam 0.001, 4455 queries)
+ap/runs/stage2-baselines/train_collision.json: offline least-squares reference acc 1.000 (lam 0.001, 837 queries)
