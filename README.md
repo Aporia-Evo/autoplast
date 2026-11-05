@@ -117,7 +117,7 @@ the read or the write program with probability 1/2 each; the length penalty coun
 Programs without a read program (all earlier runs) behave as before (checked: v3 seed 4 log
 rows and an old best.json evaluate identically). verify.py runs the read program in JAX
 (checked on a hand-written read program: Rust 0.210 vs JAX 0.211 on T12). verify.py does not
-yet generate the stage-2 regimes, so JAX checks of regime results use the standard suites.
+generate the stage-2 regimes itself; regime results are checked on the dumped Rust data (`--task-json`, see Verification).
 
 ## Search
 
@@ -134,6 +134,16 @@ Linear attention is (1, 1, 0); the delta rule with step β is (1, β, −β).
 Since 3 Nov 2026 it also runs the T64 K8 and T128 K8 suites and marks a suite "diverged" when
 some episode exceeds the Rust guard (|S| > 1e4 or non-finite), where Rust scores the whole
 suite 0 while the JAX accuracy is computed without the guard.
+Since 5 Nov 2026 it also has two collision suites (8 centres, within-cluster cosine 0.85; T12 and
+T64 K8) for checking collision3 results. With only 8 random centres per embedding draw, these
+suites vary more between draws than the plain ones: on one pilot rule JAX was about 0.03 below
+the Rust collision3 test while the plain T12 suite matched within 0.003.
+
+`verify.py --task-json FILE prog.json ...` (5 Nov 2026) instead reads the exact Rust data written by
+`autoplast dump --regime <r> --split test|train`, so JAX and Rust see the same episodes. On the collision3
+test (768 episodes, 6,503 queries) all 32 best programs of 5a-A and 5a-B, including evolved read programs,
+matched the Rust accuracy to the 3-decimal rounding of the summaries (max |diff| 0.0005; runs/5a-A/verify-dump_ERGEBNIS.md).
+The 0.03 gap above therefore comes from the separate embedding draw, not from the interpreter.
 
 ## Usage
 

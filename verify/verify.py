@@ -10,6 +10,8 @@ Linear attention is (a, b, c) = (1, 1, 0); the delta rule with step β is (1, β
 R² says how much of the rule's behaviour these three terms explain.
 
 usage: python verify/verify.py runs/seed1/best.json [more.json ...]
+       python verify/verify.py --task-json task.json runs/seed1/best.json ...
+         (exact Rust data from `autoplast dump`; same episodes, so JAX must match Rust to rounding)
 """
 
 import json
@@ -101,12 +103,19 @@ def build_step(instrs, read=False):
     return step
 
 
-def make_task(rng, d, n_keys, n_vals, T, p_ow, n_ep, max_keys=None):
+def make_task(rng, d, n_keys, n_vals, T, p_ow, n_ep, max_keys=None, clusters=None, cluster_cos=None):
     def unit(n):
         x = rng.standard_normal((n, d)).astype(np.float32)
         return x / np.linalg.norm(x, axis=1, keepdims=True)
 
-    keys, vals = unit(n_keys), unit(n_vals)
+    if clusters:
+        # stage-2 collision regime: key i = normalize(sqrt(c)*centre[i % C] + sqrt(1-c)*u_i)
+        centres, noise = unit(clusters), unit(n_keys)
+        keys = np.sqrt(cluster_cos) * centres[np.arange(n_keys) % clusters] + np.sqrt(1 - cluster_cos) * noise
+        keys = (keys / np.linalg.norm(keys, axis=1, keepdims=True)).astype(np.float32)
+    else:
+        keys = unit(n_keys)
+    vals = unit(n_vals)
     W = np.zeros((n_ep, T, 2), dtype=np.int32)
     Q = np.zeros((n_ep, T, 2), dtype=np.int32)  # padded queries
     Qmask = np.zeros((n_ep, T), dtype=bool)
@@ -128,10 +137,18 @@ def make_task(rng, d, n_keys, n_vals, T, p_ow, n_ep, max_keys=None):
 
 
 def accuracy(step, task, read=None):
-    keys, vals, W, Q, Qmask = task
+    acc, div, _, _ = accuracy_counts(step, task, read)
+    return acc, div
+
+
+def accuracy_counts(step, task, read=None):
+    """Like accuracy, but also returns (correct, total). task may carry a 6th element QV
+    (n_ep, T, d) with explicit query vectors (Rust qvecs); otherwise queries are the keys."""
+    keys, vals, W, Q, Qmask = task[:5]
+    QV = task[5] if len(task) > 5 else None
     d = keys.shape[1]
 
-    def episode(w, q, qm):
+    def episode(w, q, qm, qv):
         def body(carry, kv):
             S, mx = carry
             S = step(S, keys[kv[0]], vals[kv[1]])
@@ -139,17 +156,60 @@ def accuracy(step, task, read=None):
             return (S, jnp.maximum(mx, bad)), None
 
         (S, mx), _ = jax.lax.scan(body, (jnp.zeros((d, d)), jnp.float32(0.0)), w)
-        qk = keys[q[:, 0]]
+        qk = keys[q[:, 0]] if qv is None else qv
         o = (S @ qk.T).T if read is None else jax.vmap(lambda x: read(S, x))(qk)  # (T, d)
         scores = o @ vals.T
         pred = jnp.argmax(scores, axis=1)
-        ok = (pred == q[:, 1]) & (jnp.linalg.norm(o, axis=1) > 1e-6)
+        ok = (pred == q[:, 1]) & (jnp.linalg.norm(o, axis=1) > 1e-6) & jnp.all(jnp.isfinite(o), axis=1)
         return jnp.sum(ok & qm), jnp.sum(qm), mx
 
-    c, n, mx = jax.jit(jax.vmap(episode))(W, Q, Qmask)
+    if QV is None:
+        c, n, mx = jax.jit(jax.vmap(lambda w, q, qm: episode(w, q, qm, None)))(W, Q, Qmask)
+    else:
+        c, n, mx = jax.jit(jax.vmap(episode))(W, Q, Qmask, QV)
     # diverged: some episode exceeds the Rust guard (|S| > 1e4 or non-finite), where Rust
     # scores the whole suite 0. Accuracy here is computed without that guard.
-    return float(c.sum() / n.sum()), bool(jnp.any(mx > 1e4))
+    return float(c.sum() / n.sum()), bool(jnp.any(mx > 1e4)), int(c.sum()), int(n.sum())
+
+
+def load_task_json(path):
+    """Read an `autoplast dump` JSON (exact Rust embeddings and episodes). Episodes are grouped
+    by write length so that no padding enters S; returns a list of task tuples."""
+    j = json.load(open(path))
+    d = j["d"]
+    keys = np.array(j["keys"], dtype=np.float32).reshape(-1, d)
+    vals = np.array(j["vals"], dtype=np.float32).reshape(-1, d)
+    groups = {}
+    for e in j["episodes"]:
+        groups.setdefault(len(e["w"]), []).append(e)
+    tasks = []
+    for T, eps in sorted(groups.items()):
+        nq = max(len(e["q"]) for e in eps)
+        W = np.array([e["w"] for e in eps], dtype=np.int32)
+        Q = np.zeros((len(eps), nq, 2), dtype=np.int32)
+        Qm = np.zeros((len(eps), nq), dtype=bool)
+        has_qv = any(len(e["qv"]) for e in eps)
+        QV = np.zeros((len(eps), nq, d), dtype=np.float32)
+        for i, e in enumerate(eps):
+            Q[i, : len(e["q"])] = e["q"]
+            Qm[i, : len(e["q"])] = True
+            if has_qv:
+                QV[i, : len(e["q"])] = np.array(e["qv"], dtype=np.float32).reshape(-1, d)
+        t = (jnp.array(keys), jnp.array(vals), jnp.array(W), jnp.array(Q), jnp.array(Qm))
+        tasks.append(t + ((jnp.array(QV),) if has_qv else ()))
+    return tasks
+
+
+def report_json(name, instrs, tasks, read_instrs=None):
+    step = build_step(instrs)
+    read = build_step(read_instrs, read=True) if read_instrs is not None else None
+    c = n = 0
+    div = False
+    for t in tasks:
+        _, dv, ci, ni = accuracy_counts(step, t, read)
+        c, n, div = c + ci, n + ni, div or dv
+    print(f"{name}: acc {c / n:.4f} ({c}/{n})" + ("  [diverged: Rust guard would score 0]" if div else ""))
+    return c / n, div
 
 
 def decompose(step, d=16, n=4000, seed=0):
@@ -178,6 +238,9 @@ SUITES = [
     ("test d32 T24 ow0.3", dict(d=32, n_keys=128, n_vals=128, T=24, p_ow=0.3, n_ep=256)),
     ("test d16 T64 K8 ow0.3", dict(d=16, n_keys=64, n_vals=64, T=64, p_ow=0.3, n_ep=256, max_keys=8)),
     ("test d16 T128 K8 ow0.3", dict(d=16, n_keys=64, n_vals=64, T=128, p_ow=0.3, n_ep=128, max_keys=8)),
+    # stage-2 collision keys (8 centres, within-cluster cosine 0.85), as in --regime collision3
+    ("test collision d16 T12 ow0.3", dict(d=16, n_keys=64, n_vals=64, T=12, p_ow=0.3, n_ep=512, clusters=8, cluster_cos=0.85)),
+    ("test collision d16 T64 K8 ow0.3", dict(d=16, n_keys=64, n_vals=64, T=64, p_ow=0.3, n_ep=256, max_keys=8, clusters=8, cluster_cos=0.85)),
 ]
 
 REFERENCES = {
@@ -209,6 +272,17 @@ def report(name, instrs, rng_seed=12345, read_instrs=None):
 
 
 if __name__ == "__main__":
+    if "--task-json" in sys.argv:
+        # exact Rust data: python verify/verify.py --task-json task.json prog.json ...
+        i = sys.argv.index("--task-json")
+        tasks = load_task_json(sys.argv[i + 1])
+        paths = sys.argv[1:i] + sys.argv[i + 2 :]
+        for name, instrs in REFERENCES.items():
+            report_json(f"reference: {name}", instrs, tasks)
+        for path in paths:
+            prog = json.load(open(path))
+            report_json(path, prog["instrs"], tasks, read_instrs=prog.get("read"))
+        sys.exit(0)
     for name, instrs in REFERENCES.items():
         report(f"reference: {name}", instrs)
     for path in sys.argv[1:]:
