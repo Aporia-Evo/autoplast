@@ -10,6 +10,24 @@ use task::{evaluate, Task, TaskCfg};
 
 const TRAIN_TASK_SEED: u64 = 1;
 
+/// `--task v3` (any command): train on the v2 episodes plus 48 long episodes (T = 64, at most
+/// 8 distinct keys), so that growth factors a > 1 are punished. Default is the v2 task.
+static TASK_V3: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn train_cfg() -> TaskCfg {
+    let mut c = TaskCfg::search_default(TRAIN_TASK_SEED);
+    if TASK_V3.load(std::sync::atomic::Ordering::Relaxed) {
+        c.long_episodes = 48;
+        c.long_t = 64;
+        c.long_max_keys = 8;
+    }
+    c
+}
+
+fn task_name() -> &'static str {
+    if TASK_V3.load(std::sync::atomic::Ordering::Relaxed) { "v3" } else { "v2" }
+}
+
 /// Held-out evaluation suites: fresh episodes and embeddings, plus shifted sizes the rule
 /// never saw during search (rules are dimension-agnostic programs, so they run unchanged).
 fn test_suites() -> Vec<(&'static str, TaskCfg)> {
@@ -59,6 +77,26 @@ fn test_suites() -> Vec<(&'static str, TaskCfg)> {
                 ..TaskCfg::search_default(6)
             },
         ),
+        (
+            "test d16 T64 K8 ow0.3",
+            TaskCfg {
+                n_episodes: 0,
+                long_episodes: 256,
+                long_t: 64,
+                long_max_keys: 8,
+                ..TaskCfg::search_default(7)
+            },
+        ),
+        (
+            "test d16 T128 K8 ow0.3",
+            TaskCfg {
+                n_episodes: 0,
+                long_episodes: 128,
+                long_t: 128,
+                long_max_keys: 8,
+                ..TaskCfg::search_default(8)
+            },
+        ),
     ]
 }
 
@@ -77,7 +115,7 @@ fn arg<T: std::str::FromStr>(args: &[String], name: &str, default: T) -> T {
 }
 
 fn baseline_table() -> String {
-    let train = TaskCfg::search_default(TRAIN_TASK_SEED);
+    let train = train_cfg();
     let suites = test_suites();
     let mut s = String::from("| rule | train acc | ");
     s += &suites.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(" | ");
@@ -97,7 +135,7 @@ fn baseline_table() -> String {
 
 fn report(prog: &Program) -> String {
     let eff = prog.effective();
-    let train = eval_on(prog, &TaskCfg::search_default(TRAIN_TASK_SEED));
+    let train = eval_on(prog, &train_cfg());
     let mut s = format!(
         "{}\n\nEffective program ({} instructions):\n{}\n\ntrain acc {:.3}\n",
         eff.formula(),
@@ -115,6 +153,25 @@ fn report(prog: &Program) -> String {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("help");
+    if arg(&args, "--task", String::from("v2")) == "v3" {
+        TASK_V3.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    // alphabet-sensitivity switches (queue item 3a); without them the alphabet is unchanged
+    let no_ops: Vec<program::Op> = arg(&args, "--no-op", String::new())
+        .split(',')
+        .filter(|s| !s.is_empty())
+        .map(|s| program::Op::from_name(s).expect("unknown op in --no-op"))
+        .collect();
+    let extra = args.iter().any(|a| a == "--extra-ops");
+    if !no_ops.is_empty() || extra {
+        program::set_alphabet(&no_ops, extra);
+    }
+    let alphabet = format!(
+        "{} ops{}{}",
+        program::active_ops().len(),
+        if no_ops.is_empty() { String::new() } else { format!(", without {}", no_ops.iter().map(|o| o.name()).collect::<Vec<_>>().join(",")) },
+        if extra { ", with extra ops" } else { "" }
+    );
     match cmd {
         "baselines" => {
             println!("{}", baseline_table());
@@ -126,7 +183,7 @@ fn main() {
             // Fair baselines: tune the known family S' = a·S(I - e·kkᵀ) + w·v kᵀ on the TRAIN
             // task, report held-out tests. Tied (w = e, a = 1) is DeltaNet; tied with free a
             // is Gated DeltaNet; untied is the family the search landed in.
-            let train = TaskCfg::search_default(TRAIN_TASK_SEED);
+            let train = train_cfg();
             let task = Task::new(train);
             let mut regs = Regs::new(task.cfg.d);
             let mk = |a: f32, e: f32, w: f32| {
@@ -145,7 +202,7 @@ fn main() {
                 ];
                 program::prog(&l.iter().map(|x| x.as_str()).collect::<Vec<_>>())
             };
-            let alphas = [0.85f32, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2];
+            let alphas = [0.85f32, 0.9, 0.95, 0.97, 0.99, 1.0, 1.01, 1.03, 1.05, 1.1, 1.15, 1.2];
             let grid: Vec<f32> = (1..=20).map(|i| i as f32 * 0.05).collect();
             let mut best: Vec<(&str, f32, (f32, f32, f32))> =
                 vec![("DeltaNet (a=1, w=e)", -1.0, (0., 0., 0.)), ("Gated DeltaNet (w=e)", -1.0, (0., 0., 0.)), ("untied a, e, w", -1.0, (0., 0., 0.))];
@@ -193,7 +250,7 @@ fn main() {
             };
             let out: String = arg(&args, "--out", format!("runs/seed{}", cfg.seed));
             fs::create_dir_all(&out).unwrap();
-            let task = Task::new(TaskCfg::search_default(TRAIN_TASK_SEED));
+            let task = Task::new(train_cfg());
             let mut regs = Regs::new(task.cfg.d);
             let milestones: Vec<(String, f32)> = baselines()
                 .into_iter()
@@ -204,8 +261,10 @@ fn main() {
             let res = evolve::search(&cfg, &task, milestones, &mut log);
             fs::write(format!("{out}/best.json"), res.best.prog.effective().to_json()).unwrap();
             let mut summary = format!(
-                "# Search seed {}\n\nadd-node mutation: {}  candidates: {}  real evaluations (after cache): {}  time: {:.0}s  pop: {}  tournament: {}\n\n",
+                "# Search seed {}\n\ntask: {}  alphabet: {}  add-node mutation: {}  candidates: {}  real evaluations (after cache): {}  time: {:.0}s  pop: {}  tournament: {}\n\n",
                 cfg.seed,
+                task_name(),
+                alphabet,
                 if program::SPLIT_EDGE.load(std::sync::atomic::Ordering::Relaxed) { "on" } else { "off" },
                 res.evals, res.real_evals, res.seconds, cfg.pop, cfg.tournament
             );
@@ -226,7 +285,7 @@ fn main() {
             std::io::stdout().flush().ok();
         }
         _ => {
-            eprintln!("usage: autoplast baselines | search [--seed N --budget N --pop N --threads N --batch N --no-split-edge --out DIR] | sweep | eval --prog FILE");
+            eprintln!("usage: autoplast baselines | search [--task v3 --no-op A,B --extra-ops --seed N --budget N --pop N --threads N --batch N --no-split-edge --out DIR] | sweep | eval --prog FILE");
         }
     }
 }

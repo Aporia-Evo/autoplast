@@ -18,6 +18,11 @@ pub struct TaskCfg {
     pub p_overwrite: f32,
     pub n_episodes: usize,
     pub seed: u64,
+    /// Extra long episodes appended after the `n_episodes` standard ones (0 = none, v2 task).
+    pub long_episodes: usize,
+    pub long_t: usize,
+    /// Cap on distinct keys per long episode; once reached, every further write overwrites.
+    pub long_max_keys: usize,
 }
 
 impl TaskCfg {
@@ -30,6 +35,9 @@ impl TaskCfg {
             p_overwrite: 0.3,
             n_episodes: 96,
             seed,
+            long_episodes: 0,
+            long_t: 0,
+            long_max_keys: 0,
         }
     }
 }
@@ -66,12 +74,17 @@ impl Task {
         let mut rng = Rng::new(cfg.seed);
         let keys = unit_vectors(&mut rng, cfg.n_keys, cfg.d);
         let vals = unit_vectors(&mut rng, cfg.n_vals, cfg.d);
-        let mut episodes = Vec::with_capacity(cfg.n_episodes);
-        for _ in 0..cfg.n_episodes {
-            let mut writes = Vec::with_capacity(cfg.t_writes);
+        let mut episodes = Vec::with_capacity(cfg.n_episodes + cfg.long_episodes);
+        // Standard episodes first, then long ones from the same RNG stream, so a config with
+        // long_episodes = 0 produces exactly the v2 task.
+        let plan = (0..cfg.n_episodes)
+            .map(|_| (cfg.t_writes, usize::MAX))
+            .chain((0..cfg.long_episodes).map(|_| (cfg.long_t, cfg.long_max_keys)));
+        for (t_writes, max_keys) in plan {
+            let mut writes = Vec::with_capacity(t_writes);
             let mut used: Vec<usize> = Vec::new();
-            for t in 0..cfg.t_writes {
-                let key = if t > 0 && rng.uniform() < cfg.p_overwrite {
+            for t in 0..t_writes {
+                let key = if t > 0 && (rng.uniform() < cfg.p_overwrite || used.len() >= max_keys) {
                     used[rng.below(used.len())]
                 } else {
                     loop {

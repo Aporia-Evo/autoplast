@@ -70,6 +70,27 @@ def build_step(instrs):
                 s[o] = jax.nn.sigmoid(s[a])
             elif op == "Norm":
                 s[o] = jnp.linalg.norm(vec[a])
+            # optional extras (--extra-ops in the Rust search)
+            elif op == "VecAbs":
+                vec[o] = jnp.abs(vec[a])
+            elif op == "VecRelu":
+                vec[o] = jnp.maximum(vec[a], 0.0)
+            elif op == "VecMax":
+                vec[o] = jnp.maximum(vec[a], vec[b])
+            elif op == "VecSigmoid":
+                vec[o] = jax.nn.sigmoid(vec[a])
+            elif op == "MatHadamard":
+                m[o] = m[a] * m[b]
+            elif op == "MatTanh":
+                m[o] = jnp.tanh(m[a])
+            elif op == "RowSum":
+                vec[o] = m[a].sum(axis=1)
+            elif op == "VecSum":
+                s[o] = vec[a].sum()
+            elif op == "SSub":
+                s[o] = s[a] - s[b]
+            elif op == "SAbs":
+                s[o] = jnp.abs(s[a])
             else:
                 raise ValueError(op)
         return m[0]
@@ -77,7 +98,7 @@ def build_step(instrs):
     return step
 
 
-def make_task(rng, d, n_keys, n_vals, T, p_ow, n_ep):
+def make_task(rng, d, n_keys, n_vals, T, p_ow, n_ep, max_keys=None):
     def unit(n):
         x = rng.standard_normal((n, d)).astype(np.float32)
         return x / np.linalg.norm(x, axis=1, keepdims=True)
@@ -89,7 +110,7 @@ def make_task(rng, d, n_keys, n_vals, T, p_ow, n_ep):
     for e in range(n_ep):
         used, latest = [], {}
         for t in range(T):
-            if t > 0 and rng.random() < p_ow:
+            if t > 0 and (rng.random() < p_ow or (max_keys is not None and len(used) >= max_keys)):
                 kid = used[rng.integers(len(used))]
             else:
                 kid = rng.choice([x for x in range(n_keys) if x not in used])
@@ -108,18 +129,23 @@ def accuracy(step, task):
     d = keys.shape[1]
 
     def episode(w, q, qm):
-        def body(S, kv):
-            return step(S, keys[kv[0]], vals[kv[1]]), None
+        def body(carry, kv):
+            S, mx = carry
+            S = step(S, keys[kv[0]], vals[kv[1]])
+            bad = jnp.where(jnp.all(jnp.isfinite(S)), jnp.max(jnp.abs(S)), jnp.inf)
+            return (S, jnp.maximum(mx, bad)), None
 
-        S, _ = jax.lax.scan(body, jnp.zeros((d, d)), w)
+        (S, mx), _ = jax.lax.scan(body, (jnp.zeros((d, d)), jnp.float32(0.0)), w)
         o = (S @ keys[q[:, 0]].T).T  # (T, d)
         scores = o @ vals.T
         pred = jnp.argmax(scores, axis=1)
         ok = (pred == q[:, 1]) & (jnp.linalg.norm(o, axis=1) > 1e-6)
-        return jnp.sum(ok & qm), jnp.sum(qm)
+        return jnp.sum(ok & qm), jnp.sum(qm), mx
 
-    c, n = jax.jit(jax.vmap(episode))(W, Q, Qmask)
-    return float(c.sum() / n.sum())
+    c, n, mx = jax.jit(jax.vmap(episode))(W, Q, Qmask)
+    # diverged: some episode exceeds the Rust guard (|S| > 1e4 or non-finite), where Rust
+    # scores the whole suite 0. Accuracy here is computed without that guard.
+    return float(c.sum() / n.sum()), bool(jnp.any(mx > 1e4))
 
 
 def decompose(step, d=16, n=4000, seed=0):
@@ -146,6 +172,8 @@ SUITES = [
     ("test d16 T12 ow0.0", dict(d=16, n_keys=64, n_vals=64, T=12, p_ow=0.0, n_ep=512)),
     ("test d16 T12 ow0.6", dict(d=16, n_keys=64, n_vals=64, T=12, p_ow=0.6, n_ep=512)),
     ("test d32 T24 ow0.3", dict(d=32, n_keys=128, n_vals=128, T=24, p_ow=0.3, n_ep=256)),
+    ("test d16 T64 K8 ow0.3", dict(d=16, n_keys=64, n_vals=64, T=64, p_ow=0.3, n_ep=256, max_keys=8)),
+    ("test d16 T128 K8 ow0.3", dict(d=16, n_keys=64, n_vals=64, T=128, p_ow=0.3, n_ep=128, max_keys=8)),
 ]
 
 REFERENCES = {
@@ -170,8 +198,8 @@ def report(name, instrs, rng_seed=12345):
     accs = {sname: accuracy(step, make_task(rng, **cfg)) for sname, cfg in SUITES}
     coef, r2 = decompose(step)
     print(f"\n## {name}")
-    for sname, a in accs.items():
-        print(f"  {sname}: acc {a:.3f}")
+    for sname, (a, div) in accs.items():
+        print(f"  {sname}: acc {a:.3f}" + ("  [diverged: Rust guard would score 0]" if div else ""))
     print(f"  S' ≈ {coef[0]:+.3f}·S {coef[1]:+.3f}·(v kᵀ) {coef[2]:+.3f}·((S k) kᵀ)   R² = {r2:.4f}")
 
 

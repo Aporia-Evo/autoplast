@@ -7,6 +7,8 @@ Local counterpart of modal_runner.py (CPU work runs locally, see CLAUDE.md "Comp
 Results land in runs/<tag>/seed<N>/; runs/<tag>/aggregate.md has the same layout as the
 Modal runner's, plus the wall time per seed. Seeds whose summary.md already exists are
 skipped, so an interrupted run can be resumed with the same command.
+If runs/<tag>/PAUSE exists, the runner exits at once without starting any seed (used to hold
+a queued run until it is released by deleting the file).
 """
 
 import argparse
@@ -17,6 +19,8 @@ import subprocess
 import time
 
 ROOT = pathlib.Path(__file__).parent
+TASK = "v2"
+EXTRA_ARGS = []
 EXE = ROOT / "target" / "release" / ("autoplast.exe" if (ROOT / "target/release/autoplast.exe").exists() else "autoplast")
 
 
@@ -30,6 +34,9 @@ def run_seed(seed, budget, tag, threads, no_split_edge):
            "--log-every", "50000", "--out", str(out)]
     if no_split_edge:
         cmd.append("--no-split-edge")
+    if TASK != "v2":
+        cmd += ["--task", TASK]
+    cmd += EXTRA_ARGS
     t0 = time.time()
     with open(out / "stdout.txt", "w") as so, open(out / "stderr.txt", "w") as se:
         rc = subprocess.run(cmd, stdout=so, stderr=se).returncode
@@ -62,7 +69,7 @@ def aggregate(lo, hi, budget, tag, no_split_edge):
         rows.append((seed, hits, formula, wall))
     if not rows:
         return ""
-    lines = [f"# {tag}: {len(rows)} seeds, budget {budget}, add-node {'off' if no_split_edge else 'on'}, local", ""]
+    lines = [f"# {tag}: {len(rows)} seeds, budget {budget}, task {TASK}{' ' + ' '.join(EXTRA_ARGS) if EXTRA_ARGS else ''}, add-node {'off' if no_split_edge else 'on'}, local", ""]
     lines.append("| seed | " + " | ".join(names) + " | wall s | best rule |")
     lines.append("|---|" + "---|" * (len(names) + 2))
     for seed, hits, formula, wall in rows:
@@ -88,8 +95,17 @@ def main():
     ap.add_argument("--parallel", type=int, default=2)
     ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--no-split-edge", action="store_true")
+    ap.add_argument("--task", default="v2")
+    ap.add_argument("--no-op", default="")
+    ap.add_argument("--extra-ops", action="store_true")
     a = ap.parse_args()
+    global TASK, EXTRA_ARGS
+    TASK = a.task
+    EXTRA_ARGS = (["--no-op", a.no_op] if a.no_op else []) + (["--extra-ops"] if a.extra_ops else [])
     lo, hi = (int(x) for x in a.seeds.split("-"))
+    if (ROOT / "runs" / a.tag / "PAUSE").exists():
+        print(f"runs/{a.tag}/PAUSE exists: not starting. Delete it to run.", flush=True)
+        return
     t0 = time.time()
     print(f"{hi - lo + 1} seeds, {a.parallel} at a time x {a.threads} threads, budget {a.budget}", flush=True)
     with cf.ThreadPoolExecutor(a.parallel) as ex:

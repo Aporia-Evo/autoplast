@@ -11,6 +11,7 @@
 
 use crate::rng::Rng;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 
 /// Ablation switch for the NEAT-style add-node mutation (on by default).
 pub static SPLIT_EDGE: AtomicBool = AtomicBool::new(true);
@@ -51,6 +52,17 @@ pub enum Op {
     SMul,
     Sigmoid,
     Norm, // s = |Va|
+    // optional generic extras (`--extra-ops`, alphabet-sensitivity test 3a); off by default
+    VecAbs,      // V = |Va| elementwise
+    VecRelu,     // V = max(Va, 0)
+    VecMax,      // V = max(Va, Vb) elementwise
+    VecSigmoid,  // V = σ(Va) elementwise
+    MatHadamard, // M = Ma ⊙ Mb
+    MatTanh,     // M = tanh(Ma) elementwise
+    RowSum,      // V = Ma · 1
+    VecSum,      // s = Σ Va
+    SSub,        // s = sa - sb
+    SAbs,        // s = |sa|
 }
 
 pub const ALL_OPS: [Op; 19] = [
@@ -75,6 +87,35 @@ pub const ALL_OPS: [Op; 19] = [
     Op::Norm,
 ];
 
+pub const EXTRA_OPS: [Op; 10] = [
+    Op::VecAbs,
+    Op::VecRelu,
+    Op::VecMax,
+    Op::VecSigmoid,
+    Op::MatHadamard,
+    Op::MatTanh,
+    Op::RowSum,
+    Op::VecSum,
+    Op::SSub,
+    Op::SAbs,
+];
+
+static ACTIVE_OPS: OnceLock<Vec<Op>> = OnceLock::new();
+
+/// Set the op alphabet once at startup: ALL_OPS minus `exclude`, plus EXTRA_OPS if `extra`.
+/// Without a call the alphabet is ALL_OPS in its original order (v2/v3 behaviour).
+pub fn set_alphabet(exclude: &[Op], extra: bool) {
+    let mut ops: Vec<Op> = ALL_OPS.iter().copied().filter(|o| !exclude.contains(o)).collect();
+    if extra {
+        ops.extend(EXTRA_OPS.iter().copied().filter(|o| !exclude.contains(o)));
+    }
+    ACTIVE_OPS.set(ops).expect("alphabet set twice");
+}
+
+pub fn active_ops() -> &'static [Op] {
+    ACTIVE_OPS.get().map(|v| v.as_slice()).unwrap_or(&ALL_OPS)
+}
+
 impl Op {
     /// (output type, input types)
     pub fn sig(self) -> (Ty, &'static [Ty]) {
@@ -93,6 +134,14 @@ impl Op {
             Op::SAdd | Op::SMul => (S, &[S, S]),
             Op::Sigmoid => (S, &[S]),
             Op::Norm => (S, &[V]),
+            Op::VecAbs | Op::VecRelu | Op::VecSigmoid => (V, &[V]),
+            Op::VecMax => (V, &[V, V]),
+            Op::MatHadamard => (M, &[M, M]),
+            Op::MatTanh => (M, &[M]),
+            Op::RowSum => (V, &[M]),
+            Op::VecSum => (S, &[V]),
+            Op::SSub => (S, &[S, S]),
+            Op::SAbs => (S, &[S]),
         }
     }
 
@@ -117,11 +166,21 @@ impl Op {
             Op::SMul => "SMul",
             Op::Sigmoid => "Sigmoid",
             Op::Norm => "Norm",
+            Op::VecAbs => "VecAbs",
+            Op::VecRelu => "VecRelu",
+            Op::VecMax => "VecMax",
+            Op::VecSigmoid => "VecSigmoid",
+            Op::MatHadamard => "MatHadamard",
+            Op::MatTanh => "MatTanh",
+            Op::RowSum => "RowSum",
+            Op::VecSum => "VecSum",
+            Op::SSub => "SSub",
+            Op::SAbs => "SAbs",
         }
     }
 
     pub fn from_name(s: &str) -> Option<Op> {
-        ALL_OPS.iter().copied().find(|o| o.name() == s)
+        ALL_OPS.iter().chain(EXTRA_OPS.iter()).copied().find(|o| o.name() == s)
     }
 }
 
@@ -152,7 +211,8 @@ pub struct Instr {
 
 impl Instr {
     pub fn random(rng: &mut Rng) -> Instr {
-        let op = ALL_OPS[rng.below(ALL_OPS.len())];
+        let ops = active_ops();
+        let op = ops[rng.below(ops.len())];
         let (ot, ins) = op.sig();
         let pick = |rng: &mut Rng, t: Ty| rng.below(n_regs(t)) as u8;
         Instr {
@@ -255,7 +315,7 @@ impl Program {
         let slot = rng.below(ins_types.len());
         let ty = ins_types[slot];
         let r = if slot == 0 { self.instrs[i].a } else { self.instrs[i].b };
-        let candidates: Vec<Op> = ALL_OPS
+        let candidates: Vec<Op> = active_ops()
             .iter()
             .copied()
             .filter(|o| o.sig().0 == ty && o.sig().1.contains(&ty))
@@ -378,6 +438,16 @@ impl Program {
                 Op::SMul => format!("{}·{}", s[a], s[b]),
                 Op::Sigmoid => format!("σ({})", s[a]),
                 Op::Norm => format!("|{}|", v[a]),
+                Op::VecAbs => format!("abs({})", v[a]),
+                Op::VecRelu => format!("relu({})", v[a]),
+                Op::VecMax => format!("max({}, {})", v[a], v[b]),
+                Op::VecSigmoid => format!("σ⃗({})", v[a]),
+                Op::MatHadamard => format!("({} ⊙ {})", m[a], m[b]),
+                Op::MatTanh => format!("tanh({})", m[a]),
+                Op::RowSum => format!("rowsum({})", m[a]),
+                Op::VecSum => format!("sum({})", v[a]),
+                Op::SSub => format!("({} - {})", s[a], s[b]),
+                Op::SAbs => format!("abs({})", s[a]),
             };
             let e = if e.len() > 400 { "…".to_string() } else { e };
             let o = ins.out as usize;
@@ -567,6 +637,44 @@ impl Regs {
                 Op::SMul => self.s[o] = self.s[a] * self.s[b],
                 Op::Sigmoid => self.s[o] = 1.0 / (1.0 + (-self.s[a]).exp()),
                 Op::Norm => self.s[o] = self.v[a].iter().map(|x| x * x).sum::<f32>().sqrt(),
+                Op::VecAbs | Op::VecRelu | Op::VecSigmoid => {
+                    for i in 0..d {
+                        let x = self.v[a][i];
+                        self.tv[i] = match ins.op {
+                            Op::VecAbs => x.abs(),
+                            Op::VecRelu => x.max(0.0),
+                            _ => 1.0 / (1.0 + (-x).exp()),
+                        };
+                    }
+                    self.v[o].copy_from_slice(&self.tv);
+                }
+                Op::VecMax => {
+                    for i in 0..d {
+                        self.tv[i] = self.v[a][i].max(self.v[b][i]);
+                    }
+                    self.v[o].copy_from_slice(&self.tv);
+                }
+                Op::MatHadamard => {
+                    for i in 0..d * d {
+                        self.tm[i] = self.m[a][i] * self.m[b][i];
+                    }
+                    self.m[o].copy_from_slice(&self.tm);
+                }
+                Op::MatTanh => {
+                    for i in 0..d * d {
+                        self.tm[i] = self.m[a][i].tanh();
+                    }
+                    self.m[o].copy_from_slice(&self.tm);
+                }
+                Op::RowSum => {
+                    for i in 0..d {
+                        self.tv[i] = (0..d).map(|j| self.m[a][i * d + j]).sum();
+                    }
+                    self.v[o].copy_from_slice(&self.tv);
+                }
+                Op::VecSum => self.s[o] = self.v[a].iter().sum(),
+                Op::SSub => self.s[o] = self.s[a] - self.s[b],
+                Op::SAbs => self.s[o] = self.s[a].abs(),
             }
         }
     }
