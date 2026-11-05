@@ -1,0 +1,21 @@
+
+## reference: linear attention
+  test d16 T12 ow0.3: acc 0.741
+  test d16 T12 ow0.0: acc 0.907
+  test d16 T12 ow0.6: acc 0.568
+  test d32 T24 ow0.3: acc 0.829
+  S' ≈ +1.000·S +1.000·(v kᵀ) -0.000·((S k) kᵀ)   R² = 1.0000
+
+## reference: delta rule (beta=0.5)
+  test d16 T12 ow0.3: acc 0.920
+  test d16 T12 ow0.0: acc 0.900
+  test d16 T12 ow0.6: acc 0.953
+  test d32 T24 ow0.3: acc 0.985
+  S' ≈ +1.000·S +0.500·(v kᵀ) -0.500·((S k) kᵀ)   R² = 1.0000
+
+## runs/v2-noaddnode/seed1/best.json
+  test d16 T12 ow0.3: acc 0.775
+  test d16 T12 ow0.0: acc 0.869
+  test d16 T12 ow0.6: acc 0.654
+  test d32 T24 ow0.3: acc 0.886
+  S' ≈ +0.949·S +0.908·(v kᵀ) +0.000·((S k) kᵀ)   R² = 0.9997

@@ -1,0 +1,4 @@
+16 seeds, 2 at a time x 8 threads, budget 1500000
+seed 2: exit 0, 2695 s (elapsed 2695 s)
+seed 3: exit 4294967295, 3248 s (elapsed 5944 s)
+seed 1: exit 4294967295, 5944 s (elapsed 5944 s)

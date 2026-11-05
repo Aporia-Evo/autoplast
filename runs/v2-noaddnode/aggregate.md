@@ -1,0 +1,25 @@
+# v2-noaddnode: 16 seeds, budget 1500000, add-node off, local
+
+| seed | linear attention | delta rule (beta=1) | delta rule (beta=0.5) | gated delta (alpha=0.9) | wall s | best rule |
+|---|---|---|---|---|---|---|
+| 1 | 18,420 | no | no | 18,420 | 386 | `S' = ((tanh(tanh(v)))⊗(k) - <v, tanh(v)>·(0 - S))` |
+| 2 | 27,380 | 626,548 | 627,572 | 27,380 | 922 | `S' = (-1.088·σ(|(k ⊙ k)|)·((1.096·S + (tanh(v))⊗(k)))((k)⊗(k)) + (1.096·S + (tanh(v))⊗(k)))` |
+| 3 | 18,932 | no | no | 18,932 | 163 | `S' = ((v)⊗(k) - -0.958·S)` |
+| 4 | 21,620 | 74,484 | 78,324 | 21,620 | 346 | `S' = (1.111·S + σ(<S·k, S·k>)·((v - S·k))⊗(k))` |
+| 5 | 32,756 | 337,396 | 337,524 | 32,756 | 447 | `S' = (-1.122·(0 - S) + ((v - S·tanh(k)))⊗(tanh(tanh(tanh(tanh(k))))))` |
+| 6 | 13,044 | 109,428 | 109,940 | 13,044 | 1604 | `S' = 1.101·((S + (v)⊗(k)) - σ(σ(3.659))·(((S + (v)⊗(k)))(((v)⊗(k))ᵀ))((v)⊗(k)))` |
+| 7 | 49,524 | 500,340 | 500,340 | 49,524 | 276 | `S' = (1.141·S + ((tanh(v) - S·k))⊗(tanh(k)))` |
+| 8 | 9,588 | no | no | 9,588 | 246 | `S' = ((tanh(tanh(v)))⊗(k) + <tanh(v), v>·S)` |
+| 9 | 14,964 | no | no | 14,964 | 177 | `S' = 0.958·((v)⊗(k) + S)` |
+| 10 | 29,044 | no | no | 29,044 | 162 | `S' = 0.958·((v)⊗(k) + S)` |
+| 11 | 25,716 | 1,294,452 | 1,461,620 | 25,716 | 262 | `S' = |(v - tanh(S·k))|·(S + (|0.268·(v - tanh(S·k))| + 0.268)·((v - tanh(S·k)))⊗(k))` |
+| 12 | 17,908 | no | no | 17,908 | 232 | `S' = ((v)⊗(k) + σ(-0.085)·(S + S))` |
+| 13 | 8,564 | 491,380 | 494,068 | 8,564 | 485 | `S' = 1.100·(((tanh(v))⊗(k) + 0.680·((S - (tanh(v))⊗(k))·tanh((0 - k)))⊗(k)) + (S - (tanh(v))⊗(k)))` |
+| 14 | 10,100 | no | no | 10,100 | 301 | `S' = (((v)⊗(k) + (v)⊗(tanh(k))) + <k, tanh(k)>·S)` |
+| 15 | 8,052 | 806,772 | 980,852 | 8,052 | 264 | `S' = ((0.824·(v - S·k))⊗(tanh(tanh(k))) + 1.098·S)` |
+| 16 | 21,876 | no | no | 21,876 | 223 | `S' = |tanh(v)|·((tanh(norm(tanh(v))))⊗(k) + S)` |
+
+- linear attention: reached by 16/16 seeds, median 18,932 candidates
+- delta rule (beta=1): reached by 8/16 seeds, median 500,340 candidates
+- delta rule (beta=0.5): reached by 8/16 seeds, median 500,340 candidates
+- gated delta (alpha=0.9): reached by 16/16 seeds, median 18,932 candidates

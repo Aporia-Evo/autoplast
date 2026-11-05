@@ -54,12 +54,21 @@ explicit approval first.
    add-node mutation actually matter? (It looked decisive, but that was 1 vs 2 seeds.)
 3. Task fixes before stage 2: long episodes (T = 64 and more) so growth factors > 1 are
    punished; resample or enlarge train episodes; keep the held-out suites.
+3a. Alphabet sensitivity (after the v3 run, added 3 Nov 2026): how much does the op set favour
+   the delta family? Same v3 task and seeds, once without MatVec and once with a randomly
+   extended op list. If delta still appears (on a longer path), it comes from the task; if it
+   disappears, from the alphabet. A reviewer will ask this about any rediscovery claim.
 4. Gate analysis: the 3-term least-squares decomposition in verify.py saturates on random
    S and cannot see state-dependent gates (seed 1 of v2). Add an analysis on realistic
    memory states taken from actual episodes.
 5. Stage 2 regimes where tuned Gated DeltaNet is weak: high key collision (clustered keys,
    cos > 0.8), capacity overload (writes > d), noisy keys at query time, long gaps.
    First measure the tuned baselines there, then search.
+5a. Extended alphabet at the start of stage 2 (added 3 Nov 2026): let the readout evolve as a
+   second program (input q), then add generic elementwise and reduction ops on matrices (abs,
+   max, square, exp, thresholds, row/column sums, top-k mask), possibly a bounded repeat block.
+   Compare old vs new alphabet on the same stage-2 regime and seeds. Document every op in
+   README before results; no op may encode a known rule.
 6. Literature check of the occupancy-gated write found by v2 seed 1:
    `S' = S + σ(‖S k̃‖⁴)·v kᵀ`.
 
