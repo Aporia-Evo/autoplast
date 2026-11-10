@@ -1,0 +1,27 @@
+
+## reference: linear attention
+  test d16 T12 ow0.3: acc 0.741
+  test d16 T12 ow0.0: acc 0.907
+  test d16 T12 ow0.6: acc 0.568
+  test d32 T24 ow0.3: acc 0.829
+  test d16 T64 K8 ow0.3: acc 0.102
+  test d16 T128 K8 ow0.3: acc 0.069
+  S' ≈ +1.000·S +1.000·(v kᵀ) -0.000·((S k) kᵀ)   R² = 1.0000
+
+## reference: delta rule (beta=0.5)
+  test d16 T12 ow0.3: acc 0.920
+  test d16 T12 ow0.0: acc 0.900
+  test d16 T12 ow0.6: acc 0.953
+  test d32 T24 ow0.3: acc 0.985
+  test d16 T64 K8 ow0.3: acc 0.852
+  test d16 T128 K8 ow0.3: acc 0.826
+  S' ≈ +1.000·S +0.500·(v kᵀ) -0.500·((S k) kᵀ)   R² = 1.0000
+
+## runs/v3-extraops/seed16/best.json
+  test d16 T12 ow0.3: acc 0.924
+  test d16 T12 ow0.0: acc 0.909
+  test d16 T12 ow0.6: acc 0.952
+  test d32 T24 ow0.3: acc 0.990
+  test d16 T64 K8 ow0.3: acc 0.852
+  test d16 T128 K8 ow0.3: acc 0.840
+  S' ≈ +1.000·S +3.001·(v kᵀ) -0.197·((S k) kᵀ)   R² = 0.9993

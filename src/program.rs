@@ -11,14 +11,12 @@
 
 use crate::rng::Rng;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::OnceLock;
 
-/// Ablation switch for the NEAT-style add-node mutation (on by default).
-pub static SPLIT_EDGE: AtomicBool = AtomicBool::new(true);
-/// Scalar reciprocal in the op set (on by default; off reproduces the 19-op runs v1/v2).
-pub static USE_RECIP: AtomicBool = AtomicBool::new(true);
-/// State budget. Matrix registers M0..M{PERSIST_M-1} keep their content from one write step
-/// to the next (M0 always does: it is the memory). Vector registers V2..V{1+PERSIST_V} do the
-/// same. Everything else is zeroed before every step. Defaults (1, 0) are the v1/v2 setting.
+/// State budget (`--persist-m`, `--persist-v`). Matrix registers M0..M{PERSIST_M-1} keep their
+/// content from one write step to the next (M0 always does: it is the memory). Vector
+/// registers V2..V{1+PERSIST_V} do the same. Everything else is zeroed before every step.
+/// Defaults (1, 0): a rule is a function of (S, k, v) only, as in every run before 10 Nov 2026.
 pub static PERSIST_M: AtomicUsize = AtomicUsize::new(1);
 pub static PERSIST_V: AtomicUsize = AtomicUsize::new(0);
 
@@ -28,6 +26,12 @@ pub fn persist_m(i: usize) -> bool {
 pub fn persist_v(i: usize) -> bool {
     i >= 2 && i < 2 + PERSIST_V.load(Ordering::Relaxed).min(NV - 2)
 }
+fn any_persist() -> bool {
+    PERSIST_M.load(Ordering::Relaxed) > 1 || PERSIST_V.load(Ordering::Relaxed) > 0
+}
+
+/// Ablation switch for the NEAT-style add-node mutation (on by default).
+pub static SPLIT_EDGE: AtomicBool = AtomicBool::new(true);
 
 pub const NM: usize = 4;
 pub const NV: usize = 6;
@@ -65,10 +69,22 @@ pub enum Op {
     SMul,
     Sigmoid,
     Norm, // s = |Va|
+    // optional generic extras (`--extra-ops`, alphabet-sensitivity test 3a); off by default
+    VecAbs,      // V = |Va| elementwise
+    VecRelu,     // V = max(Va, 0)
+    VecMax,      // V = max(Va, Vb) elementwise
+    VecSigmoid,  // V = σ(Va) elementwise
+    MatHadamard, // M = Ma ⊙ Mb
+    MatTanh,     // M = tanh(Ma) elementwise
+    RowSum,      // V = Ma · 1
+    VecSum,      // s = Σ Va
+    SSub,        // s = sa - sb
+    SAbs,        // s = |sa|
+    // optional scalar reciprocal (`--recip`); off by default
     Recip, // s = sa / (sa² + 1e-6): 1/sa away from zero, 0 at zero
 }
 
-pub const ALL_OPS: [Op; 20] = [
+pub const ALL_OPS: [Op; 19] = [
     Op::Outer,
     Op::MatAdd,
     Op::MatSub,
@@ -88,17 +104,40 @@ pub const ALL_OPS: [Op; 20] = [
     Op::SMul,
     Op::Sigmoid,
     Op::Norm,
-    Op::Recip,
 ];
 
-/// Ops the search may draw from. Recip is last, so switching it off leaves the first 19
-/// untouched and old seeds reproduce exactly.
-pub fn active_ops() -> &'static [Op] {
-    if USE_RECIP.load(Ordering::Relaxed) {
-        &ALL_OPS
-    } else {
-        &ALL_OPS[..19]
+pub const EXTRA_OPS: [Op; 10] = [
+    Op::VecAbs,
+    Op::VecRelu,
+    Op::VecMax,
+    Op::VecSigmoid,
+    Op::MatHadamard,
+    Op::MatTanh,
+    Op::RowSum,
+    Op::VecSum,
+    Op::SSub,
+    Op::SAbs,
+];
+
+static ACTIVE_OPS: OnceLock<Vec<Op>> = OnceLock::new();
+
+/// Set the op alphabet once at startup: ALL_OPS minus `exclude`, plus Recip if `recip`, plus
+/// EXTRA_OPS if `extra`. Without a call the alphabet is ALL_OPS in its original order
+/// (v2/v3 behaviour). Recip directly follows the 19 base ops, which is the order the
+/// `base-recip` runs (package B, commit 045ea3a) were made with.
+pub fn set_alphabet(exclude: &[Op], extra: bool, recip: bool) {
+    let mut ops: Vec<Op> = ALL_OPS.iter().copied().filter(|o| !exclude.contains(o)).collect();
+    if recip {
+        ops.push(Op::Recip);
     }
+    if extra {
+        ops.extend(EXTRA_OPS.iter().copied().filter(|o| !exclude.contains(o)));
+    }
+    ACTIVE_OPS.set(ops).expect("alphabet set twice");
+}
+
+pub fn active_ops() -> &'static [Op] {
+    ACTIVE_OPS.get().map(|v| v.as_slice()).unwrap_or(&ALL_OPS)
 }
 
 impl Op {
@@ -117,8 +156,16 @@ impl Op {
             Op::Dot => (S, &[V, V]),
             Op::Const => (S, &[]),
             Op::SAdd | Op::SMul => (S, &[S, S]),
-            Op::Sigmoid | Op::Recip => (S, &[S]),
+            Op::Sigmoid => (S, &[S]),
             Op::Norm => (S, &[V]),
+            Op::VecAbs | Op::VecRelu | Op::VecSigmoid => (V, &[V]),
+            Op::VecMax => (V, &[V, V]),
+            Op::MatHadamard => (M, &[M, M]),
+            Op::MatTanh => (M, &[M]),
+            Op::RowSum => (V, &[M]),
+            Op::VecSum => (S, &[V]),
+            Op::SSub => (S, &[S, S]),
+            Op::SAbs | Op::Recip => (S, &[S]),
         }
     }
 
@@ -143,12 +190,22 @@ impl Op {
             Op::SMul => "SMul",
             Op::Sigmoid => "Sigmoid",
             Op::Norm => "Norm",
+            Op::VecAbs => "VecAbs",
+            Op::VecRelu => "VecRelu",
+            Op::VecMax => "VecMax",
+            Op::VecSigmoid => "VecSigmoid",
+            Op::MatHadamard => "MatHadamard",
+            Op::MatTanh => "MatTanh",
+            Op::RowSum => "RowSum",
+            Op::VecSum => "VecSum",
+            Op::SSub => "SSub",
+            Op::SAbs => "SAbs",
             Op::Recip => "Recip",
         }
     }
 
     pub fn from_name(s: &str) -> Option<Op> {
-        ALL_OPS.iter().copied().find(|o| o.name() == s)
+        ALL_OPS.iter().chain(EXTRA_OPS.iter()).chain([Op::Recip].iter()).copied().find(|o| o.name() == s)
     }
 }
 
@@ -218,53 +275,79 @@ impl Instr {
 #[derive(Clone, Debug, Default)]
 pub struct Program {
     pub instrs: Vec<Instr>,
+    /// Evolved readout (queue item 5a): None = the fixed readout o = S q used by every rule so
+    /// far. Some(prog) = a second program run per query with M0 = S, V0 = q, V1 = S q (rest
+    /// zero) whose V1 on exit is the readout o; the empty read program is the fixed readout.
+    /// Only set when the search runs with --evolve-readout.
+    pub read: Option<Vec<Instr>>,
 }
 
-impl Program {
-    /// Keep only instructions that can influence the memory M0, now or in a later step.
-    /// Backward liveness; a persistent register is live at exit if the next step reads it,
-    /// which is found by iterating to a fixpoint.
-    pub fn effective(&self) -> Program {
-        let mut out_m = [false; NM];
-        let mut out_v = [false; NV];
-        out_m[0] = true;
-        loop {
-            let (keep, in_m, in_v) = self.liveness(&out_m, &out_v);
-            let mut changed = false;
-            for i in 0..NM {
-                if persist_m(i) && in_m[i] && !out_m[i] {
-                    out_m[i] = true;
-                    changed = true;
-                }
-            }
-            for i in 0..NV {
-                if persist_v(i) && in_v[i] && !out_v[i] {
-                    out_v[i] = true;
-                    changed = true;
-                }
-            }
-            if !changed {
-                return Program {
-                    instrs: self
-                        .instrs
-                        .iter()
-                        .zip(keep)
-                        .filter(|(_, k)| *k)
-                        .map(|(i, _)| i.clone())
-                        .collect(),
-                };
+/// Switch for the evolved readout (off by default; RNG sequence unchanged when off).
+pub static READ_EVOLVE: AtomicBool = AtomicBool::new(false);
+
+/// Starting individual: the empty write program, and with --evolve-readout an empty read
+/// program, which is the fixed readout o = S q (V1 starts as S q).
+pub fn initial_program() -> Program {
+    if READ_EVOLVE.load(Ordering::Relaxed) {
+        Program { instrs: Vec::new(), read: Some(Vec::new()) }
+    } else {
+        Program::default()
+    }
+}
+
+/// Backward liveness from one output register.
+fn live(instrs: &[Instr], out_ty: Ty, out_idx: usize) -> Vec<Instr> {
+    let mut live_m = [false; NM];
+    let mut live_v = [false; NV];
+    let mut live_s = [false; NS];
+    match out_ty {
+        Ty::M => live_m[out_idx] = true,
+        Ty::V => live_v[out_idx] = true,
+        Ty::S => live_s[out_idx] = true,
+    }
+    let mut keep = vec![false; instrs.len()];
+    for (idx, ins) in instrs.iter().enumerate().rev() {
+        let (ot, o) = ins.output();
+        let o = o as usize;
+        let is_live = match ot {
+            Ty::M => live_m[o],
+            Ty::V => live_v[o],
+            Ty::S => live_s[o],
+        };
+        if !is_live {
+            continue;
+        }
+        keep[idx] = true;
+        match ot {
+            Ty::M => live_m[o] = false,
+            Ty::V => live_v[o] = false,
+            Ty::S => live_s[o] = false,
+        }
+        for (ty, i) in ins.inputs() {
+            let i = i as usize;
+            match ty {
+                Ty::M => live_m[i] = true,
+                Ty::V => live_v[i] = true,
+                Ty::S => live_s[i] = true,
             }
         }
     }
+    instrs.iter().zip(keep).filter(|(_, k)| *k).map(|(i, _)| i.clone()).collect()
+}
 
-    /// One backward pass: which instructions are needed for the given live-out registers,
-    /// and which registers are read from the previous step (live at entry).
-    fn liveness(&self, out_m: &[bool; NM], out_v: &[bool; NV]) -> (Vec<bool>, [bool; NM], [bool; NV]) {
-        let mut live_m = *out_m;
-        let mut live_v = *out_v;
+/// Liveness of a write program with persistent registers: a persistent register is live at
+/// exit if the next step reads it, found by iterating to a fixpoint. Only used when the state
+/// budget is above the default.
+fn live_persistent(instrs: &[Instr]) -> Vec<Instr> {
+    let mut out_m = [false; NM];
+    let mut out_v = [false; NV];
+    out_m[0] = true;
+    loop {
+        let mut live_m = out_m;
+        let mut live_v = out_v;
         let mut live_s = [false; NS];
-        let mut keep = vec![false; self.instrs.len()];
-        for (idx, ins) in self.instrs.iter().enumerate().rev() {
+        let mut keep = vec![false; instrs.len()];
+        for (idx, ins) in instrs.iter().enumerate().rev() {
             let (ot, o) = ins.output();
             let o = o as usize;
             let is_live = match ot {
@@ -281,16 +364,46 @@ impl Program {
                 Ty::V => live_v[o] = false,
                 Ty::S => live_s[o] = false,
             }
-            for (t, i) in ins.inputs() {
+            for (ty, i) in ins.inputs() {
                 let i = i as usize;
-                match t {
+                match ty {
                     Ty::M => live_m[i] = true,
                     Ty::V => live_v[i] = true,
                     Ty::S => live_s[i] = true,
                 }
             }
         }
-        (keep, live_m, live_v)
+        let mut changed = false;
+        for i in 0..NM {
+            if persist_m(i) && live_m[i] && !out_m[i] {
+                out_m[i] = true;
+                changed = true;
+            }
+        }
+        for i in 0..NV {
+            if persist_v(i) && live_v[i] && !out_v[i] {
+                out_v[i] = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            return instrs.iter().zip(keep).filter(|(_, k)| *k).map(|(i, _)| i.clone()).collect();
+        }
+    }
+}
+
+impl Program {
+    /// Keep only instructions that can influence the final M0 (and the readout V1, if any).
+    pub fn effective(&self) -> Program {
+        Program {
+            instrs: if any_persist() { live_persistent(&self.instrs) } else { live(&self.instrs, Ty::M, 0) },
+            read: self.read.as_ref().map(|r| live(r, Ty::V, 1)),
+        }
+    }
+
+    /// Total instruction count (write plus evolved read program).
+    pub fn total_len(&self) -> usize {
+        self.instrs.len() + self.read.as_ref().map_or(0, |r| r.len())
     }
 
     /// NEAT-style add-node: pick an input edge `r -> instr i`, insert a new instruction
@@ -343,6 +456,16 @@ impl Program {
     }
 
     pub fn mutate(&mut self, rng: &mut Rng) {
+        if READ_EVOLVE.load(Ordering::Relaxed) && self.read.is_some() && rng.below(2) == 0 {
+            let mut tmp = Program { instrs: self.read.take().unwrap(), read: None };
+            tmp.mutate_write(rng);
+            self.read = Some(tmp.instrs);
+            return;
+        }
+        self.mutate_write(rng);
+    }
+
+    fn mutate_write(&mut self, rng: &mut Rng) {
         if SPLIT_EDGE.load(Ordering::Relaxed) && rng.below(6) == 5 && self.split_edge(rng) {
             return;
         }
@@ -399,58 +522,10 @@ impl Program {
             .join("\n")
     }
 
-    /// Symbolic formula for the new S, by forward substitution over the effective program.
+    /// Symbolic formula for the new S (and the evolved readout o), by forward substitution.
     pub fn formula(&self) -> String {
         let eff = self.effective();
-        let mut m: Vec<String> = (0..NM)
-            .map(|i| match i {
-                0 => "S".into(),
-                _ if persist_m(i) => format!("P{i}"),
-                _ => "0".into(),
-            })
-            .collect();
-        let mut v: Vec<String> = (0..NV)
-            .map(|i| match i {
-                0 => "k".into(),
-                1 => "v".into(),
-                _ if persist_v(i) => format!("u{i}"),
-                _ => "0".into(),
-            })
-            .collect();
-        let mut s: Vec<String> = (0..NS).map(|_| "0".into()).collect();
-        for ins in &eff.instrs {
-            let a = ins.a as usize;
-            let b = ins.b as usize;
-            let e = match ins.op {
-                Op::Outer => format!("({})⊗({})", v[a], v[b]),
-                Op::MatAdd => format!("({} + {})", m[a], m[b]),
-                Op::MatSub => format!("({} - {})", m[a], m[b]),
-                Op::MatScale => format!("{}·{}", s[a], m[b]),
-                Op::Transpose => format!("({})ᵀ", m[a]),
-                Op::MatMul => format!("({})({})", m[a], m[b]),
-                Op::MatVec => format!("{}·{}", m[a], v[b]),
-                Op::VecAdd => format!("({} + {})", v[a], v[b]),
-                Op::VecSub => format!("({} - {})", v[a], v[b]),
-                Op::VecScale => format!("{}·{}", s[a], v[b]),
-                Op::Hadamard => format!("({} ⊙ {})", v[a], v[b]),
-                Op::Normalize => format!("norm({})", v[a]),
-                Op::Tanh => format!("tanh({})", v[a]),
-                Op::Dot => format!("<{}, {}>", v[a], v[b]),
-                Op::Const => format!("{:.3}", ins.c),
-                Op::SAdd => format!("({} + {})", s[a], s[b]),
-                Op::SMul => format!("{}·{}", s[a], s[b]),
-                Op::Sigmoid => format!("σ({})", s[a]),
-                Op::Norm => format!("|{}|", v[a]),
-                Op::Recip => format!("1/({})", s[a]),
-            };
-            let e = if e.len() > 400 { "…".to_string() } else { e };
-            let o = ins.out as usize;
-            match ins.op.sig().0 {
-                Ty::M => m[o] = e,
-                Ty::V => v[o] = e,
-                Ty::S => s[o] = e,
-            }
-        }
+        let (m, v, _) = subst(&eff.instrs, "k", "v", true);
         let mut out = format!("S' = {}", m[0]);
         for i in 1..NM {
             if persist_m(i) && m[i] != format!("P{i}") {
@@ -461,6 +536,10 @@ impl Program {
             if persist_v(i) && v[i] != format!("u{i}") {
                 out += &format!("\nu{i}' = {}", v[i]);
             }
+        }
+        if let Some(r) = &eff.read {
+            let (_, v, _) = subst(r, "q", "S·q", false);
+            out += &format!("\no = {}", v[1]);
         }
         out
     }
@@ -480,12 +559,22 @@ impl Program {
                 )
             })
             .collect();
-        format!(
-            "{{\"persist_m\":{},\"persist_v\":{},\"instrs\":[{}]}}",
-            PERSIST_M.load(Ordering::Relaxed),
-            PERSIST_V.load(Ordering::Relaxed),
-            items.join(",")
-        )
+        let ser = |v: &[Instr]| -> String {
+            v.iter()
+                .map(|i| format!("{{\"op\":\"{}\",\"out\":{},\"a\":{},\"b\":{},\"c\":{}}}", i.op.name(), i.out, i.a, i.b, i.c))
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        match &self.read {
+            None if any_persist() => format!(
+                "{{\"persist_m\":{},\"persist_v\":{},\"instrs\":[{}]}}",
+                PERSIST_M.load(Ordering::Relaxed),
+                PERSIST_V.load(Ordering::Relaxed),
+                items.join(",")
+            ),
+            None => format!("{{\"instrs\":[{}]}}", items.join(",")),
+            Some(r) => format!("{{\"instrs\":[{}],\"read\":[{}]}}", items.join(","), ser(r)),
+        }
     }
 
     /// State budget recorded in a program file: (persist_m, persist_v); (1, 0) if absent.
@@ -504,8 +593,21 @@ impl Program {
 
     /// Minimal parser for the format written by `to_json`.
     pub fn from_json(s: &str) -> Result<Program, String> {
+        let (head, tail) = match s.find("\"read\":") {
+            Some(i) => (&s[..i], Some(&s[i + 7..])),
+            None => (s, None),
+        };
+        let instrs = Self::parse_instrs(head.split('{').skip(2))?;
+        let read = match tail {
+            Some(t) => Some(Self::parse_instrs(t.split('{').skip(1))?),
+            None => None,
+        };
+        Ok(Program { instrs, read })
+    }
+
+    fn parse_instrs<'a>(chunks: impl Iterator<Item = &'a str>) -> Result<Vec<Instr>, String> {
         let mut instrs = Vec::new();
-        for chunk in s.split('{').skip(2) {
+        for chunk in chunks {
             let field = |name: &str| -> Result<String, String> {
                 let key = format!("\"{name}\":");
                 let start = chunk.find(&key).ok_or(format!("missing {name}"))? + key.len();
@@ -522,8 +624,73 @@ impl Program {
                 c: field("c")?.parse().map_err(|e| format!("{e}"))?,
             });
         }
-        Ok(Program { instrs })
+        Ok(instrs)
     }
+}
+
+/// Forward substitution: M0 = "S", V0 = v0, V1 = v1, everything else "0".
+/// With `persist`, persistent registers enter as P1.. (matrices) and u2.. (vectors).
+fn subst(instrs: &[Instr], v0: &str, v1: &str, persist: bool) -> (Vec<String>, Vec<String>, Vec<String>) {
+    let mut m: Vec<String> = (0..NM)
+        .map(|i| match i {
+            0 => "S".into(),
+            _ if persist && persist_m(i) => format!("P{i}"),
+            _ => "0".into(),
+        })
+        .collect();
+    let mut v: Vec<String> = (0..NV)
+        .map(|i| match i {
+            0 => v0.into(),
+            1 => v1.into(),
+            _ if persist && persist_v(i) => format!("u{i}"),
+            _ => "0".into(),
+        })
+        .collect();
+    let mut s: Vec<String> = (0..NS).map(|_| "0".into()).collect();
+    for ins in instrs {
+        let a = ins.a as usize;
+        let b = ins.b as usize;
+        let e = match ins.op {
+            Op::Outer => format!("({})⊗({})", v[a], v[b]),
+            Op::MatAdd => format!("({} + {})", m[a], m[b]),
+            Op::MatSub => format!("({} - {})", m[a], m[b]),
+            Op::MatScale => format!("{}·{}", s[a], m[b]),
+            Op::Transpose => format!("({})ᵀ", m[a]),
+            Op::MatMul => format!("({})({})", m[a], m[b]),
+            Op::MatVec => format!("{}·{}", m[a], v[b]),
+            Op::VecAdd => format!("({} + {})", v[a], v[b]),
+            Op::VecSub => format!("({} - {})", v[a], v[b]),
+            Op::VecScale => format!("{}·{}", s[a], v[b]),
+            Op::Hadamard => format!("({} ⊙ {})", v[a], v[b]),
+            Op::Normalize => format!("norm({})", v[a]),
+            Op::Tanh => format!("tanh({})", v[a]),
+            Op::Dot => format!("<{}, {}>", v[a], v[b]),
+            Op::Const => format!("{:.3}", ins.c),
+            Op::SAdd => format!("({} + {})", s[a], s[b]),
+            Op::SMul => format!("{}·{}", s[a], s[b]),
+            Op::Sigmoid => format!("σ({})", s[a]),
+            Op::Norm => format!("|{}|", v[a]),
+            Op::VecAbs => format!("abs({})", v[a]),
+            Op::VecRelu => format!("relu({})", v[a]),
+            Op::VecMax => format!("max({}, {})", v[a], v[b]),
+            Op::VecSigmoid => format!("σ⃗({})", v[a]),
+            Op::MatHadamard => format!("({} ⊙ {})", m[a], m[b]),
+            Op::MatTanh => format!("tanh({})", m[a]),
+            Op::RowSum => format!("rowsum({})", m[a]),
+            Op::VecSum => format!("sum({})", v[a]),
+            Op::SSub => format!("({} - {})", s[a], s[b]),
+            Op::SAbs => format!("abs({})", s[a]),
+            Op::Recip => format!("1/({})", s[a]),
+        };
+        let e = if e.len() > 400 { "…".to_string() } else { e };
+        let o = ins.out as usize;
+        match ins.op.sig().0 {
+            Ty::M => m[o] = e,
+            Ty::V => v[o] = e,
+            Ty::S => s[o] = e,
+        }
+    }
+    (m, v, s)
 }
 
 /// Register file + scratch buffers for the interpreter.
@@ -548,7 +715,7 @@ impl Regs {
         }
     }
 
-    /// Start of an episode: empty memory, all state zero.
+    /// Start of an episode: all registers zero (clears persistent state).
     pub fn reset(&mut self) {
         for m in self.m.iter_mut() {
             m.fill(0.0);
@@ -559,9 +726,10 @@ impl Regs {
         self.s = [0.0; NS];
     }
 
-    /// Inputs for one write step: V0 = k, V1 = v. M0 (the memory) and the persistent
-    /// registers keep their content; all other registers are zeroed.
-    pub fn load(&mut self, k: &[f32], v: &[f32]) {
+    /// Load inputs for one write step: M0 = S, V0 = k, V1 = v. Persistent registers keep
+    /// their content; everything else is zero.
+    pub fn load(&mut self, s_mem: &[f32], k: &[f32], v: &[f32]) {
+        self.m[0].copy_from_slice(s_mem);
         for i in 1..NM {
             if !persist_m(i) {
                 self.m[i].fill(0.0);
@@ -577,15 +745,37 @@ impl Regs {
         self.s = [0.0; NS];
     }
 
-    /// True if the memory and every persistent register are finite and bounded.
-    pub fn state_ok(&self) -> bool {
+    /// True if every persistent register beyond M0 is finite and bounded (M0 is checked by
+    /// the caller).
+    pub fn persistent_ok(&self) -> bool {
         let ok = |x: &[f32]| x.iter().all(|x| x.is_finite() && x.abs() <= 1e4);
-        (0..NM).all(|i| !persist_m(i) || ok(&self.m[i])) && (2..NV).all(|i| !persist_v(i) || ok(&self.v[i]))
+        (1..NM).all(|i| !persist_m(i) || ok(&self.m[i])) && (2..NV).all(|i| !persist_v(i) || ok(&self.v[i]))
+    }
+
+    /// Load inputs for one readout: M0 = S, V0 = q, V1 = S q, everything else zero.
+    pub fn load_read(&mut self, s_mem: &[f32], q: &[f32]) {
+        let d = self.d;
+        self.m[0].copy_from_slice(s_mem);
+        for i in 1..NM {
+            self.m[i].fill(0.0);
+        }
+        self.v[0].copy_from_slice(q);
+        for i in 0..d {
+            self.v[1][i] = (0..d).map(|j| s_mem[i * d + j] * q[j]).sum();
+        }
+        for i in 2..NV {
+            self.v[i].fill(0.0);
+        }
+        self.s = [0.0; NS];
     }
 
     pub fn run(&mut self, prog: &Program) {
+        self.run_instrs(&prog.instrs);
+    }
+
+    pub fn run_instrs(&mut self, instrs: &[Instr]) {
         let d = self.d;
-        for ins in &prog.instrs {
+        for ins in instrs {
             let (a, b, o) = (ins.a as usize, ins.b as usize, ins.out as usize);
             match ins.op {
                 Op::Outer => {
@@ -682,6 +872,44 @@ impl Regs {
                 Op::SMul => self.s[o] = self.s[a] * self.s[b],
                 Op::Sigmoid => self.s[o] = 1.0 / (1.0 + (-self.s[a]).exp()),
                 Op::Norm => self.s[o] = self.v[a].iter().map(|x| x * x).sum::<f32>().sqrt(),
+                Op::VecAbs | Op::VecRelu | Op::VecSigmoid => {
+                    for i in 0..d {
+                        let x = self.v[a][i];
+                        self.tv[i] = match ins.op {
+                            Op::VecAbs => x.abs(),
+                            Op::VecRelu => x.max(0.0),
+                            _ => 1.0 / (1.0 + (-x).exp()),
+                        };
+                    }
+                    self.v[o].copy_from_slice(&self.tv);
+                }
+                Op::VecMax => {
+                    for i in 0..d {
+                        self.tv[i] = self.v[a][i].max(self.v[b][i]);
+                    }
+                    self.v[o].copy_from_slice(&self.tv);
+                }
+                Op::MatHadamard => {
+                    for i in 0..d * d {
+                        self.tm[i] = self.m[a][i] * self.m[b][i];
+                    }
+                    self.m[o].copy_from_slice(&self.tm);
+                }
+                Op::MatTanh => {
+                    for i in 0..d * d {
+                        self.tm[i] = self.m[a][i].tanh();
+                    }
+                    self.m[o].copy_from_slice(&self.tm);
+                }
+                Op::RowSum => {
+                    for i in 0..d {
+                        self.tv[i] = (0..d).map(|j| self.m[a][i * d + j]).sum();
+                    }
+                    self.v[o].copy_from_slice(&self.tv);
+                }
+                Op::VecSum => self.s[o] = self.v[a].iter().sum(),
+                Op::SSub => self.s[o] = self.s[a] - self.s[b],
+                Op::SAbs => self.s[o] = self.s[a].abs(),
                 Op::Recip => self.s[o] = self.s[a] / (self.s[a] * self.s[a] + 1e-6),
             }
         }
@@ -703,6 +931,7 @@ fn parse_line(line: &str) -> Instr {
 pub fn prog(lines: &[&str]) -> Program {
     Program {
         instrs: lines.iter().map(|l| parse_line(l)).collect(),
+        read: None,
     }
 }
 

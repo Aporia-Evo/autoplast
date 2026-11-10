@@ -22,7 +22,9 @@ Two claims carry the paper:
   Gains are reported against the ridge ceiling (`verify/headroom.py`).
 
 Scope history: corrected on 10 Nov 2026 (README, "Review and scope correction"), then
-re-centred on the search method the same day at the owner's direction.
+re-centred on the search method the same day at the owner's direction. Branches merged the
+same day (README, "Merge"). State of the method claim: the add-node mutation has no effect
+in 64 runs, so no component supports it yet.
 
 Stages:
 1. Rediscovery: the search assembles the delta family from nothing. Needs a rate over seeds
@@ -63,43 +65,54 @@ Stages:
 
 ## Compute
 
-Machines: the owner's workstation (Ryzen 5700G, 8 cores; GTX 1660 Super), a university
-8-core EPYC over SSH, and Modal with 30 USD of credits. Runs are carried out by an executing
-agent following `RUNBOOK.md`; keep that file current when a work package is released.
-Use `local_runner.py` on the two machines first and `modal_runner.py` (CPU containers only,
-8 CPUs each) for overflow. Before any launch larger than 8 seeds, run 2 seeds with a small
-budget, measure wall time, and state the expected total. `sweep` and `verify` run anywhere.
+Decision of 3 Nov 2026, still valid: Modal is for GPU runs only and needs explicit approval
+(30 USD of credits). All CPU work, including multi-seed searches, runs on the owner's
+workstation (Ryzen 5700G, 8 cores, 16 threads; GTX 1660 Super) and, when reachable, on a
+university 8-core EPYC. `modal_runner.py` stays in the repo as a reference and is not used.
+Runs are carried out by an executing agent following `RUNBOOK.md`; keep that file current when
+a work package is released. Before any launch larger than 8 seeds, run 2 seeds with a small
+budget, measure wall time, and state the expected total. A committed seed reproduces on its
+own platform; Windows and Linux can differ in the last bit of `tanh` / `exp`.
 
 ## Next experiments, in order
 
-Agreed with the owner before launch; items 1 to 3 need no Modal credits. Every search run
-from item 4 on is repeated with the baseline search algorithms on the same seeds and budget;
-that comparison is the method result.
+Done so far (details and numbers in README):
+- Rediscovery rate on the base task (v2, base-recip) and add-node ablation: 5 to 6 of 16,
+  no effect of add-node.
+- Task v3 with long episodes: 11 to 12 of 16, growth factor 1.
+- Alphabet sensitivity (3a): rate depends on the alphabet.
+- Stage-2 regimes with tuned baselines, least-squares reference, ridge ceiling and two-state
+  references (`runs/sweeps/`).
+- Evolved readout and extra ops on collision3 (5a): no arm better, no rule above tuned DeltaNet.
+- Structural rediscovery test, state budget (`--persist-m`, `--persist-v`), `--recip`.
 
-1. Done (10 Nov 2026): structural rediscovery test (`src/classify.rs`, repeated in verify.py).
-2. Done: regimes (`--regime`), extended `sweep` with ridge ceiling, baselines per regime in
-   `runs/sweeps/`.
-3. Done: persistent registers (`--persist-m`, `--persist-v`) and `Recip`. `--no-recip` with
-   the default budget reproduces v1/v2 bit for bit; keep that true.
-4. Rediscovery rate on the base task: tags `v3` and `v3-noaddnode`, 16 seeds each, on the
-   two machines (RUNBOOK.md, packages A and B). The Modal runner was changed on 10 Nov and
-   has not been run since; package D checks it.
-5. Stage 2 search per regime and state budget, 8 seeds each, with `--train-episodes 192`
-   and `--task-seed` equal to the search seed. Bars to clear are in README, "Tuned baselines
-   per regime". Long regimes cost more per candidate; time them first.
-6. Freeze the search method: commit it with a note in README. No change to mutations,
+Open, in order. Items 2 to 4 are repeated with the baseline search algorithms on the same
+seeds and budget; that comparison is the method result.
+
+1. Decide with the owner what the method improvement is. Evidence to start from: failed seeds
+   stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
+   Candidates discussed: tune constants per structure instead of mutating them one at a time,
+   speciation by behaviour, typed crossover. Implement random search as a baseline.
+   Every change goes into README before results (rule 1).
+2. Measure the method on task v3 and the base task against regularized evolution, 16 seeds,
+   with the structural test and the accuracy level side by side.
+3. Search with a second state (`--persist-m 2 --recip`) on collision3, rewrite8 and clustered,
+   8 seeds each, `--train-episodes 192`, task seed equal to the search seed. Bars: README,
+   "Tuned baselines per task" (one state: DeltaNet / Gated DeltaNet; two states: Kalman delta).
+   Long tasks cost about 17 times the base task per candidate; time them first.
+4. Freeze the search method: commit it with a note in README. No change to mutations,
    selection or hyperparameters after this point may be tuned on testbed 2.
-7. Testbed 2, optimizer update rules, as a transfer test of the frozen method. Program gets
+5. Testbed 2, optimizer update rules, as a transfer test of the frozen method. Program gets
    gradient `g` and parameters `w` as vectors and returns new parameters; start is the empty
    program (`w' = w`). Task: small ill-conditioned quadratics and linear regression with noisy
    gradients, about 50 steps per episode, fitness = final loss. Known ladder for the
    structural test: SGD, momentum, RMSProp, Adam. Ceiling: Newton step / conjugate gradients.
    Held-out: other condition numbers, dimensions and noise levels. Needs a new task file,
-   the persistent registers from item 3, and two generic ops (element-wise reciprocal and
-   square root), logged in README before any run. Report discovery rate and evaluations
-   against the baseline search algorithms; do not promise a new optimizer.
-8. Literature check of anything that survives, including the occupancy-gated write of v2
-   seed 1: `S' = S + σ(‖S k̃‖⁴)·v kᵀ` (weak as a rule; its signal ‖S k‖² is the interesting part).
+   the persistent registers, and two generic ops (element-wise reciprocal and square root),
+   logged in README before any run. Report discovery rate and evaluations against the
+   baseline search algorithms; do not promise a new optimizer.
+6. Literature check of anything that survives, including the state-gated writes of v2 seed 1
+   (`S' = S + σ(‖S k̃‖⁴)·v kᵀ`) and v2-noaddnode seed 4 (`S' = 1.111·S + σ(‖S k‖²)·(v − S k)⊗k`).
 
 ## Working style
 

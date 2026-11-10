@@ -1,0 +1,25 @@
+# v3: 16 seeds, budget 1500000, task v3, add-node on, local
+
+| seed | linear attention | delta rule (beta=1) | delta rule (beta=0.5) | gated delta (alpha=0.9) | wall s | best rule |
+|---|---|---|---|---|---|---|
+| 1 | 74,740 | no | no | 82,676 | 590 | `S' = (σ(2.278)·S + (v)⊗(k))` |
+| 2 | 13,172 | 15,732 | 18,420 | 14,196 | 1696 | `S' = (S + ((tanh(tanh(v)) - 0.580·|(S - 0.580·(k)⊗(v))·k|·(S - 0.580·(k)⊗(v))·k))⊗(k))` |
+| 3 | 20,340 | 20,596 | 258,164 | 20,596 | 1535 | `S' = (σ(<tanh(v), tanh(v)>·|tanh(((k ⊙ tanh(v)) + S·tanh(tanh(k))))|)·((tanh(v) - S·tanh(tanh(k))))⊗(tanh(k)) + S)` |
+| 4 | 4,724 | no | no | 72,180 | 508 | `S' = 0.907·((v)⊗(k) + S)` |
+| 5 | 130,548 | 814,964 | 885,748 | 154,228 | 700 | `S' = (S + (0.714·(tanh(v) - |tanh(S·k)|·S·k))⊗(k))` |
+| 6 | 86,516 | 198,004 | 198,644 | 89,844 | 898 | `S' = (S + (((tanh(v) + v) - 0.557·S·norm(tanh(k))))⊗(k))` |
+| 7 | 15,348 | 19,956 | 20,852 | 19,956 | 1890 | `S' = ((S - 0) + 1.175·(((0.565·tanh(σ(0)·k) ⊙ v) + (v - (S - 0)·tanh(σ(0)·k))))⊗(tanh(k)))` |
+| 8 | 4,596 | no | no | 93,940 | 539 | `S' = ((v)⊗(k) + 0.907·S)` |
+| 9 | 30,964 | 33,652 | 37,620 | 32,500 | 2545 | `S' = (S - ((tanh((tanh(tanh(tanh(k))) - norm(tanh(tanh(tanh(k)))))))⊗(tanh((tanh(tanh(tanh(k))) - norm(tanh(tanh(tanh(k)` |
+| 10 | 62,580 | 99,572 | 102,260 | 63,988 | 4001 | `S' = ((tanh(1.203·v))⊗(tanh(k)) - ((S)((σ(0.673)·tanh(k))⊗(tanh(k))) + (0 - S)))` |
+| 11 | 37,364 | 253,556 | 258,548 | 45,684 | 2688 | `S' = (S + (0.674·((v)⊗(tanh(k)) - S))((tanh(k))⊗(tanh(k))))` |
+| 12 | 41,588 | 129,012 | 133,876 | 49,268 | 1594 | `S' = ((v)⊗(k) + (S - 0.580·|tanh(S·k)|·(tanh(S·k))⊗(k)))` |
+| 13 | 21,236 | 134,388 | 138,612 | 37,236 | 2001 | `S' = ((S + (v)⊗(((tanh(k))⊗(k)·(tanh(tanh(tanh(tanh(tanh(k))))) ⊙ tanh(tanh(tanh(tanh(tanh(tanh(k))))))) + norm((tanh(k)` |
+| 14 | 25,076 | no | no | 28,276 | 1000 | `S' = ((v)⊗((norm(tanh(tanh(k))) + (tanh(k) + tanh(tanh(k))))) + |tanh(tanh(k))|·S)` |
+| 15 | 10,740 | 947,956 | 948,596 | 127,476 | 1836 | `S' = ((S + (v)⊗(k)) - (((S + (v)⊗(k)))((σ(1.166)·(v)⊗(k))ᵀ))(σ(1.166)·(v)⊗(k)))` |
+| 16 | 6,644 | 1,361,396 | 1,362,804 | 74,100 | 926 | `S' = (1.015·((S + (v)⊗(k)) + (v)⊗(k)) - ((S - (0.679·(v)⊗(k))ᵀ))(((0.679·(v)⊗(k))ᵀ)((v)⊗(k))))` |
+
+- linear attention: reached by 16/16 seeds, median 25,076 candidates
+- delta rule (beta=1): reached by 12/16 seeds, median 134,388 candidates
+- delta rule (beta=0.5): reached by 12/16 seeds, median 198,644 candidates
+- gated delta (alpha=0.9): reached by 16/16 seeds, median 63,988 candidates

@@ -10,6 +10,7 @@
 //! R² is taken over the part of the update that is not the carry a·S, so a rule that leaves the
 //! memory almost unchanged cannot score well for free. A rule counts as a member of a family
 //! only if R² ≥ 0.99; state-dependent gates and extra state fall below and stay "unclassified".
+//! Only the write rule is classified; an evolved readout (--evolve-readout) is ignored here.
 
 use crate::program::{Program, Regs};
 use crate::task::Task;
@@ -51,11 +52,13 @@ pub fn classify(prog: &Program, task: &Task) -> Fit {
     let (mut yy, mut samples) = (0.0f64, 0usize);
     let mut f: [Vec<f32>; 4] = std::array::from_fn(|_| vec![0.0f32; d * d]);
     let mut sk = vec![0.0f32; d];
+    let mut s_mem = vec![0.0f32; d * d];
     'episodes: for ep in &task.episodes {
         regs.reset();
+        s_mem.fill(0.0);
         for &(ki, vi) in &ep.writes {
             let (k, v) = (task.key(ki), task.val(vi));
-            f[0].copy_from_slice(&regs.m[0]);
+            f[0].copy_from_slice(&s_mem);
             for i in 0..d {
                 sk[i] = (0..d).map(|j| f[0][i * d + j] * k[j]).sum();
             }
@@ -67,12 +70,13 @@ pub fn classify(prog: &Program, task: &Task) -> Fit {
                     f[3][i * d + j] = vsk * v[i] * k[j];
                 }
             }
-            regs.load(k, v);
+            regs.load(&s_mem, k, v);
             regs.run(&eff);
-            if !regs.state_ok() {
+            if regs.m[0].iter().any(|x| !x.is_finite() || x.abs() > 1e4) || !regs.persistent_ok() {
                 break 'episodes;
             }
-            let y = &regs.m[0];
+            s_mem.copy_from_slice(&regs.m[0]);
+            let y = &s_mem;
             for i in 0..4 {
                 h[i] += dot(&f[i], y);
                 for j in i..4 {

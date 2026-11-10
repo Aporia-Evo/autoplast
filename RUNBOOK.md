@@ -10,7 +10,7 @@ which order, and what you hand back. Where this file and `CLAUDE.md` disagree, `
 |---|---|---|
 | workstation | Ryzen 7 5700G (8 cores, 16 threads), GTX 1660 Super (6 GB) | searches, `sweep`, `verify`; the GPU only for stage 4 (small trained models) |
 | epyc | university EPYC, 8 cores, reached over SSH with the owner's key | searches |
-| modal | Modal, CPU containers with 8 CPUs; 30 USD of credits in total | overflow only, see budget rule |
+| modal | Modal; 30 USD of credits in total | GPU runs only, each with the owner's explicit approval; no CPU searches |
 
 Never write host names, user names, key paths or tokens into the repository, a commit message
 or a summary. Use the three names above.
@@ -28,10 +28,8 @@ run under `nice`, use at most its 8 physical cores, and stop if someone else nee
    setting gets a new tag. Never overwrite a tag; resume it (finished seeds are skipped).
 4. Time before you spend. Before any tag, run 2 seeds of it, note minutes per seed, and write
    the expected total into your report. On Modal this is mandatory for anything above 8 seeds.
-5. Modal budget. Look up the remaining credit before and after every launch and report both
-   numbers. Do not launch if the estimate for the launch exceeds 5 USD without the owner's
-   go-ahead, and never go below 10 USD remaining. Prices are not recorded here; read them
-   from the Modal dashboard.
+5. Modal. Not used for searches (decision of 3 Nov 2026). A GPU run needs the owner's
+   explicit approval; look up the remaining credit before and after and report both numbers.
 6. Report negatives. A seed that finds nothing, a failed job and a crashed machine all go
    into the report as they happened.
 7. Results are tied to the machine. The search is deterministic for a given binary, seed,
@@ -60,90 +58,37 @@ delta rule, delta rule, gated delta rule:
 ./target/release/autoplast baselines | cut -c1-90
 ```
 
-Determinism check. On the machine this file was written on, the checksum of `best.json` is
-`7e0c2197a77e256e63f643baf773bd7b` and linear attention first appears at 16,756 candidates. The
-same values mean the machine reproduces bit for bit; other values are not an error (rule 7),
-but report them:
+Determinism check. On Linux, linear attention first appears as best rule at 16,756 candidates
+and the last log row reads `120052,22831,...,0.82164,0.8142,4,...`. The same values mean the
+machine reproduces bit for bit; other values are not an error (rule 7), but report them:
 
 ```bash
-./target/release/autoplast search --seed 2 --budget 120000 --threads 2 --no-recip --out /tmp/chk > /dev/null && md5sum /tmp/chk/best.json && grep '^\* ' /tmp/chk/summary.md
+./target/release/autoplast search --seed 2 --budget 120000 --threads 2 --out /tmp/chk > /dev/null && grep '^\* ' /tmp/chk/summary.md && tail -1 /tmp/chk/log.csv
 ```
 
-## Work packages, in order
+## Work packages
 
-### A. Timing (no credits)
+A (timing) and B (base task with `--recip`, add-node on and off, 16 seeds each) are done; the
+results are in `runs/base-recip/` and `runs/base-recip-noaddnode/` and in README, "Merge".
+They were run at commit 045ea3a, where `Recip` was on by default; since the merge the same
+runs need `--recip`.
 
-On workstation and on epyc, 2 seeds each of the base task and of the most expensive regime:
+No package is released at the moment. The next ones follow `CLAUDE.md`, "Next experiments",
+and will be written here with tags and commands once the owner has decided on the method
+change. Do not start searches on your own.
 
-```bash
-python local_runner.py --seeds 1-2 --budget 150000 --tag time-base --jobs 2 --threads 4
-```
-
-```bash
-python local_runner.py --seeds 1-2 --budget 150000 --tag time-r8 --jobs 2 --threads 4 --task-seed-from-seed --extra="--regime rewrite8 --train-episodes 192"
-```
-
-Report minutes per seed for both, per machine, and the projection to 1,500,000 candidates.
-Cost per candidate rises during a search (programs get longer), so multiply the projection by
-2 as a safety margin. `time-*` tags are not results; do not commit them.
-
-### B. Rediscovery rate on the base task (item 4 in `CLAUDE.md`)
-
-Two tags, 16 seeds each, 1,500,000 candidates. Split by seed range across the two machines:
+Command pattern for a released package (the runner skips finished seeds):
 
 ```bash
-python local_runner.py --seeds 1-8 --budget 1500000 --tag v3 --jobs 2 --threads 4
+python local_runner.py --seeds 1-16 --budget 1500000 --tag <tag> --parallel 2 --threads 8 --task v3
 ```
 
 ```bash
-python local_runner.py --seeds 9-16 --budget 1500000 --tag v3 --jobs 2 --threads 4
+python local_runner.py --seeds 1-8 --budget 1500000 --tag <tag> --parallel 2 --threads 8 --task-seed-from-seed --extra="--regime rewrite8 --train-episodes 192 --persist-m 2 --recip"
 ```
 
-```bash
-python local_runner.py --seeds 1-8 --budget 1500000 --tag v3-noaddnode --jobs 2 --threads 4 --extra="--no-split-edge"
-```
-
-```bash
-python local_runner.py --seeds 9-16 --budget 1500000 --tag v3-noaddnode --jobs 2 --threads 4 --extra="--no-split-edge"
-```
-
-Then copy `runs/v3*/seed*/` from epyc to workstation and rebuild the tables:
-
-```bash
-python aggregate.py runs/v3 && python aggregate.py runs/v3-noaddnode
-```
-
-What to report: for each tag, in how many of 16 seeds the final best rule is a delta rule or
-gated delta rule, the median candidate count of its first appearance, and the same for linear
-attention. "Seen as best rule" early in a run can be a weak rule that merely has the family's
-shape; the headline number is the family of the final rule together with its train accuracy.
-Verify every final rule of the delta family in JAX:
-
-```bash
-python verify/verify.py runs/v3/seed*/best.json > runs/v3/verify.txt
-```
-
-Modal is not needed for B. If one machine is unavailable, run the missing seed range on the
-other one rather than on Modal.
-
-### C. Search per regime (item 5 in `CLAUDE.md`): blocked
-
-Do not start C. It waits for two things from the owner and the research agent:
-the decision which improvements the search method gets, and the baseline search algorithms
-(random search is not implemented yet). When C is released it will come with its own tags and
-commands in this file.
-
-### D. Modal check (only when the owner asks for it)
-
-The Modal runner was changed on 10 Nov 2026 and has not run since. Its first use is a
-2-seed test, which also measures cost:
-
-```bash
-modal run modal_runner.py --seeds 1-2 --budget 150000 --tag modal-test
-```
-
-Report wall time per seed, credit before and after, and whether `runs/modal-test/aggregate.md`
-was written.
+If `git` cannot be executed where the runner starts, pass the commit yourself with
+`--extra="--commit <hash>"` and say so in `WHERE.md`.
 
 ## Handing back
 
@@ -163,5 +108,5 @@ For every finished tag:
 - A command in this file fails or its output looks different from what is described here.
 - The self-check does not label the reference rules as listed.
 - Timing says a work package would take more than 24 hours of wall time.
-- Any Modal launch above the limits in rule 5.
+- Any use of Modal.
 - The university machine is busy or its use is questioned.

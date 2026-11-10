@@ -1,0 +1,2 @@
+ap/runs/stage2-baselines/test_noisyq.json: offline least-squares reference acc 0.971 (lam 0.001, 4454 queries)
+ap/runs/stage2-baselines/train_noisyq.json: offline least-squares reference acc 0.973 (lam 0.001, 829 queries)

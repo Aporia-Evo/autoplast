@@ -1,0 +1,25 @@
+# 5a-C: 16 seeds, budget 1500000, task v2 --evolve-readout --regime collision3, add-node on, local
+
+| seed | linear attention | delta rule (beta=1) | delta rule (beta=0.5) | gated delta (alpha=0.9) | wall s | best rule |
+|---|---|---|---|---|---|---|
+| 1 | 8,436 | no | no | no | 272 | `S' = <tanh(k), tanh(k)>·((v)⊗(tanh(k)) + S)` |
+| 2 | 25,204 | no | no | no | 710 | `S' = |tanh(tanh(tanh(v)))|·(((v + v))⊗(k) + S)` |
+| 3 | 26,868 | no | no | 1,270,004 | 415 | `S' = <((tanh(k) - norm(tanh(tanh(k)))) - v), ((tanh(k) - norm(tanh(tanh(k)))) - v)>·(σ(1.373·1.373)·S + (v)⊗(tanh(tanh(k` |
+| 4 | 92,916 | no | no | no | 665 | `S' = |tanh(tanh(tanh(v)))|·(((tanh(0.735·k))⊗(v) + (S)ᵀ))ᵀ` |
+| 5 | 17,140 | no | no | no | 512 | `S' = ((tanh(v))⊗(tanh(tanh(tanh(k)))) + <tanh(v), ((tanh(tanh(tanh(k))) - k) + tanh(v))>·S)` |
+| 6 | 37,236 | no | no | 568,308 | 1176 | `S' = (((((v + norm(tanh(tanh(v)))))⊗(k) + ((v + norm(tanh(tanh(v)))))⊗(k)) + 0.442·(((v + norm(tanh(tanh(v)))))⊗(k) + ((` |
+| 7 | 36,596 | 60,660 | 67,060 | 60,660 | 570 | `S' = (S + (σ(0.128)·tanh((norm(tanh(v)) - S·k)))⊗(k))` |
+| 8 | 163,188 | no | no | no | 744 | `S' = (|tanh(tanh(tanh(k)))|·S + (norm(tanh(v)))⊗(tanh((norm(tanh(tanh(k))) + tanh(tanh(k))))))` |
+| 9 | 25,460 | no | no | no | 228 | `S' = (0.876·S + (v)⊗(k))` |
+| 10 | 9,844 | no | no | no | 317 | `S' = (0.874·S + (v)⊗(tanh(tanh(k))))` |
+| 11 | 16,884 | no | no | no | 613 | `S' = ((v)⊗(norm((tanh(k) + tanh((k + tanh(k)))))) + σ(<tanh(tanh(tanh((k + tanh(k))))), tanh(tanh((k + tanh(k))))>)·S)` |
+| 12 | 164,980 | no | no | no | 536 | `S' = ((v)⊗(tanh(tanh(tanh(k)))) + σ((σ(σ(1.210)) + 1.210))·(S + 0))` |
+| 13 | 41,332 | no | no | no | 417 | `S' = ((v)⊗(tanh(0.838·tanh(tanh(k)))) + 0.873·S)` |
+| 14 | 33,652 | no | no | 480,628 | 1402 | `S' = ((0.907·(S + (v)⊗(k)) - (1.177·((S)((v)⊗(k)))((v)⊗(k)) + ((S)((v)⊗(k)))((v)⊗(k)))) + (1.177·((S)((v)⊗(k)))((v)⊗(k))` |
+| 15 | 26,484 | no | no | no | 568 | `S' = ((v)⊗(((tanh(k) + k) + tanh((tanh(k) + k)))) + |tanh(tanh(tanh(v)))|·S)` |
+| 16 | 22,132 | 256,244 | 260,980 | 255,348 | 786 | `S' = ((S - 0) + <tanh(tanh(tanh(tanh(k)))), tanh(tanh(tanh(tanh(k))))>·((v - (S - 0)·tanh(tanh(tanh(tanh(k))))))⊗(tanh(t` |
+
+- linear attention: reached by 16/16 seeds, median 26,868 candidates
+- delta rule (beta=1): reached by 2/16 seeds, median 256,244 candidates
+- delta rule (beta=0.5): reached by 2/16 seeds, median 260,980 candidates
+- gated delta (alpha=0.9): reached by 5/16 seeds, median 480,628 candidates

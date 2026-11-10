@@ -4,7 +4,7 @@
     modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v3-noaddnode --no-split-edge
     modal run modal_runner.py --seeds 1-8 --tag r8-m2 --extra="--regime rewrite8 --train-episodes 192 --persist-m 2"
 
-`--extra` is passed to `autoplast search` unchanged (regime, task seed, state budget, --no-recip).
+`--extra` is passed to `autoplast search` unchanged (task, regime, task seed, state budget, --recip).
 
 Each container builds nothing at run time: the binary is compiled once into the image.
 Results land in the Modal volume `autoplast-runs` and are copied to ./runs/<tag>/seed<N>/.

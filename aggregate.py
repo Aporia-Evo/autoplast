@@ -42,7 +42,8 @@ def write(base: pathlib.Path) -> str:
                 final=field(s, "structure: ").split("  [")[0],
                 formula=field(s, "S' =", ""),
                 train=field(s, "train acc "),
-                header=[l for l in s.splitlines()[2:5]],
+                header=[l for l in s.splitlines()[2:5] if l.strip()],
+                wall=(d / "wall_seconds.txt").read_text().strip() if (d / "wall_seconds.txt").exists() else "",
             )
         )
     if not rows:
@@ -51,10 +52,10 @@ def write(base: pathlib.Path) -> str:
     lines += ["Settings of the first seed (all seeds of a tag must share them except seed and task seed):", ""]
     lines += [f"    {l}" for l in rows[0]["header"]] + [""]
     lines += ["## Structural rediscovery", ""]
-    lines += ["| seed | family of final best rule | train acc | families seen as best rule (first candidate count) | best rule |", "|---|---|---|---|---|"]
+    lines += ["| seed | family of final best rule | train acc | wall s | families seen as best rule (first candidate count) | best rule |", "|---|---|---|---|---|---|"]
     for r in rows:
         seen = ", ".join(f"{f} ({n:,})" for f, n in r["fams"].items())
-        lines.append(f"| {r['seed']} | {r['final']} | {r['train']} | {seen} | `S' ={r['formula'][:110]}` |")
+        lines.append(f"| {r['seed']} | {r['final']} | {r['train']} | {r['wall']} | {seen} | `S' ={r['formula'][:110]}` |")
     lines.append("")
     for fam in sorted({f for r in rows for f in r["fams"]}):
         reached = sorted(r["fams"][fam] for r in rows if fam in r["fams"])
