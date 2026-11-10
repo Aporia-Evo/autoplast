@@ -607,3 +607,41 @@ The rediscovery rate depends on the task (base 5 to 6 of 16, task v3 11 to 12 of
 the alphabet (3a), not on the add-node mutation. The method claim in `CLAUDE.md` therefore has
 no supporting component yet. The seeds that fail stop at linear attention; a method change
 has to show up as fewer such seeds or fewer candidates on the same tasks and seeds.
+
+## Package C: second state on collision3 (released 10 Nov 2026, before any result)
+
+Question: the 48 one-state searches of 5a found no rule above tuned DeltaNet on collision3.
+Does the same search find one when a rule may keep a second d×d state?
+
+Design: arm C1 (`runs/c-m2`) is 5a-A with `--persist-m 2` and nothing else changed: task
+collision3, task seed 1, 96 train episodes, 19 ops, fixed readout, seeds 1 to 16, 1,500,000
+candidates, batch 128. The control is the committed `runs/5a-A`. Arm C2 (`runs/c-m2-recip`)
+adds `--recip` and runs only after C1 is reported. The decision rules are those of 5a,
+unchanged: rule 1, Mann-Whitney on the test accuracies against 5a-A; rule 2, test > 0.651 and
+T128 K8 ≥ 0.838 and train − test ≤ 0.03. Commands: RUNBOOK.md, package C.
+
+Is there anything to find? One hand-written probe says yes (`python verify/probe_two_state.py`,
+`runs/sweeps/probe_two_state_collision3.md`). It is a reference only and never enters a search:
+
+    S' = S + β·(v − S k)(k − c·G k)ᵀ        G' = ρ·(G + k kᵀ)
+
+with G in the persistent register, 14 instructions of the default alphabet, no reciprocal.
+
+| rule on collision3 | train | test | T128 K8 |
+|---|---|---|---|
+| plain delta rule (c = 0), best β by train | 0.617 | 0.640 | 0.828 |
+| probe, β = 0.9, c = 0.3, ρ = 0.85 | 0.662 | 0.679 | 0.857 |
+| probe, β = 0.7, c = 0.2, ρ = 0.85 | 0.663 | 0.674 | 0.872 |
+| Kalman delta (two states, not in the search space) | – | 0.935 | – |
+
+The probe passes rule 2 and reproduces in JAX on the exact Rust test data (0.6789 against
+0.679). So the two-state space contains at least one rule about 0.04 above every one-state
+family, on one task draw and a grid of 72 settings; a first attempt without decay of G was
+worse than the plain delta rule. The exact Kalman rule is not expressible (a persistent
+register starts at zero and there is no matrix inverse), so 0.935 is a reference, not a target
+the search is known to be able to reach. What C can show: whether the search finds the probe's
+level or better (discovery claim), or does not find it although it exists (which would be
+evidence about the search method, the open point above). Limits: the probe was written by
+hand after seeing the Kalman reference, so it says nothing about how easy the rule is to
+find; and C changes the search space, not the search algorithm.
+

@@ -87,7 +87,8 @@ Done so far (details and numbers in README):
 - Structural rediscovery test, state budget (`--persist-m`, `--persist-v`), `--recip`.
 
 Open, in order. Items 2 to 4 are repeated with the baseline search algorithms on the same
-seeds and budget; that comparison is the method result.
+seeds and budget; that comparison is the method result. Item 3 was released ahead of item 1
+by the owner on 10 Nov 2026; it changes the search space, not the search algorithm.
 
 1. Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
@@ -96,8 +97,10 @@ seeds and budget; that comparison is the method result.
    Every change goes into README before results (rule 1).
 2. Measure the method on task v3 and the base task against regularized evolution, 16 seeds,
    with the structural test and the accuracy level side by side.
-3. Search with a second state (`--persist-m 2 --recip`) on collision3, rewrite8 and clustered,
-   8 seeds each, `--train-episodes 192`, task seed equal to the search seed. Bars: README,
+3. Search with a second state. Released as package C (RUNBOOK.md; README, "Package C"):
+   collision3 with `--persist-m 2`, 16 seeds, control 5a-A, rules of 5a. Afterwards, if C
+   finds something: rewrite8 and clustered, 8 seeds each, `--train-episodes 192`, task seed
+   equal to the search seed. Bars: README,
    "Tuned baselines per task" (one state: DeltaNet / Gated DeltaNet; two states: Kalman delta).
    Long tasks cost about 17 times the base task per candidate; time them first.
 4. Freeze the search method: commit it with a note in README. No change to mutations,

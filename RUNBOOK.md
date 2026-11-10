@@ -66,29 +66,97 @@ machine reproduces bit for bit; other values are not an error (rule 7), but repo
 ./target/release/autoplast search --seed 2 --budget 120000 --threads 2 --out /tmp/chk > /dev/null && grep '^\* ' /tmp/chk/summary.md && tail -1 /tmp/chk/log.csv
 ```
 
+## Status update, 10 Nov 2026 (read this first if you ran packages A and B)
+
+The branch `exp/v2-rediscovery-rate` was merged into `claude/inspiring-pascal-2sa9s7`
+(commit ae33301). Work from this branch from now on. What that means for you:
+
+- One code base. It is the code of the experiment branch (task v3, `--no-op`, `--extra-ops`,
+  `--evolve-readout`, stage-2 regimes, `dump`) plus the structural test, the state budget
+  (`--persist-m`, `--persist-v`), `--recip`, the ridge ceiling and two-state references in
+  `sweep`. All earlier results of both branches are in `runs/`.
+- Your two package-B tags were renamed: `runs/v3` is now `runs/base-recip`, `runs/v3-noaddnode`
+  is now `runs/base-recip-noaddnode`. `runs/v3` is the task-v3 run of 4 Nov. Nothing in your
+  files was changed except the headings.
+- `Recip` is off by default. Package B ran at commit 045ea3a, where it was on; the same runs
+  now need `--recip`. `--no-recip` no longer exists.
+- `local_runner.py` is the runner of 3 Nov again (`--parallel`, `--threads`, `--task`, `--regime`,
+  `--evolve-readout`, ...) with `--extra`, `--recip`, `--task-seed-from-seed` added. It writes
+  `wall_seconds.txt` per seed and calls `aggregate.py`.
+- Your results were checked: files complete, two seeds recomputed on Linux with identical logs
+  to 350,000 candidates. The gap you reported (base-recip seed 4, clustered suite, Rust 0.034
+  against JAX 0.091) is the draw of the embeddings: the same rule scores 0.034 to 0.120 in
+  Rust over six task seeds. The ± next to accuracies counts queries only.
+- Outcome of package B together with the 3 Nov ablation: delta family in 9/32 seeds with
+  add-node and 11/32 without. The add-node mutation has no measurable effect.
+- Platform: `runs/v3` seeds 1 and 2 (run on Windows) do not reproduce on Linux, four other
+  seeds do. Treat a committed seed as reproducible on its own platform only (rule 7).
+- Modal is not used for searches (decision of 3 Nov, restored).
+
+Read README, "Merge of the two branches and package B" and "Package C", before you start.
+
 ## Work packages
 
-A (timing) and B (base task with `--recip`, add-node on and off, 16 seeds each) are done; the
-results are in `runs/base-recip/` and `runs/base-recip-noaddnode/` and in README, "Merge".
-They were run at commit 045ea3a, where `Recip` was on by default; since the merge the same
-runs need `--recip`.
+A and B are done (`runs/base-recip/`, `runs/base-recip-noaddnode/`; README, "Merge").
 
-No package is released at the moment. The next ones follow `CLAUDE.md`, "Next experiments",
-and will be written here with tags and commands once the owner has decided on the method
-change. Do not start searches on your own.
+### C. Second state on collision3 (released 10 Nov 2026)
 
-Command pattern for a released package (the runner skips finished seeds):
+Question: 48 searches with one state (5a-A, 5a-B, 5a-C) found no rule above tuned DeltaNet on
+collision3. Does the same search find one when a rule may keep a second d×d state?
+
+Everything is as in 5a-A (task collision3, task seed 1, 96 train episodes, 19 ops, fixed
+readout, seeds 1 to 16, 1,500,000 candidates, batch 128) except the state budget. The control
+is the committed `runs/5a-A`; do not rerun it.
+
+Bars on the collision3 test suite (README, "Package C"): tuned DeltaNet 0.640, tuned Gated
+DeltaNet 0.644, hand-written two-state probe 0.679 (T128 K8 0.857), Kalman delta 0.935,
+ridge ceiling 1.000.
+
+Before anything else, write your predictions into `runs/c-m2/C_VORHERSAGE.md`, as for B.
+
+1. Timing, 2 seeds, not committed:
 
 ```bash
-python local_runner.py --seeds 1-16 --budget 1500000 --tag <tag> --parallel 2 --threads 8 --task v3
+python local_runner.py --seeds 1-2 --budget 150000 --tag time-c --parallel 2 --threads 8 --regime collision3 --extra="--persist-m 2"
+```
+
+Report minutes per seed and the projection to 1,500,000 candidates (times 2 as margin). If
+the projection for 16 seeds is above 24 hours of wall time, stop and ask.
+
+2. Arm C1, the main arm:
+
+```bash
+python local_runner.py --seeds 1-16 --budget 1500000 --tag c-m2 --parallel 2 --threads 8 --regime collision3 --extra="--persist-m 2"
+```
+
+3. Arm C2, only after C1 is reported and the owner says go (adds the reciprocal):
+
+```bash
+python local_runner.py --seeds 1-16 --budget 1500000 --tag c-m2-recip --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 2"
+```
+
+4. Check every best rule in JAX on the exact Rust test data:
+
+```bash
+./target/release/autoplast dump --regime collision3 --split test --out runs/c-m2/collision3_test.json
 ```
 
 ```bash
-python local_runner.py --seeds 1-8 --budget 1500000 --tag <tag> --parallel 2 --threads 8 --task-seed-from-seed --extra="--regime rewrite8 --train-episodes 192 --persist-m 2 --recip"
+python verify/verify.py --task-json runs/c-m2/collision3_test.json runs/c-m2/seed*/best.json > runs/c-m2/verify_dump.txt
 ```
 
-If `git` cannot be executed where the runner starts, pass the commit yourself with
-`--extra="--commit <hash>"` and say so in `WHERE.md`.
+What to report, per arm:
+- Per seed: collision3 test accuracy, train accuracy, T128 K8, structural family, and whether
+  the rule uses the second state at all (a line `P1' = ...` under the formula in `summary.md`).
+- Rule 1 (as in 5a): Mann-Whitney test of the 16 test accuracies against `runs/5a-A`.
+- Rule 2 (as in 5a, unchanged): test > 0.651 AND T128 K8 >= 0.838 AND train - test <= 0.03.
+  How many seeds pass, and for each passing seed the formula.
+- How many seeds beat the hand-written probe (0.679) under rule 2's other two conditions.
+- JAX against Rust on the dump: largest difference.
+
+`runs/c-m2/collision3_test.json` is large; do not commit it (delete it after step 4).
+If `git` cannot be executed where the runner starts, pass the commit with
+`--extra="--persist-m 2 --commit <hash>"` and say so in `WHERE.md`.
 
 ## Handing back
 
