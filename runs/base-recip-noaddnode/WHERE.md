@@ -1,4 +1,4 @@
-# v3-noaddnode: where it ran
+# base-recip-noaddnode (run as v3-noaddnode, renamed on merge): where it ran
 
 All 16 seeds ran on workstation (Ryzen 7 5700G) on 10 Nov 2026, none on epyc or modal. No seed failed, none was rerun.
 The owner decided to run package B locally only, because epyc was not reachable (the JupyterHub token was rejected).

@@ -1,4 +1,4 @@
-# v3-noaddnode: 16 seeds
+# base-recip-noaddnode (run as v3-noaddnode, renamed on merge): 16 seeds
 
 Settings of the first seed (all seeds of a tag must share them except seed and task seed):
 

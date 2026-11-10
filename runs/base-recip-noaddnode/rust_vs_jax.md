@@ -1,4 +1,4 @@
-# v3-noaddnode: Rust vs JAX (verify.txt), per seed
+# base-recip-noaddnode (run as v3-noaddnode, renamed on merge): Rust vs JAX (verify.txt), per seed
 
 Rust from summary.md, JAX from verify.txt (independent episodes and embeddings). a = carry coefficient of the structural fit (Rust classify.rs / JAX on real states).
 

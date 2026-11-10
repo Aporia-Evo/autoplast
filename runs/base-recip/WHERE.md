@@ -1,4 +1,4 @@
-# v3: where it ran
+# base-recip (run as v3, renamed on merge): where it ran
 
 All 16 seeds ran on workstation (Ryzen 7 5700G) on 10 Nov 2026, none on epyc or modal. No seed failed, none was rerun.
 The owner decided to run package B locally only, because epyc was not reachable (the JupyterHub token was rejected).
