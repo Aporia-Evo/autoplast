@@ -1,0 +1,1 @@
+{"persist_m":1,"persist_v":0,"instrs":[{"op":"Outer","out":2,"a":1,"b":0,"c":0.05819757},{"op":"MatAdd","out":0,"a":2,"b":0,"c":-1.6141232},{"op":"Const","out":2,"a":0,"b":0,"c":0.9577198},{"op":"MatScale","out":0,"a":2,"b":0,"c":0.46415764}]}

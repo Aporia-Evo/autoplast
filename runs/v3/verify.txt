@@ -1,0 +1,252 @@
+
+## reference: linear attention
+  test d16 T12 ow0.3: acc 0.741 ±0.013
+  test d16 T12 ow0.0: acc 0.907 ±0.007
+  test d16 T12 ow0.6: acc 0.568 ±0.018
+  test d32 T24 ow0.3: acc 0.829 ±0.011
+  test d8 T6 ow0.3: acc 0.627 ±0.020
+  full T24: acc 0.604 ±0.015
+  overload T48: acc 0.332 ±0.010
+  rewrite8 T96: acc 0.078 ±0.012
+  rewrite14 T96: acc 0.107 ±0.010
+  clustered T12: acc 0.125 ±0.010
+  clustered8 T48: acc 0.042 ±0.009
+  on real states: S' ≈ +1.000·S +1.000·(v kᵀ) -0.000·((S k) kᵀ) -0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## reference: delta rule (beta=0.5)
+  test d16 T12 ow0.3: acc 0.920 ±0.008
+  test d16 T12 ow0.0: acc 0.900 ±0.008
+  test d16 T12 ow0.6: acc 0.953 ±0.008
+  test d32 T24 ow0.3: acc 0.985 ±0.004
+  test d8 T6 ow0.3: acc 0.808 ±0.016
+  full T24: acc 0.781 ±0.012
+  overload T48: acc 0.466 ±0.011
+  rewrite8 T96: acc 0.842 ±0.016
+  rewrite14 T96: acc 0.706 ±0.015
+  clustered T12: acc 0.172 ±0.011
+  clustered8 T48: acc 0.194 ±0.017
+  on real states: S' ≈ +1.000·S +0.500·(v kᵀ) -0.500·((S k) kᵀ) +0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/v3/seed1/best.json
+  test d16 T12 ow0.3: acc 0.775 ±0.012
+  test d16 T12 ow0.0: acc 0.869 ±0.008
+  test d16 T12 ow0.6: acc 0.654 ±0.018
+  test d32 T24 ow0.3: acc 0.886 ±0.009
+  test d8 T6 ow0.3: acc 0.657 ±0.019
+  full T24: acc 0.619 ±0.014
+  overload T48: acc 0.363 ±0.010
+  rewrite8 T96: acc 0.440 ±0.022
+  rewrite14 T96: acc 0.438 ±0.016
+  clustered T12: acc 0.144 ±0.010
+  clustered8 T48: acc 0.079 ±0.012
+  on real states: S' ≈ +0.949·S +0.908·(v kᵀ) +0.002·((S k) kᵀ) +0.005·((vᵀS k) v kᵀ)   R² = 0.9960
+
+## runs/v3/seed2/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d8 T6 ow0.3: acc 0.648 ±0.020
+  full T24: acc 0.633 ±0.014
+  overload T48: acc 0.371 ±0.010
+  rewrite8 T96: acc 0.406 ±0.021
+  rewrite14 T96: acc 0.406 ±0.016
+  clustered T12: acc 0.138 ±0.010
+  clustered8 T48: acc 0.079 ±0.012
+  on real states: S' ≈ +0.958·S +0.958·(v kᵀ) -0.000·((S k) kᵀ) -0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/v3/seed3/best.json
+  test d16 T12 ow0.3: acc 0.958 ±0.006
+  test d16 T12 ow0.0: acc 0.948 ±0.006
+  test d16 T12 ow0.6: acc 0.977 ±0.006
+  test d32 T24 ow0.3: acc 0.975 ±0.005
+  test d8 T6 ow0.3: acc 0.847 ±0.015
+  full T24: acc 0.745 ±0.013
+  overload T48: acc 0.163 ±0.008
+  rewrite8 T96: acc 0.017 ±0.006
+  rewrite14 T96: acc 0.018 ±0.004
+  clustered T12: acc 0.211 ±0.012
+  clustered8 T48: acc 0.037 ±0.008
+  on real states: S' ≈ +1.114·S +2.144·(v kᵀ) -0.805·((S k) kᵀ) -0.009·((vᵀS k) v kᵀ)   R² = 0.9886
+
+## runs/v3/seed4/best.json
+  test d16 T12 ow0.3: acc 0.955 ±0.006
+  test d16 T12 ow0.0: acc 0.939 ±0.006
+  test d16 T12 ow0.6: acc 0.974 ±0.006
+  test d32 T24 ow0.3: acc 0.996 ±0.002
+  test d8 T6 ow0.3: acc 0.852 ±0.015
+  full T24: acc 0.787 ±0.012
+  overload T48: acc 0.219 ±0.009
+  rewrite8 T96: acc 0.020 ±0.006
+  rewrite14 T96: acc 0.021 ±0.005
+  clustered T12: acc 0.191 ±0.012
+  clustered8 T48: acc 0.091 ±0.012
+  on real states: S' ≈ +1.098·S +0.330·(v kᵀ) -0.824·((S k) kᵀ) -0.002·((vᵀS k) v kᵀ)   R² = 0.9896
+
+## runs/v3/seed5/best.json
+  test d16 T12 ow0.3: acc 0.952 ±0.006
+  test d16 T12 ow0.0: acc 0.941 ±0.006
+  test d16 T12 ow0.6: acc 0.975 ±0.006
+  test d32 T24 ow0.3: acc 0.932 ±0.007
+  test d8 T6 ow0.3: acc 0.854 ±0.014
+  full T24: acc 0.696 ±0.014
+  overload T48: acc 0.230 ±0.009
+  rewrite8 T96: acc 0.011 ±0.004
+  rewrite14 T96: acc 0.020 ±0.005
+  clustered T12: acc 0.216 ±0.012
+  clustered8 T48: acc 0.023 ±0.007
+  on real states: S' ≈ +1.125·S +0.984·(v kᵀ) -0.872·((S k) kᵀ) -0.023·((vᵀS k) v kᵀ)   R² = 0.9901
+
+## runs/v3/seed6/best.json
+  test d16 T12 ow0.3: acc 0.769 ±0.012
+  test d16 T12 ow0.0: acc 0.875 ±0.008
+  test d16 T12 ow0.6: acc 0.648 ±0.018
+  test d32 T24 ow0.3: acc 0.872 ±0.010
+  test d8 T6 ow0.3: acc 0.628 ±0.020
+  full T24: acc 0.620 ±0.014
+  overload T48: acc 0.368 ±0.010
+  rewrite8 T96: acc 0.408 ±0.021
+  rewrite14 T96: acc 0.400 ±0.016
+  clustered T12: acc 0.138 ±0.010
+  clustered8 T48: acc 0.079 ±0.012
+  on real states: S' ≈ +0.956·S +1.000·(v kᵀ) +0.001·((S k) kᵀ) -0.003·((vᵀS k) v kᵀ)   R² = 0.9937
+
+## runs/v3/seed7/best.json
+  test d16 T12 ow0.3: acc 0.775 ±0.012
+  test d16 T12 ow0.0: acc 0.869 ±0.008
+  test d16 T12 ow0.6: acc 0.654 ±0.018
+  test d32 T24 ow0.3: acc 0.886 ±0.009
+  test d8 T6 ow0.3: acc 0.657 ±0.019
+  full T24: acc 0.619 ±0.014
+  overload T48: acc 0.363 ±0.010
+  rewrite8 T96: acc 0.440 ±0.022
+  rewrite14 T96: acc 0.438 ±0.016
+  clustered T12: acc 0.144 ±0.010
+  clustered8 T48: acc 0.079 ±0.012
+  on real states: S' ≈ +0.949·S +0.908·(v kᵀ) +0.002·((S k) kᵀ) +0.005·((vᵀS k) v kᵀ)   R² = 0.9960
+
+## runs/v3/seed8/best.json
+  test d16 T12 ow0.3: acc 0.775 ±0.012
+  test d16 T12 ow0.0: acc 0.869 ±0.008
+  test d16 T12 ow0.6: acc 0.653 ±0.018
+  test d32 T24 ow0.3: acc 0.887 ±0.009
+  test d8 T6 ow0.3: acc 0.659 ±0.019
+  full T24: acc 0.620 ±0.014
+  overload T48: acc 0.363 ±0.010
+  rewrite8 T96: acc 0.439 ±0.021
+  rewrite14 T96: acc 0.438 ±0.016
+  clustered T12: acc 0.144 ±0.010
+  clustered8 T48: acc 0.079 ±0.012
+  on real states: S' ≈ +0.950·S +0.903·(v kᵀ) +0.002·((S k) kᵀ) +0.005·((vᵀS k) v kᵀ)   R² = 0.9956
+
+## runs/v3/seed9/best.json
+  test d16 T12 ow0.3: acc 0.961 ±0.006
+  test d16 T12 ow0.0: acc 0.953 ±0.005
+  test d16 T12 ow0.6: acc 0.978 ±0.005
+  test d32 T24 ow0.3: acc 0.971 ±0.005
+  test d8 T6 ow0.3: acc 0.844 ±0.015
+  full T24: acc 0.806 ±0.012
+  overload T48: acc 0.211 ±0.009
+  rewrite8 T96: acc 0.020 ±0.006
+  rewrite14 T96: acc 0.021 ±0.005
+  clustered T12: acc 0.192 ±0.012
+  clustered8 T48: acc 0.061 ±0.010
+  on real states: S' ≈ +1.097·S +0.998·(v kᵀ) -0.740·((S k) kᵀ) -0.003·((vᵀS k) v kᵀ)   R² = 0.9974
+
+## runs/v3/seed10/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d8 T6 ow0.3: acc 0.649 ±0.020
+  full T24: acc 0.633 ±0.014
+  overload T48: acc 0.372 ±0.010
+  rewrite8 T96: acc 0.407 ±0.021
+  rewrite14 T96: acc 0.406 ±0.016
+  clustered T12: acc 0.138 ±0.010
+  clustered8 T48: acc 0.079 ±0.012
+  on real states: S' ≈ +0.958·S +0.958·(v kᵀ) -0.000·((S k) kᵀ) -0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/v3/seed11/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d8 T6 ow0.3: acc 0.648 ±0.020
+  full T24: acc 0.633 ±0.014
+  overload T48: acc 0.371 ±0.010
+  rewrite8 T96: acc 0.406 ±0.021
+  rewrite14 T96: acc 0.406 ±0.016
+  clustered T12: acc 0.138 ±0.010
+  clustered8 T48: acc 0.079 ±0.012
+  on real states: S' ≈ +0.958·S +1.000·(v kᵀ) -0.000·((S k) kᵀ) -0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/v3/seed12/best.json
+  test d16 T12 ow0.3: acc 0.961 ±0.006
+  test d16 T12 ow0.0: acc 0.958 ±0.005
+  test d16 T12 ow0.6: acc 0.977 ±0.006
+  test d32 T24 ow0.3: acc 0.962 ±0.006
+  test d8 T6 ow0.3: acc 0.849 ±0.015
+  full T24: acc 0.787 ±0.012
+  overload T48: acc 0.209 ±0.009
+  rewrite8 T96: acc 0.018 ±0.006
+  rewrite14 T96: acc 0.020 ±0.005
+  clustered T12: acc 0.200 ±0.012
+  clustered8 T48: acc 0.044 ±0.009
+  on real states: S' ≈ +1.100·S +0.658·(v kᵀ) -0.715·((S k) kᵀ) -0.004·((vᵀS k) v kᵀ)   R² = 0.9967
+
+## runs/v3/seed13/best.json
+  test d16 T12 ow0.3: acc 0.775 ±0.012
+  test d16 T12 ow0.0: acc 0.869 ±0.008
+  test d16 T12 ow0.6: acc 0.654 ±0.018
+  test d32 T24 ow0.3: acc 0.886 ±0.009
+  test d8 T6 ow0.3: acc 0.657 ±0.019
+  full T24: acc 0.619 ±0.014
+  overload T48: acc 0.363 ±0.010
+  rewrite8 T96: acc 0.440 ±0.022
+  rewrite14 T96: acc 0.438 ±0.016
+  clustered T12: acc 0.144 ±0.010
+  clustered8 T48: acc 0.079 ±0.012
+  on real states: S' ≈ +0.949·S +0.908·(v kᵀ) +0.002·((S k) kᵀ) +0.005·((vᵀS k) v kᵀ)   R² = 0.9960
+
+## runs/v3/seed14/best.json
+  test d16 T12 ow0.3: acc 0.775 ±0.012
+  test d16 T12 ow0.0: acc 0.869 ±0.008
+  test d16 T12 ow0.6: acc 0.654 ±0.018
+  test d32 T24 ow0.3: acc 0.886 ±0.009
+  test d8 T6 ow0.3: acc 0.657 ±0.019
+  full T24: acc 0.619 ±0.014
+  overload T48: acc 0.363 ±0.010
+  rewrite8 T96: acc 0.440 ±0.022
+  rewrite14 T96: acc 0.438 ±0.016
+  clustered T12: acc 0.144 ±0.010
+  clustered8 T48: acc 0.079 ±0.012
+  on real states: S' ≈ +0.949·S +0.908·(v kᵀ) +0.002·((S k) kᵀ) +0.005·((vᵀS k) v kᵀ)   R² = 0.9960
+
+## runs/v3/seed15/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d8 T6 ow0.3: acc 0.649 ±0.020
+  full T24: acc 0.633 ±0.014
+  overload T48: acc 0.371 ±0.010
+  rewrite8 T96: acc 0.407 ±0.021
+  rewrite14 T96: acc 0.406 ±0.016
+  clustered T12: acc 0.138 ±0.010
+  clustered8 T48: acc 0.079 ±0.012
+  on real states: S' ≈ +0.958·S +1.000·(v kᵀ) -0.000·((S k) kᵀ) +0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/v3/seed16/best.json
+  test d16 T12 ow0.3: acc 0.772 ±0.012
+  test d16 T12 ow0.0: acc 0.869 ±0.008
+  test d16 T12 ow0.6: acc 0.654 ±0.018
+  test d32 T24 ow0.3: acc 0.888 ±0.009
+  test d8 T6 ow0.3: acc 0.655 ±0.019
+  full T24: acc 0.620 ±0.014
+  overload T48: acc 0.363 ±0.010
+  rewrite8 T96: acc 0.444 ±0.022
+  rewrite14 T96: acc 0.427 ±0.016
+  clustered T12: acc 0.145 ±0.010
+  clustered8 T48: acc 0.077 ±0.012
+  on real states: S' ≈ +0.950·S +0.899·(v kᵀ) +0.002·((S k) kᵀ) -0.078·((vᵀS k) v kᵀ)   R² = 0.9950
