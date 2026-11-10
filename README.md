@@ -113,3 +113,84 @@ Stage 1 criterion ("rediscover the delta family from an empty program") is met b
 seeds. Open: more seeds for a rate, long-sequence tasks that punish a > 1, a gate analysis
 that does not saturate (the linear decomposition in `verify.py` cannot see state-dependent
 gates such as seed 1's), and whether seed 1's occupancy gate is known in the literature.
+
+## Review and scope correction (10 Nov 2026)
+
+Code, runs and the current literature were reviewed before any stage-2 compute is spent.
+Nothing below is a search result; it changes what the project should claim and measure.
+
+### Findings
+
+1. **The milestones measure accuracy, not rediscovery.** A milestone fires when the best train
+   accuracy passes a reference rule's accuracy. v2 seed 1 "reached delta rule β=1" with a rule
+   that has no erase term at all. The "gated delta α=0.9" milestone (0.729) lies below linear
+   attention (0.772) and fires together with it. A rediscovery rate built on these counts
+   would not survive review. Rediscovery needs a structural test (fit to the family on real
+   memory states, or algebraic canonicalisation).
+2. **The base task has almost no headroom.** Tuned Gated DeltaNet 0.968, ceiling of a linear
+   readout 1.000 (table below). All held-out suites keep the same load T/d = 0.75, so they
+   test fresh samples, not a shifted regime.
+3. **Train noise.** 96 episodes are about 840 queries: ±1.2 points standard error at 0.85. The
+   train task is the same for every search seed, so seeds vary the search only, not the data.
+4. **The search space cannot express the 2026 rules.** Scratch registers are zeroed every
+   step, so a rule is a function of (S, k, v) only: no second state, hence no preconditioner,
+   Kalman gain or momentum. There is no reciprocal, so normalised steps (NLMS, Longhorn, RLS)
+   are out too.
+5. **Constants versus learned gates.** A rule here carries fixed scalars; in a language model
+   α_t, β_t, keys and values are learned per token. A win with fixed constants on random unit
+   vectors is evidence about the functional form only.
+6. **"Tuned Gated DeltaNet" is no longer the bar.** Since May 2026: Gated DeltaNet-2 (NVIDIA,
+   NeurIPS 2026; channel-wise erase and write gates, 1.3B / 100B tokens), Erase-then-Delta,
+   Preconditioned DeltaNet (diagonal key-Gram preconditioner, 340M / 1B), Kalman Delta
+   Networks, Kronecker Delta Rule (scalar bilinear read-out vᵀSk, xLSTM family), Dual DeltaNet,
+   Muir. ASI-Arch (COLM 2026) is the LLM-driven counterpart of this project: 1,773 experiments,
+   about 20,000 GPU hours, starting from DeltaNet code. None of these was reproduced here;
+   they are read from the papers.
+7. Confirmed from the README's own reading: the growth factor a > 1 disappears on long episodes
+   (optimum a = 1.0 at T = 96). `verify.py` has no d = 8 suite and no noise band, and was not
+   run in this review (no JAX on the review machine).
+
+### Headroom per regime (`python verify/headroom.py`, NumPy, d = 16)
+
+Families tuned on 200 train episodes, reported on 1000 fresh episodes with fresh embeddings.
+"Ridge" is batch least squares on the latest (key, value) pairs: the ceiling for the fixed
+readout `o = S q`. "Kalman delta" is the delta error with a Kalman gain and keeps a second
+d×d state. Both are reference points written by hand, never candidates or seeds.
+
+| regime | lin. att. | DeltaNet | Gated DeltaNet | RLS (2 states) | Kalman delta (2 states) | ridge ceiling |
+|---|---|---|---|---|---|---|
+| base T12, ow 0.3 | 0.757 | 0.933 | 0.968 | 0.836 | 0.998 | 1.000 |
+| full load T24 | 0.576 | 0.763 | 0.835 | 0.824 | 0.949 | 0.997 |
+| overload T48 | 0.344 | 0.499 | 0.532 | 0.556 | 0.599 | 0.757 |
+| 8 keys rewritten, T96 | 0.078 | 0.871 | 0.871 | 0.098 | 0.958 | 1.000 |
+| 14 keys rewritten, T96 | 0.105 | 0.715 | 0.715 | 0.162 | 0.839 | 1.000 |
+| clustered keys cos≈0.8, T12 | 0.127 | 0.199 | 0.314 | 0.838 | 0.962 | 1.000 |
+| clustered, 8 keys, T48 | 0.042 | 0.206 | 0.205 | 0.181 | 0.686 | 1.000 |
+
+Reading: outside the base task Gated DeltaNet sits 13 to 80 points under the ceiling, and a
+known two-state rule closes most of that gap. One hand-written one-state probe
+(`S' = aS + b(v − Sk)(k − c·SᵀSk)ᵀ`, the matrix version of seed 1's occupancy signal) gains
+0.06 on clustered keys and nothing elsewhere. So the open question is not "beat Gated
+DeltaNet" but "how much of the gap is reachable at a given state budget". Single run, one
+embedding seed per split; standard error about 0.01.
+
+### Corrected scope
+
+- **Claim to aim for:** a rule found by evolution from the empty program that beats every
+  tuned known family *with the same state budget* in a named regime, reported as the fraction
+  of the gap to the ridge ceiling it closes. State budget (one d×d matrix, two matrices) is an
+  explicit axis.
+- **Baselines:** linear attention, DeltaNet, Gated DeltaNet, decoupled erase/write (Gated
+  DeltaNet-2, Erase-then-Delta), Kronecker Delta Rule, and for two states RLS and Kalman delta.
+- **Target regimes:** rewriting few keys over long episodes, clustered keys, full load.
+  The base task stays as the rediscovery test only.
+- **Rediscovery, strengthened:** the 2026 rules were published after the op set was fixed.
+  Whether the search reassembles them is a held-out test of the method.
+- **Search-space changes this needs (both generic, to be logged before results):** registers
+  that persist across steps under a stated budget, and a scalar reciprocal.
+- **Before any "better" claim:** refit the top structures with learned per-step gates and
+  learned keys in a small trained model (MQAR, 2 layers), so the fixed-constant objection is
+  answered before a language model is trained.
+- **Stage 3 is open.** Published comparisons run at 340M to 1.3B parameters and 15 to 100
+  billion tokens on multi-GPU nodes. Whether and how a language-model stage is affordable is
+  a decision for the project owner, not settled here.
