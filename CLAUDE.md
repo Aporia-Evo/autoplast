@@ -63,10 +63,12 @@ Stages:
 
 ## Compute
 
-Modal credits are limited. Use `modal_runner.py` (CPU containers only, 8 CPUs each).
-Before any launch larger than 8 seeds, run 2 seeds with a small budget, measure wall time,
-and state the expected total container-hours. The local machine is fine for single seeds
-and for `sweep` / `verify`.
+Machines: the owner's workstation (Ryzen 5700G, 8 cores; GTX 1660 Super), a university
+8-core EPYC over SSH, and Modal with 30 USD of credits. Runs are carried out by an executing
+agent following `RUNBOOK.md`; keep that file current when a work package is released.
+Use `local_runner.py` on the two machines first and `modal_runner.py` (CPU containers only,
+8 CPUs each) for overflow. Before any launch larger than 8 seeds, run 2 seeds with a small
+budget, measure wall time, and state the expected total. `sweep` and `verify` run anywhere.
 
 ## Next experiments, in order
 
@@ -79,9 +81,9 @@ that comparison is the method result.
    `runs/sweeps/`.
 3. Done: persistent registers (`--persist-m`, `--persist-v`) and `Recip`. `--no-recip` with
    the default budget reproduces v1/v2 bit for bit; keep that true.
-4. Rediscovery rate on the base task: `modal run modal_runner.py --seeds 1-16 --budget 1500000
-   --tag v3`, then the same with `--no-split-edge`. Time 2 seeds first. The runner was changed
-   on 10 Nov and has not been run since; check a 2-seed run end to end.
+4. Rediscovery rate on the base task: tags `v3` and `v3-noaddnode`, 16 seeds each, on the
+   two machines (RUNBOOK.md, packages A and B). The Modal runner was changed on 10 Nov and
+   has not been run since; package D checks it.
 5. Stage 2 search per regime and state budget, 8 seeds each, with `--train-episodes 192`
    and `--task-seed` equal to the search seed. Bars to clear are in README, "Tuned baselines
    per regime". Long regimes cost more per candidate; time them first.

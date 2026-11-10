@@ -2,7 +2,7 @@
 
     modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v3
     modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v3-noaddnode --no-split-edge
-    modal run modal_runner.py --seeds 1-8 --tag r8-m2 --extra "--regime rewrite8 --train-episodes 192 --persist-m 2"
+    modal run modal_runner.py --seeds 1-8 --tag r8-m2 --extra="--regime rewrite8 --train-episodes 192 --persist-m 2"
 
 `--extra` is passed to `autoplast search` unchanged (regime, task seed, state budget, --no-recip).
 
@@ -17,7 +17,6 @@ budget to check timing before launching large fan-outs.
 """
 
 import pathlib
-import re
 import subprocess
 
 import modal
@@ -33,7 +32,7 @@ image = (
         str(ROOT),
         "/src",
         copy=True,
-        ignore=["target", "runs", ".git", "**/__pycache__"],
+        ignore=["target", "runs", ".git", "**/__pycache__", "*.md", "verify"],
     )
     .run_commands("cd /src && /root/.cargo/bin/cargo build --release")
 )
@@ -42,7 +41,7 @@ app = modal.App("autoplast-search", image=image)
 runs_volume = modal.Volume.from_name("autoplast-runs", create_if_missing=True)
 
 
-@app.function(cpu=float(CPUS), timeout=6 * 3600, volumes={"/runs": runs_volume})
+@app.function(cpu=float(CPUS), memory=4096, timeout=6 * 3600, volumes={"/runs": runs_volume})
 def search(seed: int, budget: int, tag: str, no_split_edge: bool, extra: str = "", commit: str = "unknown") -> dict:
     out = f"/runs/{tag}/seed{seed}"
     cmd = [
@@ -63,19 +62,6 @@ def search(seed: int, budget: int, tag: str, no_split_edge: bool, extra: str = "
     return {"seed": seed, **files}
 
 
-def parse_milestones(summary: str) -> dict:
-    hits = {}
-    for name, val in re.findall(r"^- (.+?) \(acc [0-9.]+\): (.+)$", summary, flags=re.M):
-        m = re.match(r"(\d+) candidates", val)
-        hits[name] = int(m.group(1)) if m else None
-    return hits
-
-
-def parse_families(summary: str) -> dict:
-    """Structural families that appeared as best rule -> candidate count of first appearance."""
-    return {name: int(n) for name, n in re.findall(r"^\* (.+?): (\d+) candidates$", summary, flags=re.M)}
-
-
 @app.local_entrypoint()
 def main(seeds: str = "1-4", budget: int = 1_500_000, tag: str = "v3", no_split_edge: bool = False, extra: str = ""):
     lo, hi = (int(x) for x in seeds.split("-"))
@@ -87,8 +73,9 @@ def main(seeds: str = "1-4", budget: int = 1_500_000, tag: str = "v3", no_split_
     print(f"launching {len(jobs)} containers x {CPUS} CPUs, budget {budget} candidates each")
     results = list(search.starmap(jobs, return_exceptions=True))
 
+    import aggregate  # local module; only needed on the launching machine
+
     base = ROOT / "runs" / tag
-    rows, names = [], None
     for r in results:
         if isinstance(r, Exception):
             print("job failed:", r)
@@ -97,27 +84,4 @@ def main(seeds: str = "1-4", budget: int = 1_500_000, tag: str = "v3", no_split_
         d.mkdir(parents=True, exist_ok=True)
         for name in ("summary.md", "best.json", "log.csv"):
             (d / name).write_text(r[name])
-        hits = parse_milestones(r["summary.md"])
-        names = names or list(hits)
-        formula = next((l for l in r["summary.md"].splitlines() if l.startswith("S' =")), "")
-        final = next((l[len("structure: "):].split("  [")[0] for l in r["summary.md"].splitlines() if l.startswith("structure: ")), "?")
-        rows.append((r["seed"], hits, formula, final, parse_families(r["summary.md"])))
-
-    if not rows:
-        return
-    rows.sort()
-    lines = [f"# {tag}: {len(rows)} seeds, budget {budget}, add-node {'off' if no_split_edge else 'on'}, extra '{extra}', commit {commit}", ""]
-    lines += ["## Structural rediscovery", "", "| seed | family of final best rule | families seen as best rule (first candidate count) | best rule |", "|---|---|---|---|"]
-    for seed, _, formula, final, fams in rows:
-        seen = ", ".join(f"{f} ({n:,})" for f, n in fams.items())
-        lines.append(f"| {seed} | {final} | {seen} | `{formula[:120]}` |")
-    lines.append("")
-    for fam in sorted({f for r in rows for f in r[4]}):
-        reached = sorted(r[4][fam] for r in rows if fam in r[4])
-        ended = sum(r[3] == fam for r in rows)
-        lines.append(f"- {fam}: seen in {len(reached)}/{len(rows)} seeds (median {reached[len(reached) // 2]:,} candidates), final rule in {ended}/{len(rows)}")
-    lines += ["", "## Accuracy levels (not rediscovery)", "", "| seed | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
-    for seed, hits, *_ in rows:
-        lines.append(f"| {seed} | " + " | ".join(f"{hits[n]:,}" if hits[n] else "–" for n in names) + " |")
-    (base / "aggregate.md").write_text("\n".join(lines) + "\n")
-    print("\n".join(lines))
+    print(aggregate.write(base))

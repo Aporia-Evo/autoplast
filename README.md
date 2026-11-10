@@ -72,6 +72,10 @@ python verify/verify.py runs/seed1/best.json     # needs jax, numpy
 ./target/release/autoplast sweep --regime rewrite8 --train-episodes 192   # tuned families + ceiling
 ./target/release/autoplast search --seed 1 --regime clustered --train-episodes 192 --persist-m 2
 
+# many seeds on one machine; RUNBOOK.md says which machine runs what
+python local_runner.py --seeds 1-8 --budget 1500000 --tag v3 --jobs 2 --threads 4
+python aggregate.py runs/v3
+
 # many seeds on Modal (CPU containers), results copied to runs/<tag>/
 modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v3
 modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v3-noaddnode --no-split-edge
