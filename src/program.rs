@@ -10,10 +10,24 @@
 //! other program in the space. The readout is fixed for every rule: o = S q.
 
 use crate::rng::Rng;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// Ablation switch for the NEAT-style add-node mutation (on by default).
 pub static SPLIT_EDGE: AtomicBool = AtomicBool::new(true);
+/// Scalar reciprocal in the op set (on by default; off reproduces the 19-op runs v1/v2).
+pub static USE_RECIP: AtomicBool = AtomicBool::new(true);
+/// State budget. Matrix registers M0..M{PERSIST_M-1} keep their content from one write step
+/// to the next (M0 always does: it is the memory). Vector registers V2..V{1+PERSIST_V} do the
+/// same. Everything else is zeroed before every step. Defaults (1, 0) are the v1/v2 setting.
+pub static PERSIST_M: AtomicUsize = AtomicUsize::new(1);
+pub static PERSIST_V: AtomicUsize = AtomicUsize::new(0);
+
+pub fn persist_m(i: usize) -> bool {
+    i < PERSIST_M.load(Ordering::Relaxed).clamp(1, NM)
+}
+pub fn persist_v(i: usize) -> bool {
+    i >= 2 && i < 2 + PERSIST_V.load(Ordering::Relaxed).min(NV - 2)
+}
 
 pub const NM: usize = 4;
 pub const NV: usize = 6;
@@ -51,9 +65,10 @@ pub enum Op {
     SMul,
     Sigmoid,
     Norm, // s = |Va|
+    Recip, // s = sa / (sa² + 1e-6): 1/sa away from zero, 0 at zero
 }
 
-pub const ALL_OPS: [Op; 19] = [
+pub const ALL_OPS: [Op; 20] = [
     Op::Outer,
     Op::MatAdd,
     Op::MatSub,
@@ -73,7 +88,18 @@ pub const ALL_OPS: [Op; 19] = [
     Op::SMul,
     Op::Sigmoid,
     Op::Norm,
+    Op::Recip,
 ];
+
+/// Ops the search may draw from. Recip is last, so switching it off leaves the first 19
+/// untouched and old seeds reproduce exactly.
+pub fn active_ops() -> &'static [Op] {
+    if USE_RECIP.load(Ordering::Relaxed) {
+        &ALL_OPS
+    } else {
+        &ALL_OPS[..19]
+    }
+}
 
 impl Op {
     /// (output type, input types)
@@ -91,7 +117,7 @@ impl Op {
             Op::Dot => (S, &[V, V]),
             Op::Const => (S, &[]),
             Op::SAdd | Op::SMul => (S, &[S, S]),
-            Op::Sigmoid => (S, &[S]),
+            Op::Sigmoid | Op::Recip => (S, &[S]),
             Op::Norm => (S, &[V]),
         }
     }
@@ -117,6 +143,7 @@ impl Op {
             Op::SMul => "SMul",
             Op::Sigmoid => "Sigmoid",
             Op::Norm => "Norm",
+            Op::Recip => "Recip",
         }
     }
 
@@ -152,7 +179,8 @@ pub struct Instr {
 
 impl Instr {
     pub fn random(rng: &mut Rng) -> Instr {
-        let op = ALL_OPS[rng.below(ALL_OPS.len())];
+        let ops = active_ops();
+        let op = ops[rng.below(ops.len())];
         let (ot, ins) = op.sig();
         let pick = |rng: &mut Rng, t: Ty| rng.below(n_regs(t)) as u8;
         Instr {
@@ -193,12 +221,48 @@ pub struct Program {
 }
 
 impl Program {
-    /// Keep only instructions that can influence the final M0 (backward liveness).
+    /// Keep only instructions that can influence the memory M0, now or in a later step.
+    /// Backward liveness; a persistent register is live at exit if the next step reads it,
+    /// which is found by iterating to a fixpoint.
     pub fn effective(&self) -> Program {
-        let mut live_m = [false; NM];
-        let mut live_v = [false; NV];
+        let mut out_m = [false; NM];
+        let mut out_v = [false; NV];
+        out_m[0] = true;
+        loop {
+            let (keep, in_m, in_v) = self.liveness(&out_m, &out_v);
+            let mut changed = false;
+            for i in 0..NM {
+                if persist_m(i) && in_m[i] && !out_m[i] {
+                    out_m[i] = true;
+                    changed = true;
+                }
+            }
+            for i in 0..NV {
+                if persist_v(i) && in_v[i] && !out_v[i] {
+                    out_v[i] = true;
+                    changed = true;
+                }
+            }
+            if !changed {
+                return Program {
+                    instrs: self
+                        .instrs
+                        .iter()
+                        .zip(keep)
+                        .filter(|(_, k)| *k)
+                        .map(|(i, _)| i.clone())
+                        .collect(),
+                };
+            }
+        }
+    }
+
+    /// One backward pass: which instructions are needed for the given live-out registers,
+    /// and which registers are read from the previous step (live at entry).
+    fn liveness(&self, out_m: &[bool; NM], out_v: &[bool; NV]) -> (Vec<bool>, [bool; NM], [bool; NV]) {
+        let mut live_m = *out_m;
+        let mut live_v = *out_v;
         let mut live_s = [false; NS];
-        live_m[0] = true;
         let mut keep = vec![false; self.instrs.len()];
         for (idx, ins) in self.instrs.iter().enumerate().rev() {
             let (ot, o) = ins.output();
@@ -226,15 +290,7 @@ impl Program {
                 }
             }
         }
-        Program {
-            instrs: self
-                .instrs
-                .iter()
-                .zip(keep)
-                .filter(|(_, k)| *k)
-                .map(|(i, _)| i.clone())
-                .collect(),
-        }
+        (keep, live_m, live_v)
     }
 
     /// NEAT-style add-node: pick an input edge `r -> instr i`, insert a new instruction
@@ -255,7 +311,7 @@ impl Program {
         let slot = rng.below(ins_types.len());
         let ty = ins_types[slot];
         let r = if slot == 0 { self.instrs[i].a } else { self.instrs[i].b };
-        let candidates: Vec<Op> = ALL_OPS
+        let candidates: Vec<Op> = active_ops()
             .iter()
             .copied()
             .filter(|o| o.sig().0 == ty && o.sig().1.contains(&ty))
@@ -346,11 +402,18 @@ impl Program {
     /// Symbolic formula for the new S, by forward substitution over the effective program.
     pub fn formula(&self) -> String {
         let eff = self.effective();
-        let mut m: Vec<String> = (0..NM).map(|i| if i == 0 { "S".into() } else { "0".into() }).collect();
+        let mut m: Vec<String> = (0..NM)
+            .map(|i| match i {
+                0 => "S".into(),
+                _ if persist_m(i) => format!("P{i}"),
+                _ => "0".into(),
+            })
+            .collect();
         let mut v: Vec<String> = (0..NV)
             .map(|i| match i {
                 0 => "k".into(),
                 1 => "v".into(),
+                _ if persist_v(i) => format!("u{i}"),
                 _ => "0".into(),
             })
             .collect();
@@ -378,6 +441,7 @@ impl Program {
                 Op::SMul => format!("{}·{}", s[a], s[b]),
                 Op::Sigmoid => format!("σ({})", s[a]),
                 Op::Norm => format!("|{}|", v[a]),
+                Op::Recip => format!("1/({})", s[a]),
             };
             let e = if e.len() > 400 { "…".to_string() } else { e };
             let o = ins.out as usize;
@@ -387,7 +451,18 @@ impl Program {
                 Ty::S => s[o] = e,
             }
         }
-        format!("S' = {}", m[0])
+        let mut out = format!("S' = {}", m[0]);
+        for i in 1..NM {
+            if persist_m(i) && m[i] != format!("P{i}") {
+                out += &format!("\nP{i}' = {}", m[i]);
+            }
+        }
+        for i in 2..NV {
+            if persist_v(i) && v[i] != format!("u{i}") {
+                out += &format!("\nu{i}' = {}", v[i]);
+            }
+        }
+        out
     }
 
     pub fn to_json(&self) -> String {
@@ -405,7 +480,26 @@ impl Program {
                 )
             })
             .collect();
-        format!("{{\"instrs\":[{}]}}", items.join(","))
+        format!(
+            "{{\"persist_m\":{},\"persist_v\":{},\"instrs\":[{}]}}",
+            PERSIST_M.load(Ordering::Relaxed),
+            PERSIST_V.load(Ordering::Relaxed),
+            items.join(",")
+        )
+    }
+
+    /// State budget recorded in a program file: (persist_m, persist_v); (1, 0) if absent.
+    pub fn json_budget(s: &str) -> (usize, usize) {
+        let get = |name: &str, default: usize| {
+            let key = format!("\"{name}\":");
+            s.find(&key)
+                .and_then(|i| {
+                    let rest = &s[i + key.len()..];
+                    rest[..rest.find([',', '}']).unwrap_or(rest.len())].trim().parse().ok()
+                })
+                .unwrap_or(default)
+        };
+        (get("persist_m", 1), get("persist_v", 0))
     }
 
     /// Minimal parser for the format written by `to_json`.
@@ -454,18 +548,39 @@ impl Regs {
         }
     }
 
-    /// Load inputs for one write step: M0 = S, V0 = k, V1 = v, everything else zero.
-    pub fn load(&mut self, s_mem: &[f32], k: &[f32], v: &[f32]) {
-        self.m[0].copy_from_slice(s_mem);
+    /// Start of an episode: empty memory, all state zero.
+    pub fn reset(&mut self) {
+        for m in self.m.iter_mut() {
+            m.fill(0.0);
+        }
+        for v in self.v.iter_mut() {
+            v.fill(0.0);
+        }
+        self.s = [0.0; NS];
+    }
+
+    /// Inputs for one write step: V0 = k, V1 = v. M0 (the memory) and the persistent
+    /// registers keep their content; all other registers are zeroed.
+    pub fn load(&mut self, k: &[f32], v: &[f32]) {
         for i in 1..NM {
-            self.m[i].fill(0.0);
+            if !persist_m(i) {
+                self.m[i].fill(0.0);
+            }
         }
         self.v[0].copy_from_slice(k);
         self.v[1].copy_from_slice(v);
         for i in 2..NV {
-            self.v[i].fill(0.0);
+            if !persist_v(i) {
+                self.v[i].fill(0.0);
+            }
         }
         self.s = [0.0; NS];
+    }
+
+    /// True if the memory and every persistent register are finite and bounded.
+    pub fn state_ok(&self) -> bool {
+        let ok = |x: &[f32]| x.iter().all(|x| x.is_finite() && x.abs() <= 1e4);
+        (0..NM).all(|i| !persist_m(i) || ok(&self.m[i])) && (2..NV).all(|i| !persist_v(i) || ok(&self.v[i]))
     }
 
     pub fn run(&mut self, prog: &Program) {
@@ -567,6 +682,7 @@ impl Regs {
                 Op::SMul => self.s[o] = self.s[a] * self.s[b],
                 Op::Sigmoid => self.s[o] = 1.0 / (1.0 + (-self.s[a]).exp()),
                 Op::Norm => self.s[o] = self.v[a].iter().map(|x| x * x).sum::<f32>().sqrt(),
+                Op::Recip => self.s[o] = self.s[a] / (self.s[a] * self.s[a] + 1e-6),
             }
         }
     }

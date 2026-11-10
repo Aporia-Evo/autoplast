@@ -22,8 +22,12 @@ A rule is a straight-line program over typed registers, run once per write step:
 | `V0..V5` (d) | `V0 = k`, `V1 = v`, rest 0 | |
 | `s0..s3` | 0 | |
 
-19 operations: `Outer, MatAdd, MatSub, MatScale, Transpose, MatMul, MatVec, VecAdd, VecSub,
-VecScale, Hadamard, Normalize, Tanh, Dot, Const, SAdd, SMul, Sigmoid, Norm`.
+20 operations: `Outer, MatAdd, MatSub, MatScale, Transpose, MatMul, MatVec, VecAdd, VecSub,
+VecScale, Hadamard, Normalize, Tanh, Dot, Const, SAdd, SMul, Sigmoid, Norm, Recip`.
+`Recip` (scalar `x/(x²+1e-6)`) was added on 10 Nov 2026; `--no-recip` gives the 19-op space of
+runs v1 and v2. State budget: `--persist-m N` keeps `M0..M{N-1}` from one write step to the
+next, `--persist-v N` keeps `V2..V{1+N}`; all other registers are zeroed before every step.
+The default (1, 0) is the v1/v2 space, where a rule is a function of (S, k, v) only.
 
 Readout is identical for every rule: `o = S q`, decoded to the closest value embedding.
 No rule family is built in. Linear attention, the delta rule and gated variants are just
@@ -37,7 +41,8 @@ reuses an earlier key with a new value. Every key is queried at the end; the tar
 latest value. Fitness = accuracy + 0.05 · mean margin − 1e-4 · program length.
 
 Held-out tests use fresh embeddings and episodes, other overwrite rates and other sizes
-(d = 32 / T = 24, d = 8 / T = 6) the search never saw.
+(d = 32 / T = 24, d = 8 / T = 6) the search never saw, plus six regime suites that shift
+load, episode length, rewrite pressure and key similarity (`--regime`, see "Steps 1 to 3").
 
 ## Search
 
@@ -48,9 +53,11 @@ code share a cached score.
 
 ## Verification
 
-`verify/verify.py` re-implements the interpreter in JAX with its own episodes and RNG, and
-decomposes a rule's update by least squares into `a·S + b·(v kᵀ) + c·((S k) kᵀ)` with R².
-Linear attention is (1, 1, 0); the delta rule with step β is (1, β, −β).
+`verify/verify.py` re-implements the interpreter in JAX with its own episodes and RNG and
+prints every accuracy with its 95% interval. It repeats the structural test of
+`src/classify.rs`: least squares of the update on four terms,
+`a·S + b·(v kᵀ) + c·((S k) kᵀ) + g·((vᵀS k)·v kᵀ)`, on memory states from real episodes.
+Linear attention is (1, b, 0, 0); the delta rule with step e is (1, w, −e, 0).
 
 ## Usage
 
@@ -62,11 +69,12 @@ cargo build --release
 ./target/release/autoplast search --seed 1 --budget 3000000 --out runs/seed1
 ./target/release/autoplast eval --prog runs/seed1/best.json
 python verify/verify.py runs/seed1/best.json     # needs jax, numpy
-./target/release/autoplast sweep                 # tuned known families, fair baselines
+./target/release/autoplast sweep --regime rewrite8 --train-episodes 192   # tuned families + ceiling
+./target/release/autoplast search --seed 1 --regime clustered --train-episodes 192 --persist-m 2
 
 # many seeds on Modal (CPU containers), results copied to runs/<tag>/
-modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v2
-modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v2-noaddnode --no-split-edge
+modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v3
+modal run modal_runner.py --seeds 1-16 --budget 1500000 --tag v3-noaddnode --no-split-edge
 ```
 
 ## Reference rules (from `baselines`)
@@ -147,8 +155,8 @@ Nothing below is a search result; it changes what the project should claim and m
    about 20,000 GPU hours, starting from DeltaNet code. None of these was reproduced here;
    they are read from the papers.
 7. Confirmed from the README's own reading: the growth factor a > 1 disappears on long episodes
-   (optimum a = 1.0 at T = 96). `verify.py` has no d = 8 suite and no noise band, and was not
-   run in this review (no JAX on the review machine).
+   (optimum a = 1.0 at T = 96). `verify.py` had no d = 8 suite and no noise band (fixed and
+   run in "Steps 1 to 3" below).
 
 ### Headroom per regime (`python verify/headroom.py`, NumPy, d = 16)
 
@@ -208,3 +216,81 @@ To show the search is a tool and not a single case, the method is developed on m
 frozen by a commit, and then run unchanged on optimizer update rules (ladder SGD, momentum,
 RMSProp, Adam; ceiling Newton / conjugate gradients on quadratics). Details and order are in
 CLAUDE.md, "Next experiments". Nothing is implemented yet.
+
+## Steps 1 to 3: structural test, regimes, state budget (10 Nov 2026)
+
+Changes to measurement, task and search space, logged here before any search result that
+depends on them. No search result is reported in this section.
+
+### What changed and why
+
+- **Structural rediscovery test** (`src/classify.rs`, repeated independently in
+  `verify/verify.py`). The rule is run on 32 held-out episodes of the search regime; every write
+  step gives a sample (S, k, v, S'). The update is fitted with the four terms listed under
+  Verification. R² is taken over the part of the update that is not the carry `a·S`. A rule
+  belongs to a family only if R² ≥ 0.99; a coefficient counts as present above 5% of `a`.
+  Families: no write, (decayed) linear attention, (gated) delta rule, (gated) Kronecker delta
+  rule, mix. "Decayed" and "gated" mean a ≠ 1, including a > 1. The search records the first
+  candidate count at which the best rule belongs to each family. Reason: the accuracy
+  milestones are not rediscovery (review finding 1). They are still printed, labelled as
+  accuracy levels.
+- **Regimes** (`--regime`, d = 16): `base` (T12), `full` (T24), `overload` (T48), `rewrite8` and
+  `rewrite14` (T96, at most 8 / 14 distinct keys, every further write rewrites one),
+  `clustered` (T12, keys around one centre, cos ≈ 0.8), `clustered8` (T48, 8 keys, clustered).
+  Each has a held-out suite. `--train-episodes` and `--task-seed` set size and sample of the
+  train task. Reason: the base task has no headroom and one fixed, small train set.
+- **`sweep`** now tunes linear attention, decayed linear attention, DeltaNet, Gated DeltaNet
+  and the Kronecker delta rule (with and without decay) on the train task of a regime and
+  prints RLS, Kalman delta (both with a second d×d state, written natively in
+  `src/reference.rs`, never part of the search) and the ridge ceiling. Not included: channel-wise
+  erase/write gates (Gated DeltaNet-2), which need learned per-channel parameters; their
+  scalar version is the old "untied" row, which is redundant because of scale invariance.
+- **Search space**: `Recip` and persistent registers (see Search space). Reason: without a
+  second state and a reciprocal the space cannot contain preconditioned or normalised rules.
+  Both are generic; no rule is encoded. Program files record their state budget.
+- Every summary now carries commit, regime, task seed, train episodes and space flags;
+  accuracies carry their binomial standard error.
+
+### Checks
+
+- Old seeds reproduce bit for bit with `--no-recip`: best rule and log of two 120k-candidate
+  runs (seed 2; seed 5 with `--no-split-edge`) are identical between the old and new binary.
+- The structural test labels the five reference rules correctly (`autoplast baselines`).
+- Old runs re-scored (`runs/rescore-v1-v2.md`): v2 seed 2 is a gated delta rule (a = 1.098,
+  erase 0.725, R² = 1.0000); v2 seed 1 and v1 seed 1 are unclassified (R² = 0.94 and 0.96).
+  So by the structural test the delta family was found by 1 of 2 v2 seeds and by 0 of 1 v1
+  seeds, the same count as before, now on a criterion that cannot be passed by accuracy alone.
+- JAX verification of the three old rules (`runs/verify-v1-v2.txt`): accuracies agree with
+  Rust within the 95% interval on all eleven suites (seed 2, base test: 0.967 ±0.003 Rust,
+  0.961 ±0.006 JAX), coefficients agree to three digits.
+- v2 seed 2 fails on long episodes: 0.03 on `rewrite8` and `rewrite14`, because its growth
+  factor 1.098 overflows the state bound after 96 steps. This confirms the degenerate-win
+  suspicion about a > 1.
+- Smoke test of the second state: one 150k-candidate search on `clustered` with `--persist-m 2`
+  runs (95 s on 3 threads, 192 train episodes). It found nothing useful (train 0.164); the
+  budget was a tenth of a real run, so this says nothing about the regime.
+- `modal_runner.py` passes the new flags through `--extra` and aggregates structural families.
+  It was not run here (no Modal access in this session); only its parsing was checked.
+
+### Tuned baselines per regime (`runs/sweeps/*.md`)
+
+Each row: families tuned on 192 train episodes of that regime, accuracy on that regime's
+held-out suite. Parameters are in the sweep files. Standard error about 0.005 to 0.01.
+
+| regime | lin. att. | decayed LA | DeltaNet | Gated DeltaNet | Kronecker | gated Kronecker | RLS (2 states) | Kalman delta (2 states) | ridge ceiling |
+|---|---|---|---|---|---|---|---|---|---|
+| base | 0.750 | 0.790 | 0.924 | 0.969 | 0.765 | 0.808 | 0.835 | 0.999 | 1.000 |
+| full | 0.553 | 0.588 | 0.751 | 0.820 | 0.598 | 0.623 | 0.825 | 0.946 | 0.997 |
+| overload | 0.342 | 0.381 | 0.502 | 0.530 | 0.342 | 0.387 | 0.549 | 0.591 | 0.750 |
+| rewrite8 | 0.080 | 0.574 | 0.869 | 0.869 | 0.077 | 0.598 | 0.079 | 0.952 | 1.000 |
+| rewrite14 | 0.107 | 0.462 | 0.701 | 0.701 | 0.103 | 0.476 | 0.165 | 0.840 | 1.000 |
+| clustered | 0.141 | 0.172 | 0.224 | 0.402 | 0.140 | 0.185 | 0.844 | 0.960 | 1.000 |
+| clustered8 | 0.045 | 0.165 | 0.201 | 0.201 | 0.045 | 0.182 | 0.202 | 0.689 | 1.000 |
+
+Reading: the Rust numbers agree with the NumPy probe above. Best one-state family against the
+ceiling: 0.87 vs 1.00 (`rewrite8`), 0.70 vs 1.00 (`rewrite14`), 0.82 vs 1.00 (`full`), 0.40 vs
+1.00 (`clustered`). These are the bars a one-state search result has to clear; Kalman delta is
+the bar for two states. The Kronecker delta rule is weak here, which is expected: it stores a
+scalar score per pair and is not built for the vector readout `S q` this task fixes. Limits:
+λ for Kalman delta and ridge sits at the lower grid edge (1e-4), and the clustered optimum for
+Gated DeltaNet has a = 1.25, which will not survive longer episodes.

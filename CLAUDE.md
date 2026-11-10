@@ -74,17 +74,17 @@ Agreed with the owner before launch; items 1 to 3 need no Modal credits. Every s
 from item 4 on is repeated with the baseline search algorithms on the same seeds and budget;
 that comparison is the method result.
 
-1. Structural rediscovery test replacing the accuracy milestones: fit a found rule to the
-   known families on memory states taken from real episodes (this also fixes the saturating
-   decomposition in verify.py). Re-score the three existing runs with it.
-2. Task: regimes from `verify/headroom.py` in Rust (long episodes with few rewritten keys,
-   clustered keys, full load), train episodes resampled or enlarged, held-out suites that
-   shift the load. Extend `sweep` to all baseline families and print the ridge ceiling.
-3. Search space, logged in README before any run: persistent registers under a state budget,
-   scalar reciprocal.
+1. Done (10 Nov 2026): structural rediscovery test (`src/classify.rs`, repeated in verify.py).
+2. Done: regimes (`--regime`), extended `sweep` with ridge ceiling, baselines per regime in
+   `runs/sweeps/`.
+3. Done: persistent registers (`--persist-m`, `--persist-v`) and `Recip`. `--no-recip` with
+   the default budget reproduces v1/v2 bit for bit; keep that true.
 4. Rediscovery rate on the base task: `modal run modal_runner.py --seeds 1-16 --budget 1500000
-   --tag v3`, then the same with `--no-split-edge`. Time 2 seeds first.
-5. Stage 2 search per regime and state budget, 8 seeds each.
+   --tag v3`, then the same with `--no-split-edge`. Time 2 seeds first. The runner was changed
+   on 10 Nov and has not been run since; check a 2-seed run end to end.
+5. Stage 2 search per regime and state budget, 8 seeds each, with `--train-episodes 192`
+   and `--task-seed` equal to the search seed. Bars to clear are in README, "Tuned baselines
+   per regime". Long regimes cost more per candidate; time them first.
 6. Freeze the search method: commit it with a note in README. No change to mutations,
    selection or hyperparameters after this point may be tuned on testbed 2.
 7. Testbed 2, optimizer update rules, as a transfer test of the frozen method. Program gets

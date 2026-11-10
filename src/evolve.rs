@@ -37,6 +37,9 @@ pub struct Outcome {
     pub evals: usize,
     pub real_evals: usize,
     pub milestones: Vec<Milestone>,
+    /// Structural family of the best rule, with the candidate count at which a best rule of
+    /// that family first appeared (see classify.rs).
+    pub families: Vec<(String, usize)>,
     pub seconds: f64,
 }
 
@@ -102,6 +105,7 @@ pub fn search(
     cfg: &SearchCfg,
     task: &Task,
     milestones: Vec<(String, f32)>,
+    family_of: &dyn Fn(&Program) -> String,
     log: &mut dyn Write,
 ) -> Outcome {
     let t0 = Instant::now();
@@ -119,6 +123,7 @@ pub fn search(
             hit_at: None,
         })
         .collect();
+    let mut families: Vec<(String, usize)> = Vec::new();
     let mut next_log = 0;
     writeln!(log, "candidates,real_evals,seconds,best_fitness,best_acc,best_len,pop_mean_acc").ok();
 
@@ -146,6 +151,10 @@ pub fn search(
         for ind in evaluated {
             if ind.score.fitness > best.score.fitness {
                 best = ind.clone();
+                let fam = family_of(&best.eff);
+                if !families.iter().any(|(f, _)| *f == fam) {
+                    families.push((fam, evals));
+                }
             }
             pop.push_back(ind);
             pop.pop_front();
@@ -177,6 +186,7 @@ pub fn search(
         evals,
         real_evals,
         milestones: ms,
+        families,
         seconds: t0.elapsed().as_secs_f64(),
     }
 }
