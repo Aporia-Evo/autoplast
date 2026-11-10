@@ -30,7 +30,8 @@ Stages:
    does it also reassemble the 2026 rules (decoupled erase/write, preconditioning)?
 2. Discovery: regimes with measured headroom (few keys rewritten over long episodes,
    clustered keys, full load), at a stated state budget (one d×d matrix, or two).
-3. Small trained models (MQAR, learned keys and gates) for the top structures. A language
+3. Transfer of the frozen search method to a second testbed (optimizer update rules).
+4. Small trained models (MQAR, learned keys and gates) for the top structures. A language
    model stage is undecided: ask the owner before planning or spending on it.
 
 ## Non-negotiable rules
@@ -84,7 +85,18 @@ that comparison is the method result.
 4. Rediscovery rate on the base task: `modal run modal_runner.py --seeds 1-16 --budget 1500000
    --tag v3`, then the same with `--no-split-edge`. Time 2 seeds first.
 5. Stage 2 search per regime and state budget, 8 seeds each.
-6. Literature check of anything that survives, including the occupancy-gated write of v2
+6. Freeze the search method: commit it with a note in README. No change to mutations,
+   selection or hyperparameters after this point may be tuned on testbed 2.
+7. Testbed 2, optimizer update rules, as a transfer test of the frozen method. Program gets
+   gradient `g` and parameters `w` as vectors and returns new parameters; start is the empty
+   program (`w' = w`). Task: small ill-conditioned quadratics and linear regression with noisy
+   gradients, about 50 steps per episode, fitness = final loss. Known ladder for the
+   structural test: SGD, momentum, RMSProp, Adam. Ceiling: Newton step / conjugate gradients.
+   Held-out: other condition numbers, dimensions and noise levels. Needs a new task file,
+   the persistent registers from item 3, and two generic ops (element-wise reciprocal and
+   square root), logged in README before any run. Report discovery rate and evaluations
+   against the baseline search algorithms; do not promise a new optimizer.
+8. Literature check of anything that survives, including the occupancy-gated write of v2
    seed 1: `S' = S + σ(‖S k̃‖⁴)·v kᵀ` (weak as a rule; its signal ‖S k‖² is the interesting part).
 
 ## Working style

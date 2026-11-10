@@ -201,3 +201,10 @@ So far the only added component is the add-node mutation, with evidence from 1 v
 - **Stage 3 is open.** Published comparisons run at 340M to 1.3B parameters and 15 to 100
   billion tokens on multi-GPU nodes. Whether and how a language-model stage is affordable is
   a decision for the project owner, not settled here.
+
+### Second testbed (planned, 10 Nov 2026)
+
+To show the search is a tool and not a single case, the method is developed on memory rules,
+frozen by a commit, and then run unchanged on optimizer update rules (ladder SGD, momentum,
+RMSProp, Adam; ceiling Newton / conjugate gradients on quadratics). Details and order are in
+CLAUDE.md, "Next experiments". Nothing is implemented yet.
