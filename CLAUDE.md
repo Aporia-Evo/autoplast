@@ -6,14 +6,23 @@ and what to do next.
 
 ## Goal
 
-Find, by gradient-free evolution from an empty program, a memory update rule that beats every
-tuned known rule family with the same state budget in a clearly defined regime, with no
-LLM-written or hand-designed rule in the loop. Report gains as the share of the gap to the
-ridge ceiling (`verify/headroom.py`), not only against one baseline. Target venue: a main ML
-conference (NeurIPS / ICLR / ICML), so every claim must survive a hostile reviewer.
+The contribution is the search method: an improved NEAT-style evolutionary search over typed
+programs, used as a discovery tool. Starting from an empty program, with no LLM-written or
+hand-designed solution in the loop, it should find a procedure that is better than or
+different from what is known inside a stated search space. Memory update rules are the
+testbed, not the product. Target venue: a main ML conference (NeurIPS / ICLR / ICML), so
+every claim must survive a hostile reviewer.
 
-Scope was corrected on 10 Nov 2026 (README, "Review and scope correction"): tuned Gated
-DeltaNet alone is no longer the bar, and the base task has almost no headroom.
+Two claims carry the paper:
+- Method: the search finds known rules and the best rule of a regime more often and with
+  fewer evaluations than other search algorithms on the same space and budget (regularized
+  evolution as in AutoML-Zero, random search, and each added component switched off).
+- Discovery: in at least one regime with measured headroom it finds a rule that beats every
+  tuned known family at the same state budget, or a different rule of equal accuracy.
+  Gains are reported against the ridge ceiling (`verify/headroom.py`).
+
+Scope history: corrected on 10 Nov 2026 (README, "Review and scope correction"), then
+re-centred on the search method the same day at the owner's direction.
 
 Stages:
 1. Rediscovery: the search assembles the delta family from nothing. Needs a rate over seeds
@@ -60,7 +69,9 @@ and for `sweep` / `verify`.
 
 ## Next experiments, in order
 
-Agreed with the owner before launch; items 1 to 3 need no Modal credits.
+Agreed with the owner before launch; items 1 to 3 need no Modal credits. Every search run
+from item 4 on is repeated with the baseline search algorithms on the same seeds and budget;
+that comparison is the method result.
 
 1. Structural rediscovery test replacing the accuracy milestones: fit a found rule to the
    known families on memory states taken from real episodes (this also fixes the saturating

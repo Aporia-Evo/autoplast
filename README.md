@@ -176,6 +176,13 @@ embedding seed per split; standard error about 0.01.
 
 ### Corrected scope
 
+Owner's direction (10 Nov 2026): the paper is about the search method, an improved NEAT-style
+evolutionary search as a discovery tool; memory rules are its testbed. The points below then
+define the benchmark the method is judged on. The method result itself is a comparison of
+search algorithms on the same space, seeds and budget: discovery rate and evaluations needed,
+against regularized evolution (AutoML-Zero), random search and each added component removed.
+So far the only added component is the add-node mutation, with evidence from 1 versus 2 seeds.
+
 - **Claim to aim for:** a rule found by evolution from the empty program that beats every
   tuned known family *with the same state budget* in a named regime, reported as the fraction
   of the gap to the ridge ceiling it closes. State budget (one d×d matrix, two matrices) is an
