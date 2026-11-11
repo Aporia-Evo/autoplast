@@ -30,7 +30,7 @@ import numpy as np
 NM, NV, NS = 4, 6, 4
 
 
-def build_step(instrs, read=False, pm=1, pv=0):
+def build_step(instrs, read=False, pm=1, pv=0, ident=False):
     """Return step(S, k, v) -> S' for a write program, or, with read=True, read(S, q) -> o for
     an evolved readout program (M0 = S, V0 = q, V1 = S q on entry, output V1).
     With a state budget (pm > 1 or pv > 0) the first argument and the result are the tuple
@@ -115,7 +115,8 @@ def build_step(instrs, read=False, pm=1, pv=0):
         return vec[1] if read else m[0]
 
     if persistent:
-        step.init = lambda d: (jnp.zeros((d, d)), tuple(jnp.zeros((d, d)) for _ in range(pm - 1)), tuple(jnp.zeros(d) for _ in range(pv)))
+        start = jnp.eye if ident else (lambda d: jnp.zeros((d, d)))  # --persist-init identity
+        step.init = lambda d: (jnp.zeros((d, d)), tuple(start(d) for _ in range(pm - 1)), tuple(jnp.zeros(d) for _ in range(pv)))
 
     if read:
         return lambda S, q: step(S, q, S @ q)
@@ -223,8 +224,8 @@ def load_task_json(path):
     return tasks
 
 
-def report_json(name, instrs, tasks, read_instrs=None, pm=1, pv=0):
-    step = build_step(instrs, pm=pm, pv=pv)
+def report_json(name, instrs, tasks, read_instrs=None, pm=1, pv=0, ident=False):
+    step = build_step(instrs, pm=pm, pv=pv, ident=ident)
     read = build_step(read_instrs, read=True) if read_instrs is not None else None
     c = n = 0
     div = False
@@ -316,8 +317,8 @@ REFERENCES = {
 }
 
 
-def report(name, instrs, rng_seed=12345, read_instrs=None, pm=1, pv=0):
-    step = build_step(instrs, pm=pm, pv=pv)
+def report(name, instrs, rng_seed=12345, read_instrs=None, pm=1, pv=0, ident=False):
+    step = build_step(instrs, pm=pm, pv=pv, ident=ident)
     read = build_step(read_instrs, read=True) if read_instrs is not None else None
     rng = np.random.default_rng(rng_seed)
     accs = {sname: accuracy_counts(step, make_task(rng, **cfg), read) for sname, cfg in SUITES}
@@ -345,10 +346,10 @@ if __name__ == "__main__":
             report_json(f"reference: {name}", instrs, tasks)
         for path in paths:
             prog = json.load(open(path))
-            report_json(path, prog["instrs"], tasks, read_instrs=prog.get("read"), pm=prog.get("persist_m", 1), pv=prog.get("persist_v", 0))
+            report_json(path, prog["instrs"], tasks, read_instrs=prog.get("read"), pm=prog.get("persist_m", 1), pv=prog.get("persist_v", 0), ident=bool(prog.get("persist_identity", 0)))
         sys.exit(0)
     for name, instrs in REFERENCES.items():
         report(f"reference: {name}", instrs)
     for path in sys.argv[1:]:
         prog = json.load(open(path))
-        report(path, prog["instrs"], read_instrs=prog.get("read"), pm=prog.get("persist_m", 1), pv=prog.get("persist_v", 0))
+        report(path, prog["instrs"], read_instrs=prog.get("read"), pm=prog.get("persist_m", 1), pv=prog.get("persist_v", 0), ident=bool(prog.get("persist_identity", 0)))

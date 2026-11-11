@@ -19,6 +19,9 @@ use std::sync::OnceLock;
 /// Defaults (1, 0): a rule is a function of (S, k, v) only, as in every run before 10 Nov 2026.
 pub static PERSIST_M: AtomicUsize = AtomicUsize::new(1);
 pub static PERSIST_V: AtomicUsize = AtomicUsize::new(0);
+/// `--persist-init identity` (added 11 Nov 2026): persistent matrix registers M1.. start every
+/// episode as the identity instead of zero. M0, the memory, always starts empty. Off by default.
+pub static PERSIST_IDENTITY: AtomicBool = AtomicBool::new(false);
 
 pub fn persist_m(i: usize) -> bool {
     i < PERSIST_M.load(Ordering::Relaxed).clamp(1, NM)
@@ -567,9 +570,10 @@ impl Program {
         };
         match &self.read {
             None if any_persist() => format!(
-                "{{\"persist_m\":{},\"persist_v\":{},\"instrs\":[{}]}}",
+                "{{\"persist_m\":{},\"persist_v\":{},\"persist_identity\":{},\"instrs\":[{}]}}",
                 PERSIST_M.load(Ordering::Relaxed),
                 PERSIST_V.load(Ordering::Relaxed),
+                PERSIST_IDENTITY.load(Ordering::Relaxed) as u8,
                 items.join(",")
             ),
             None => format!("{{\"instrs\":[{}]}}", items.join(",")),
@@ -577,8 +581,9 @@ impl Program {
         }
     }
 
-    /// State budget recorded in a program file: (persist_m, persist_v); (1, 0) if absent.
-    pub fn json_budget(s: &str) -> (usize, usize) {
+    /// State budget recorded in a program file: (persist_m, persist_v, identity start);
+    /// (1, 0, 0) if absent.
+    pub fn json_budget(s: &str) -> (usize, usize, usize) {
         let get = |name: &str, default: usize| {
             let key = format!("\"{name}\":");
             s.find(&key)
@@ -588,7 +593,7 @@ impl Program {
                 })
                 .unwrap_or(default)
         };
-        (get("persist_m", 1), get("persist_v", 0))
+        (get("persist_m", 1), get("persist_v", 0), get("persist_identity", 0))
     }
 
     /// Minimal parser for the format written by `to_json`.
@@ -724,6 +729,16 @@ impl Regs {
             v.fill(0.0);
         }
         self.s = [0.0; NS];
+        if PERSIST_IDENTITY.load(Ordering::Relaxed) {
+            let d = self.d;
+            for i in 1..NM {
+                if persist_m(i) {
+                    for j in 0..d {
+                        self.m[i][j * d + j] = 1.0;
+                    }
+                }
+            }
+        }
     }
 
     /// Load inputs for one write step: M0 = S, V0 = k, V1 = v. Persistent registers keep

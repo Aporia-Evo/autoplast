@@ -100,14 +100,12 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    with the structural test and the accuracy level side by side.
 3. Search with a second state. Arm C1 done (README, "Package C, arm C1"): 3 of 16 seeds
    pass rule 2 on collision3 and use the second state; none is near Kalman delta, so the
-   discovery claim is not met. Open, to be decided with the owner: arm C2 (`--recip`, in
-   RUNBOOK.md, not started); an option to start persistent registers at the identity, which
-   would make recursive least squares with forgetting expressible (about 13 instructions) and
-   give the method claim a concrete target: a known rule far above delta that the current
-   search is unlikely to reach; the same search on rewrite8 and clustered, 8 seeds each,
-   `--train-episodes 192`, task seed equal to the search seed. Bars: README,
-   "Tuned baselines per task" (one state: DeltaNet / Gated DeltaNet; two states: Kalman delta).
-   Long tasks cost about 17 times the base task per candidate; time them first.
+   discovery claim is not met. Since 11 Nov the Kalman delta rule is expressible
+   (`--persist-m 3 --persist-init identity --recip`, 15 instructions, collision3 test 0.933;
+   README, "A known target"). Next, to be released by the owner: 16 seeds of the present
+   search in that space on collision3, rules of 5a plus the count of seeds with test > 0.85.
+   Expected outcome: none; that makes it the benchmark for item 1. Arm C2 of package C
+   (`--recip` alone) is superseded by this and stays unreleased.
 4. Freeze the search method: commit it with a note in README. No change to mutations,
    selection or hyperparameters after this point may be tuned on testbed 2.
 5. Testbed 2, optimizer update rules, as a transfer test of the frozen method. Program gets

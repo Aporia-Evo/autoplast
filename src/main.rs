@@ -392,6 +392,9 @@ fn main() {
         .collect();
     let extra = args.iter().any(|a| a == "--extra-ops");
     let recip = has(&args, "--recip");
+    if arg(&args, "--persist-init", String::from("zero")) == "identity" {
+        program::PERSIST_IDENTITY.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
     task::QUERY_GAP.store(arg(&args, "--query-gap", 0usize), std::sync::atomic::Ordering::Relaxed);
     TRAIN_TASK_SEED.store(arg(&args, "--task-seed", 1u64), std::sync::atomic::Ordering::Relaxed);
     TRAIN_EPISODES.store(arg(&args, "--train-episodes", 0usize), std::sync::atomic::Ordering::Relaxed);
@@ -432,9 +435,10 @@ fn main() {
             let path: String = arg(&args, "--prog", String::new());
             let text = fs::read_to_string(&path).expect("read prog");
             // the state budget a rule was found with is part of the rule
-            let (pm, pv) = Program::json_budget(&text);
+            let (pm, pv, pid) = Program::json_budget(&text);
             program::PERSIST_M.store(pm, std::sync::atomic::Ordering::Relaxed);
             program::PERSIST_V.store(pv, std::sync::atomic::Ordering::Relaxed);
+            program::PERSIST_IDENTITY.store(pid == 1, std::sync::atomic::Ordering::Relaxed);
             let prog = Program::from_json(&text)
                 .expect("parse prog");
             println!("{}", report(&prog));
@@ -476,12 +480,13 @@ fn main() {
                 res.evals, res.real_evals, res.seconds, cfg.pop, cfg.tournament
             );
             summary += &format!(
-                "commit: {}  task seed: {}  train episodes: {}  persistent registers: {} matrix, {} vector  batch: {}\n\n",
+                "commit: {}  task seed: {}  train episodes: {}  persistent registers: {} matrix, {} vector, start {}  batch: {}\n\n",
                 git_commit(&args),
                 task.cfg.seed,
                 task.cfg.n_episodes + task.cfg.long_episodes,
                 program::PERSIST_M.load(std::sync::atomic::Ordering::Relaxed),
                 program::PERSIST_V.load(std::sync::atomic::Ordering::Relaxed),
+                if program::PERSIST_IDENTITY.load(std::sync::atomic::Ordering::Relaxed) { "identity" } else { "zero" },
                 cfg.batch
             );
             summary += "## Structural rediscovery (first candidate count at which the best rule belongs to a family)\n\n";
@@ -508,7 +513,7 @@ fn main() {
             eprintln!(
                 "usage: autoplast baselines | sweep | eval --prog FILE | dump [--split train|test --out FILE] | search [--seed N --budget N --pop N --threads N --batch N --out DIR]\n\
                  task:   --task v3 | --regime collision|overload|noisyq|collision3|longgap|full|overload48|rewrite8|rewrite14|clustered|clustered8   --task-seed N  --train-episodes N  --query-gap N\n\
-                 space:  --no-op A,B  --extra-ops  --recip  --evolve-readout  --persist-m N (1..4)  --persist-v N (0..4)  --no-split-edge"
+                 space:  --no-op A,B  --extra-ops  --recip  --evolve-readout  --persist-m N (1..4)  --persist-v N (0..4)  --persist-init identity  --no-split-edge"
             );
         }
     }

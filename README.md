@@ -749,3 +749,51 @@ A persistent register starts at zero and there is no matrix inverse or identity,
 persistent register could start at the identity. That is a generic change, not made here;
 see CLAUDE.md, next experiments.
 
+## A known target inside the search space: Kalman delta (11 Nov 2026, before any search)
+
+Search-space option added: `--persist-init identity` starts the persistent matrix registers
+M1.. of every episode as the identity instead of zero (M0, the memory, always starts empty).
+Reason: without an identity neither `P₀ = I/λ` nor `+ q·I` can be written, so recursive least
+squares and the Kalman delta rule were outside the space. The option is generic (the identity
+is the neutral element of the matrix product) and encodes no rule. Off by default; program
+files record it; `verify.py` follows it; c-m2 seed 2 still reproduces to 50,000 candidates.
+
+Two known rules were then written by hand in the space as references (`python
+verify/probe_rls.py`, `runs/sweeps/probe_rls_collision3.md`). They never enter a search.
+
+    g = P k / (δ + kᵀP k)        S' = S + (v − S k) gᵀ
+
+    RLS with forgetting:   P' = ρ·(P − g (P k)ᵀ)          2 states, 14 instructions
+    Kalman delta:          P' = P − g (P k)ᵀ + q·I        3 states, 15 instructions
+
+Kalman delta needs the identity at every step; it sits in a third persistent register that
+the rule never writes, so the nominal budget is three matrices and the effective one two.
+Both need `--recip`.
+
+| rule on collision3, best setting by train | train | test | T64 K8 | T128 K8 | rule 2 |
+|---|---|---|---|---|---|
+| tuned DeltaNet (one state) | 0.617 | 0.640 | – | 0.828 | no |
+| c-m2 seed 2 (found by the search, two states) | 0.683 | 0.695 | – | 0.861 | pass |
+| RLS with forgetting, δ = 0.01, ρ = 1.1 | 0.940 | 0.933 | 0.871 | 0.000 | no |
+| RLS with forgetting, δ = 0.01, ρ = 1.05 | 0.867 | 0.856 | 0.666 | 0.662 | no |
+| Kalman delta, δ = 0.01, q = 0.003 | 0.932 | 0.933 | 0.944 | 0.950 | pass |
+| Kalman delta, native reference (`sweep`) | – | 0.935 | – | – | – |
+| ridge ceiling | – | 1.000 | – | – | – |
+
+Reading: RLS with forgetting reaches 0.93 on the test but fails long episodes, because P
+grows by ρ per step in directions that are never written and passes the state bound after
+128 steps (score 0), or forgets too little (ρ = 1.05). No setting of the grid passes rule 2.
+Kalman delta written in the space matches the native reference (0.933 against 0.935), holds
+on T128 K8 (0.950) and passes rule 2 by a wide margin. One setting was checked in JAX on the
+exact Rust test data (δ = 0.1, q = 0.01: 0.8887 against 0.889).
+
+What this gives the project: in the space `--persist-m 3 --persist-init identity --recip`
+there is a known rule of 15 instructions at 0.93 on collision3, where the best rule the search
+has found is at 0.70 and every one-state family at 0.64. The delta rule takes 4 to 6
+instructions and is found in a third to three quarters of seeds, so the present search is
+not expected to reach a 15-instruction rule in 1.5M candidates. That is a prediction, not a
+result. If it holds, this is a fixed target for the method claim: how often and after how
+many candidates does a search algorithm reach rule 2 with test above, say, 0.85. If the
+present search does reach it, that is a rediscovery of a 2026 rule family (Kalman Delta
+Networks, MesaNet) from the empty program. No search has been run in this space.
+

@@ -102,7 +102,8 @@ A and B are done (`runs/base-recip/`, `runs/base-recip-noaddnode/`; README, "Mer
 ### C. Second state on collision3 (released 10 Nov 2026)
 
 Status 11 Nov 2026: arm C1 is done and checked (`runs/c-m2/`; README, "Package C, arm C1").
-Arm C2 is not released; wait for the owner. Two notes from your run: set `PYTHONPATH` to the
+Arm C2 is not released and will probably be replaced by a run in a larger space
+(README, "A known target inside the search space"); wait for the owner. Two notes from your run: set `PYTHONPATH` to the
 repository if Python does not put the script directory on `sys.path`, and the summary line
 "train episodes: 144" is 96 standard plus 48 long episodes, the same task as 5a-A.
 
