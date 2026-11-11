@@ -85,6 +85,7 @@ Done so far (details and numbers in README):
   references (`runs/sweeps/`).
 - Evolved readout and extra ops on collision3 (5a): no arm better, no rule above tuned DeltaNet.
 - Structural rediscovery test, state budget (`--persist-m`, `--persist-v`), `--recip`.
+- Package C arm C1: second state on collision3, rules above every one-state family in 3/16.
 
 Open, in order. Items 2 to 4 are repeated with the baseline search algorithms on the same
 seeds and budget; that comparison is the method result. Item 3 was released ahead of item 1
@@ -97,10 +98,14 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    Every change goes into README before results (rule 1).
 2. Measure the method on task v3 and the base task against regularized evolution, 16 seeds,
    with the structural test and the accuracy level side by side.
-3. Search with a second state. Released as package C (RUNBOOK.md; README, "Package C"):
-   collision3 with `--persist-m 2`, 16 seeds, control 5a-A, rules of 5a. Afterwards, if C
-   finds something: rewrite8 and clustered, 8 seeds each, `--train-episodes 192`, task seed
-   equal to the search seed. Bars: README,
+3. Search with a second state. Arm C1 done (README, "Package C, arm C1"): 3 of 16 seeds
+   pass rule 2 on collision3 and use the second state; none is near Kalman delta, so the
+   discovery claim is not met. Open, to be decided with the owner: arm C2 (`--recip`, in
+   RUNBOOK.md, not started); an option to start persistent registers at the identity, which
+   would make recursive least squares with forgetting expressible (about 13 instructions) and
+   give the method claim a concrete target: a known rule far above delta that the current
+   search is unlikely to reach; the same search on rewrite8 and clustered, 8 seeds each,
+   `--train-episodes 192`, task seed equal to the search seed. Bars: README,
    "Tuned baselines per task" (one state: DeltaNet / Gated DeltaNet; two states: Kalman delta).
    Long tasks cost about 17 times the base task per candidate; time them first.
 4. Freeze the search method: commit it with a note in README. No change to mutations,

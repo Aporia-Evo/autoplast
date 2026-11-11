@@ -30,7 +30,15 @@ pub struct TaskCfg {
     /// Query vectors are normalize(c·k + √(1−c²)·u), u a random unit vector, so cos(q, k) ≈ c;
     /// 1.0 = exact keys.
     pub query_noise_cos: f32,
+    /// Control for rules that treat the most recent write specially (added 11 Nov 2026):
+    /// after the last regular write of an episode, this many extra pairs with fresh keys are
+    /// written and never queried, so no query directly follows the write of a queried key.
+    /// 0 = off (every task before 11 Nov 2026).
+    pub query_gap: usize,
 }
+
+/// `--query-gap N`: sets `query_gap` for every task built in this process.
+pub static QUERY_GAP: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 impl TaskCfg {
     pub fn search_default(seed: u64) -> TaskCfg {
@@ -48,6 +56,7 @@ impl TaskCfg {
             key_clusters: 0,
             cluster_cos: 0.0,
             query_noise_cos: 1.0,
+            query_gap: QUERY_GAP.load(std::sync::atomic::Ordering::Relaxed),
         }
     }
 }
@@ -134,6 +143,17 @@ impl Task {
                     (k, latest)
                 })
                 .collect();
+            // Drawn only when the control is on, so the default RNG stream is unchanged.
+            for _ in 0..cfg.query_gap {
+                let k = loop {
+                    let k = rng.below(cfg.n_keys);
+                    if !used.contains(&k) {
+                        used.push(k);
+                        break k;
+                    }
+                };
+                writes.push((k, rng.below(cfg.n_vals)));
+            }
             episodes.push(Episode { writes, queries, qvecs: Vec::new() });
         }
         if cfg.query_noise_cos < 1.0 {

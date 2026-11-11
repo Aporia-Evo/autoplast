@@ -645,3 +645,107 @@ evidence about the search method, the open point above). Limits: the probe was w
 hand after seeing the Kalman reference, so it says nothing about how easy the rule is to
 find; and C changes the search space, not the search algorithm.
 
+## Package C, arm C1: result and reading (11 Nov 2026)
+
+Run by the executing agent: `runs/c-m2`, 16 seeds, 1,500,000 candidates, commit 21e513a,
+4.56 h on the workstation, predictions committed before the run (1b82762). Facts per seed:
+`runs/c-m2/c-m2_report.md`. Checks below: `runs/c-m2/checks_2026-11-11.md`,
+`python verify/c1_checks.py`.
+
+Task option added for these checks, after the run and not used in any search: `--query-gap N`
+writes N extra pairs with fresh keys after the last regular write of an episode and never
+queries them. Default 0 leaves every task unchanged (5a-A seed 2 reproduces to 50,000).
+
+### Outcome against the pre-set rules
+
+| | c-m2 (two states) | 5a-A (one state, control) |
+|---|---|---|
+| median collision3 test | 0.634 | 0.517 |
+| rule 1, Mann-Whitney on test accuracy | p = 0.33, not significant | |
+| rule 2 passed (test > 0.651, T128 K8 ≥ 0.838, train − test ≤ 0.03) | 3/16 (seeds 2, 6, 9) | 0/16 |
+| above the hand-written probe (0.679) with rule 2's other conditions | 1/16 (seed 2, 0.695) | 0/16 |
+| JAX against Rust on the dumped test data, largest difference | 0.0005 | |
+
+Rule 1 fails because both arms split into the same two groups: seeds stuck at decayed linear
+attention (7 of 16 here, test 0.51) and seeds at delta level or above (9 of 16, 0.63 to 0.70).
+
+### Do the gains hold on other draws of the task?
+
+Yes. Twelve fresh task draws, gain paired per draw against tuned DeltaNet (mean 0.643):
+
+| rule | mean | gain | draws won |
+|---|---|---|---|
+| tuned Gated DeltaNet | 0.646 | +0.003 ± 0.001 | 10/12 |
+| hand-written probe | 0.685 | +0.041 ± 0.002 | 12/12 |
+| c-m2 seed 2 | 0.697 | +0.054 ± 0.001 | 12/12 |
+| c-m2 seed 9 | 0.686 | +0.043 ± 0.001 | 12/12 |
+| c-m2 seed 6 | 0.658 | +0.015 ± 0.001 | 12/12 |
+| c-m2 seed 1 (second state unused) | 0.669 | +0.026 ± 0.001 | 12/12 |
+| 5a-A seed 2 (one state) | 0.665 | +0.022 ± 0.001 | 12/12 |
+
+Two one-state rules are also above tuned DeltaNet on every draw; they fail rule 2 on T128 K8
+(0.799 and 0.777), which is why 5a reported no rule above the baseline.
+
+### What the two best rules do
+
+Seed 2, in closed form (constants collected by hand, checked: 0.696 against 0.697 as found):
+
+    P' = 0.990·(P + v kᵀ)(I − 0.490·kkᵀ)        S' = c·(P + v kᵀ)(I − 0.956·kkᵀ)
+
+The memory is P, a delta rule with a soft erase. S, which the fixed readout uses, does not
+depend on the old S at all: it is P plus the newest pair with a near-complete erase along
+the newest key. Ablation of that read-side erase r: r = 0.49 makes S a copy of P, a one-state
+rule, and scores 0.639 (tuned DeltaNet 0.643); r = 0.85 gives 0.688, r = 0.956 gives 0.696,
+r = 1.0 collapses to 0.574. So the whole gain comes from erasing harder for reading than for
+storing, which one state cannot do. Because `S q = c·(P + v kᵀ)(q − r·(k·q)·k)`, the same rule
+can be read as a query projected against the most recent key before reading P.
+
+Seed 9, read from its formula with unit values:
+
+    S' = (S + 1.677·v kᵀ + 0.888·v₋ k₋ᵀ)(I − 0.789·kkᵀ)        P' holds the previous pair (v₋, k₋)
+
+A delta rule that writes every pair a second time one step later.
+
+Is the gain an artefact of every query following directly on the last write? Partly tested
+with `--query-gap` on the same twelve draws, DeltaNet retuned per row:
+
+| extra unqueried writes | DeltaNet | seed 2 | seed 9 | probe |
+|---|---|---|---|---|
+| 0 | 0.643 | +0.053 | +0.042 | +0.041 |
+| 1 | 0.571 | +0.054 | +0.044 | +0.045 |
+| 2 | 0.507 | +0.041 | +0.028 | +0.036 |
+| 4 | 0.399 | +0.020 | −0.002 | +0.017 |
+
+The gain of seed 2 survives one and two intervening writes and shrinks to +0.020 at four,
+where every rule is near 0.40. Seed 9 loses its gain at four. So the rules are not only
+exploiting the position of the queries, but their benefit is tied to recent writes.
+
+### What can be claimed
+
+- Not claimed: "better than every tuned known family at the same state budget". The project's
+  own rule 2 puts Kalman delta in the comparison at two states, and it reaches 0.935 on this
+  test. Seed 2 at 0.695 is above every one-state family and above RLS (0.620) and far below
+  Kalman delta. Measured against the ridge ceiling it closes about 15% of the gap that tuned
+  DeltaNet leaves; Kalman delta closes about 82%.
+- Supported: with a second state the search finds, from the empty program, rules that use it
+  and that beat every one-state family on collision3 under the unchanged rule 2, in 3 of 16
+  seeds, robustly over task draws. One of them is above a rule written by hand for the purpose.
+- Rate: 3 of 16 seeds pass rule 2, 1 of 16 beats the probe. Rule 1 is not met.
+- Literature, checked 11 Nov 2026 by search and abstract or method section, not exhaustively:
+  nothing found that states seed 2's rule. Its neighbours are query-side corrections of the
+  readout: Muir (per-channel gain on the query, Nov 2026), MesaNet and Gated KalmaNet (query
+  preconditioned by a key-covariance state), the query transform in Preconditioned DeltaNet.
+  Seed 9's second write of the previous pair resembles the previous-token term of Mamba-3.
+  Both are best described as small members of known ideas, not as new rules.
+- Limits: one task family, fixed constants on random embeddings (review finding 5), one run of
+  16 seeds, and a search space change rather than a search method change. The seven stuck
+  seeds are the same failure as before.
+
+### Why Kalman delta cannot be found yet
+
+A persistent register starts at zero and there is no matrix inverse or identity, so neither
+`P₀ = I/λ` nor `+ q·I` can be written. Recursive least squares with a forgetting factor
+(`P' = (P − g (P k)ᵀ)/λ`, about 13 instructions with `Recip`) would be expressible if a
+persistent register could start at the identity. That is a generic change, not made here;
+see CLAUDE.md, next experiments.
+

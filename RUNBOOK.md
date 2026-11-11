@@ -101,6 +101,11 @@ A and B are done (`runs/base-recip/`, `runs/base-recip-noaddnode/`; README, "Mer
 
 ### C. Second state on collision3 (released 10 Nov 2026)
 
+Status 11 Nov 2026: arm C1 is done and checked (`runs/c-m2/`; README, "Package C, arm C1").
+Arm C2 is not released; wait for the owner. Two notes from your run: set `PYTHONPATH` to the
+repository if Python does not put the script directory on `sys.path`, and the summary line
+"train episodes: 144" is 96 standard plus 48 long episodes, the same task as 5a-A.
+
 Question: 48 searches with one state (5a-A, 5a-B, 5a-C) found no rule above tuned DeltaNet on
 collision3. Does the same search find one when a rule may keep a second d×d state?
 

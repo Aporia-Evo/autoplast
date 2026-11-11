@@ -392,6 +392,7 @@ fn main() {
         .collect();
     let extra = args.iter().any(|a| a == "--extra-ops");
     let recip = has(&args, "--recip");
+    task::QUERY_GAP.store(arg(&args, "--query-gap", 0usize), std::sync::atomic::Ordering::Relaxed);
     TRAIN_TASK_SEED.store(arg(&args, "--task-seed", 1u64), std::sync::atomic::Ordering::Relaxed);
     TRAIN_EPISODES.store(arg(&args, "--train-episodes", 0usize), std::sync::atomic::Ordering::Relaxed);
     program::PERSIST_M.store(arg(&args, "--persist-m", 1usize).clamp(1, program::NM), std::sync::atomic::Ordering::Relaxed);
@@ -506,7 +507,7 @@ fn main() {
         _ => {
             eprintln!(
                 "usage: autoplast baselines | sweep | eval --prog FILE | dump [--split train|test --out FILE] | search [--seed N --budget N --pop N --threads N --batch N --out DIR]\n\
-                 task:   --task v3 | --regime collision|overload|noisyq|collision3|longgap|full|overload48|rewrite8|rewrite14|clustered|clustered8   --task-seed N  --train-episodes N\n\
+                 task:   --task v3 | --regime collision|overload|noisyq|collision3|longgap|full|overload48|rewrite8|rewrite14|clustered|clustered8   --task-seed N  --train-episodes N  --query-gap N\n\
                  space:  --no-op A,B  --extra-ops  --recip  --evolve-readout  --persist-m N (1..4)  --persist-v N (0..4)  --no-split-edge"
             );
         }
