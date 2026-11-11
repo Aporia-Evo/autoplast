@@ -797,3 +797,30 @@ many candidates does a search algorithm reach rule 2 with test above, say, 0.85.
 present search does reach it, that is a rediscovery of a 2026 rule family (Kalman Delta
 Networks, MesaNet) from the empty program. No search has been run in this space.
 
+## Package D: search in the space that contains Kalman delta (released 11 Nov 2026, before any result)
+
+Design: the present search, unchanged, on collision3 with `--persist-m 3 --persist-init
+identity --recip`; task seed 1, 96 + 48 train episodes, fixed readout, seeds 1 to 16,
+1,500,000 candidates, batch 128 (`runs/d-kalman`). Controls: `runs/5a-A` (one state) and
+`runs/c-m2` (two states, zero start, no reciprocal). Commands: RUNBOOK.md, package D.
+
+The space differs from c-m2 in three things at once (third register, identity start,
+reciprocal), so a difference to c-m2 cannot be assigned to one of them. That is accepted:
+the run asks one question, whether the search reaches a rule that is known to exist.
+
+Decided before the run:
+- Main count: seeds with collision3 test > 0.85 that also meet T128 K8 ≥ 0.838 and
+  train − test ≤ 0.03. The hand-written Kalman delta rule is at 0.933 / 0.950.
+- Also reported: rule 1 (Mann-Whitney on test accuracy) against c-m2 and against 5a-A, rule 2
+  of 5a unchanged, seeds above the best rule of C1 (0.695).
+- Reading. Main count 0: the space holds a rule the search does not reach at this budget;
+  the run then becomes the baseline arm for every later search algorithm on the same seeds.
+  Main count ≥ 1: check whether the rule is Kalman delta or RLS in substance (gain
+  `P k/(c + kᵀP k)`, error-correcting write, update of P), on fresh task draws and with
+  `--query-gap`, before calling it a rediscovery.
+- Prediction of the research agent: main count 0 with probability 0.85; at least one seed
+  above 0.695 with probability 0.6. Reason: 15 instructions against 4 to 6 for the delta
+  rule, which is found in a third to three quarters of seeds.
+- A smoke test of the runner in this space (2 seeds, 40,000 candidates) ran through on the
+  review machine. It is not a result.
+

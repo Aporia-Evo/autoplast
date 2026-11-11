@@ -102,10 +102,10 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    pass rule 2 on collision3 and use the second state; none is near Kalman delta, so the
    discovery claim is not met. Since 11 Nov the Kalman delta rule is expressible
    (`--persist-m 3 --persist-init identity --recip`, 15 instructions, collision3 test 0.933;
-   README, "A known target"). Next, to be released by the owner: 16 seeds of the present
-   search in that space on collision3, rules of 5a plus the count of seeds with test > 0.85.
-   Expected outcome: none; that makes it the benchmark for item 1. Arm C2 of package C
-   (`--recip` alone) is superseded by this and stays unreleased.
+   README, "A known target"). Released on 11 Nov 2026 as package D (RUNBOOK.md; README,
+   "Package D"): 16 seeds of the present search in that space on collision3; main count is
+   seeds with test > 0.85 under rule 2's other conditions. Expected: none; the run is then
+   the baseline arm for item 1. Arm C2 of package C is withdrawn.
 4. Freeze the search method: commit it with a note in README. No change to mutations,
    selection or hyperparameters after this point may be tuned on testbed 2.
 5. Testbed 2, optimizer update rules, as a transfer test of the frozen method. Program gets

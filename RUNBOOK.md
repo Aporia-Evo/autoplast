@@ -102,8 +102,7 @@ A and B are done (`runs/base-recip/`, `runs/base-recip-noaddnode/`; README, "Mer
 ### C. Second state on collision3 (released 10 Nov 2026)
 
 Status 11 Nov 2026: arm C1 is done and checked (`runs/c-m2/`; README, "Package C, arm C1").
-Arm C2 is not released and will probably be replaced by a run in a larger space
-(README, "A known target inside the search space"); wait for the owner. Two notes from your run: set `PYTHONPATH` to the
+Arm C2 is withdrawn; package D below replaces it. Two notes from your run: set `PYTHONPATH` to the
 repository if Python does not put the script directory on `sys.path`, and the summary line
 "train episodes: 144" is 96 standard plus 48 long episodes, the same task as 5a-A.
 
@@ -163,6 +162,66 @@ What to report, per arm:
 `runs/c-m2/collision3_test.json` is large; do not commit it (delete it after step 4).
 If `git` cannot be executed where the runner starts, pass the commit with
 `--extra="--persist-m 2 --commit <hash>"` and say so in `WHERE.md`.
+
+### D. Search in the space that contains Kalman delta (released 11 Nov 2026)
+
+Question: since commit c12f791 the Kalman delta rule can be written in the search space
+(15 instructions, collision3 test 0.933, T128 K8 0.950; README, "A known target inside the
+search space"). Does the present search find it, or anything near it?
+
+Setting: collision3, task seed 1, the usual 96 + 48 train episodes, fixed readout, seeds 1 to 16,
+1,500,000 candidates, batch 128, with three changes against arm C1: a third persistent matrix
+register, persistent registers start at the identity, and the reciprocal op. Controls are the
+committed `runs/5a-A` (one state) and `runs/c-m2` (two states); do not rerun them.
+
+Bars on the collision3 test suite: tuned DeltaNet 0.640, best rule found so far 0.695 (c-m2
+seed 2), Kalman delta written by hand in this space 0.933, ridge ceiling 1.000.
+
+Use the code at the commit that contains this section or later, and build it first. Write
+your predictions into `runs/d-kalman/D_VORHERSAGE.md` and commit them before the first run.
+
+1. Timing, 2 seeds, not committed:
+
+```bash
+python local_runner.py --seeds 1-2 --budget 150000 --tag time-d --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity"
+```
+
+Report minutes per seed and the projection to 1,500,000 candidates (times 2 as margin). On
+the review machine this space ran slower per candidate than C1. If the projection for 16
+seeds is above 24 hours of wall time, stop and ask.
+
+2. The run:
+
+```bash
+python local_runner.py --seeds 1-16 --budget 1500000 --tag d-kalman --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity"
+```
+
+3. Check every best rule in JAX on the exact Rust test data, then delete the dump:
+
+```bash
+./target/release/autoplast dump --regime collision3 --split test --out runs/d-kalman/collision3_test.json
+```
+
+```bash
+python verify/verify.py --task-json runs/d-kalman/collision3_test.json runs/d-kalman/seed*/best.json > runs/d-kalman/verify_dump.txt
+```
+
+What to report:
+- Per seed: train, collision3 test, T64 K8, T128 K8, structural family, which of `P1` and `P2`
+  the printed `S'` formula reads, and whether the formula contains a reciprocal (`1/(`).
+- Rule 1 (as in 5a): Mann-Whitney on the 16 test accuracies, once against `runs/c-m2` and once
+  against `runs/5a-A`.
+- Rule 2 (unchanged): test > 0.651 AND T128 K8 >= 0.838 AND train - test <= 0.03. Seeds passing.
+- New count: seeds with test > 0.85 under rule 2's other two conditions. This is the number
+  the run is about. Also the seeds above 0.695 (the best rule of C1).
+- The full formula (`S'`, `P1'`, `P2'`) of every seed with test above 0.72.
+- Candidate count at which each seed's best rule first passed test-level 0.70 is not in the
+  logs (they hold train accuracy); report instead the candidate count of the last improvement
+  of `best_acc` in `log.csv`.
+- JAX against Rust on the dump: largest difference.
+
+As in C: if Python does not find `aggregate`, set `PYTHONPATH` to the repository; if `git`
+cannot be executed, add `--commit <hash>` inside `--extra` and say so in `WHERE.md`.
 
 ## Handing back
 
