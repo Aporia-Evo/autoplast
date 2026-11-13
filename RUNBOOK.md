@@ -166,7 +166,7 @@ If `git` cannot be executed where the runner starts, pass the commit with
 ### D. Search in the space that contains Kalman delta (released 11 Nov 2026)
 
 Status 13 Nov 2026: done and checked (`runs/d-kalman/`; README, "Package D: result and
-reading"). No further package is released; wait for the owner.
+reading"). Package E below extends it.
 
 Question: since commit c12f791 the Kalman delta rule can be written in the search space
 (15 instructions, collision3 test 0.933, T128 K8 0.950; README, "A known target inside the
@@ -225,6 +225,45 @@ What to report:
 
 As in C: if Python does not find `aggregate`, set `PYTHONPATH` to the repository; if `git`
 cannot be executed, add `--commit <hash>` inside `--extra` and say so in `WHERE.md`.
+
+### E. Seeds 17 to 32 of package D (released 13 Nov 2026)
+
+Purpose: package D found one seed above 0.85 in 16. Before any search algorithm is compared
+against this setting, the base rate needs more seeds. E is D with seeds 17 to 32 and nothing
+else changed.
+
+Conditions that keep the 32 seeds one sample:
+- Same machine as D (epyc) and the same binary: the search code has not changed since
+  e979a8e (`git diff e979a8e HEAD -- src` is empty at the commit that adds this section). If
+  you rebuild, check that first; if `src/` differs, stop and ask.
+- Same tag, `d-kalman`. The runner skips seeds that have a summary, so seeds 1 to 16 are not
+  touched. Do not edit their files or `d-kalman_report.md`.
+- If epyc is not reachable, stop and ask; do not move the run to the workstation.
+
+Write your predictions into `runs/d-kalman/E_VORHERSAGE.md` and commit them before the run.
+No timing step: D measured 17 to 107 minutes per seed, 6.1 h for 16 seeds.
+
+```bash
+python local_runner.py --seeds 17-32 --budget 1500000 --tag d-kalman --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity"
+```
+
+Then the JAX check on the exact Rust test data for the new seeds, and delete the dump:
+
+```bash
+./target/release/autoplast dump --regime collision3 --split test --out runs/d-kalman/collision3_test.json
+```
+
+```bash
+python verify/verify.py --task-json runs/d-kalman/collision3_test.json runs/d-kalman/seed1[7-9]/best.json runs/d-kalman/seed2[0-9]/best.json runs/d-kalman/seed3[0-2]/best.json > runs/d-kalman/verify_dump_17-32.txt
+```
+
+Report in `runs/d-kalman/e_report.md`, with the same columns and counts as in D, three times:
+for seeds 17 to 32 alone, for seeds 1 to 16 as already reported, and for all 32. Also the full
+formula of every new seed with test above 0.72, and for every such seed whether its formula
+has the shape of seed 9 (README, "What seed 9 is": an address `norm(P1ᵀ k)` or similar taken
+from a persistent register, and a write along that address); say only what the formula shows.
+Rule 1 for all 32 seeds against `runs/c-m2` and `runs/5a-A` (16 seeds each). `aggregate.md`
+is rewritten by the runner for all 32 seeds; that is intended. Add the new seeds to `WHERE.md`.
 
 ## Handing back
 

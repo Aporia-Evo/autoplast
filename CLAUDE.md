@@ -109,8 +109,8 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    fresh draws against 0.643 for tuned DeltaNet and 0.934 for Kalman delta; an old idea
    (novelty filter), found from the empty program. Kalman delta itself was not reached. The
    run is the baseline arm for item 1: 1/16 above 0.85, 2/16 above 0.695, 4/16 pass rule 2.
-   Open with the owner: seeds 17 to 32 of the same setting to firm up the base rate before
-   any method comparison. Arm C2 of package C is withdrawn.
+   Released on 13 Nov as package E (RUNBOOK.md): seeds 17 to 32 of the same setting, to
+   firm up the base rate before any method comparison. Arm C2 of package C is withdrawn.
 4. Freeze the search method: commit it with a note in README. No change to mutations,
    selection or hyperparameters after this point may be tuned on testbed 2.
 5. Testbed 2, optimizer update rules, as a transfer test of the frozen method. Program gets

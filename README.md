@@ -907,3 +907,18 @@ search: test > 0.85 under rule 2's other conditions in 1/16 seeds, above 0.695 i
 in 4/16. A known rule at 0.93 is in the space and was not reached. These are the numbers a
 changed search algorithm has to beat on the same seeds.
 
+## Package E: seeds 17 to 32 of package D (released 13 Nov 2026, before any result)
+
+Package D gave 1 seed in 16 above 0.85. A method comparison against a base rate estimated
+from one success is not informative, so the same setting is run on seeds 17 to 32: same
+space, task, budget and batch, same machine and unchanged search code, same tag
+(`runs/d-kalman`). Commands: RUNBOOK.md, package E.
+
+Fixed before the run: the counts are those of D (main count: test > 0.85, T128 K8 ≥ 0.838,
+train − test ≤ 0.03; seeds above 0.695; rule 2), reported for the new 16 seeds alone and for
+all 32. The base rate for later comparisons is the count over all 32, whatever the new seeds
+show; seeds 1 to 16 are not dropped or reweighted. Prediction of the research agent for the
+new 16 seeds: main count 0 with probability 0.45, 1 with 0.35, 2 or more with 0.20; at
+least one seed above 0.695 with probability 0.85. (The last prediction of this kind, a main
+count of 0 with 0.85 for D, was wrong.)
+
