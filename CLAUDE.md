@@ -86,6 +86,7 @@ Done so far (details and numbers in README):
 - Evolved readout and extra ops on collision3 (5a): no arm better, no rule above tuned DeltaNet.
 - Structural rediscovery test, state budget (`--persist-m`, `--persist-v`), `--recip`.
 - Package C arm C1: second state on collision3, rules above every one-state family in 3/16.
+- Package D: space containing Kalman delta; 1/16 seeds finds an orthogonalising memory at 0.86.
 
 Open, in order. Items 2 to 4 are repeated with the baseline search algorithms on the same
 seeds and budget; that comparison is the method result. Item 3 was released ahead of item 1
@@ -103,9 +104,13 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    discovery claim is not met. Since 11 Nov the Kalman delta rule is expressible
    (`--persist-m 3 --persist-init identity --recip`, 15 instructions, collision3 test 0.933;
    README, "A known target"). Released on 11 Nov 2026 as package D (RUNBOOK.md; README,
-   "Package D"): 16 seeds of the present search in that space on collision3; main count is
-   seeds with test > 0.85 under rule 2's other conditions. Expected: none; the run is then
-   the baseline arm for item 1. Arm C2 of package C is withdrawn.
+   "Package D"). Done on 13 Nov (README, "Package D: result and reading"): main count 1/16.
+   Seed 9 is a decayed Hebbian memory on keys orthogonalised by a projector state, 0.864 on
+   fresh draws against 0.643 for tuned DeltaNet and 0.934 for Kalman delta; an old idea
+   (novelty filter), found from the empty program. Kalman delta itself was not reached. The
+   run is the baseline arm for item 1: 1/16 above 0.85, 2/16 above 0.695, 4/16 pass rule 2.
+   Open with the owner: seeds 17 to 32 of the same setting to firm up the base rate before
+   any method comparison. Arm C2 of package C is withdrawn.
 4. Freeze the search method: commit it with a note in README. No change to mutations,
    selection or hyperparameters after this point may be tuned on testbed 2.
 5. Testbed 2, optimizer update rules, as a transfer test of the frozen method. Program gets

@@ -824,3 +824,86 @@ Decided before the run:
 - A smoke test of the runner in this space (2 seeds, 40,000 candidates) ran through on the
   review machine. It is not a result.
 
+## Package D: result and reading (13 Nov 2026)
+
+Run by the executing agent: `runs/d-kalman`, 16 seeds, 1,500,000 candidates, commit e979a8e,
+6.13 h on the university machine, predictions committed before the run (1a4dd1b). Facts per
+seed: `runs/d-kalman/d-kalman_report.md`. Checks below: `runs/d-kalman/checks_2026-11-13.md`,
+`python verify/d_checks.py`.
+
+### Outcome against what was fixed before the run
+
+| | d-kalman | c-m2 | 5a-A |
+|---|---|---|---|
+| main count: test > 0.85, T128 K8 ≥ 0.838, train − test ≤ 0.03 | 1/16 (seed 9: 0.855 / 0.885 / +0.008) | 0/16 | 0/16 |
+| above the best rule of C1 (0.695) | 2/16 (seeds 7, 9) | – | – |
+| rule 2 passed | 4/16 (seeds 2, 7, 9, 15) | 3/16 | 0/16 |
+| median test | 0.638 | 0.634 | 0.517 |
+| rule 1, Mann-Whitney against d-kalman | – | p = 0.44 | p = 0.097 |
+| JAX against Rust on the dumped test data, largest difference | 0.0005 | | |
+
+The research agent predicted a main count of 0 with probability 0.85, and so did the
+executing agent. Both were wrong. Rule 1 is again not met: 4 seeds stop at decayed linear
+attention (test 0.51 to 0.52) and most of the rest sit at delta level.
+
+### Does seed 9 hold up?
+
+Yes, on every check made. Twelve fresh task draws, paired against tuned DeltaNet (0.643):
+seed 9 scores 0.864 (+0.221 ± 0.003, 12/12 draws), seed 7 0.721 (+0.078), the best rule of C1
+0.697, hand-written Kalman delta 0.934. With extra unqueried writes before the queries the
+lead of seed 9 over retuned DeltaNet grows (+0.221, +0.274, +0.312, +0.345 at 0, 1, 2, 4
+writes), so it does not depend on the queries following the last write. It keeps its level on
+the suites it was not searched on: T12 0.954, T64 K8 0.940, T128 K8 0.885, d = 32 0.918,
+d = 8 0.799. Train and test agree (0.863 / 0.855).
+
+### What seed 9 is
+
+In closed form, checked to reproduce the rule exactly (0.864 on the same draws); P1 and P2
+are the two persistent registers and start as the identity:
+
+    r   = P1ᵀ k                              the part of k not covered by earlier keys
+    u   = r / |r|                            (as found: 0.25·r / (0.25·|r| + 1e-6))
+    P1' = P1 − <u,u>·(P1 k) uᵀ               remove that direction from P1, incompletely
+    P2' = 0.80·(P2 + 6·norm(tanh v) uᵀ)      decayed Hebbian write, addressed by u instead of k
+    S'  = P2 + 6·norm(tanh v) uᵀ − P1'       the −P1' term changes nothing (0.865 without it)
+
+It is linear attention with decay, written at an address u that is the key made orthogonal to
+the keys written before. P1 is the running projector that produces this address. There is no
+error term `v − S k`, no reciprocal and no gain of the form `P k/(c + kᵀP k)`; overwriting
+works through the decay alone. Ablations: without the decay 0.345; with an exact projector
+update `P1' = P1 − u uᵀ` 0.369, because a key that is removed completely cannot be rewritten;
+the odd `0.25` and `<u,u>` factors are worth 0.026 (they silence the write when the residual is
+numerically zero); `norm(tanh v)` instead of `v` changes nothing.
+
+### What can be claimed
+
+- It is not a rediscovery of Kalman delta or RLS. It shares their second state: P1 plays the
+  role of RLS's P for a vanishing regulariser, the projector onto the directions not yet
+  written. It lacks their error-correcting write. Under the reading fixed before the run this
+  is "not Kalman delta or RLS in substance".
+- It is a rediscovery of an old idea: an associative memory that orthogonalises its inputs
+  with a novelty filter (Kohonen and Oja, 1976, "Fast adaptive formation of orthogonalizing
+  filters and associative memory"; orthogonal-projection memories in Kohonen's work of the
+  1970s). Checked on 13 Nov 2026 with two web searches; the paper index used earlier was not
+  reachable. In the 2023 to 2026 linear-attention literature the searches found no rule of
+  this form; the nearest named neighbour is linear attention via orthogonal memory (LAVO,
+  2023), which orthogonalises for compression, not per write. This is not an exhaustive check
+  and no novelty is claimed.
+- Not claimed: "better than every tuned known family at the same state budget". Kalman delta
+  is at 0.934 on the same draws. Seed 9 closes about 62% of the gap between tuned DeltaNet and
+  the ridge ceiling, Kalman delta about 82%, the best rule of C1 about 15%.
+- Supported: from the empty program, with no rule in the loop, the search assembled in 1 of 16
+  seeds a 22-instruction rule that keeps a projector state, beats every one-state family by
+  0.22 on collision3 and holds on long episodes. The step came late: train accuracy stood at
+  0.711 from 600,000 to 1,200,000 candidates and rose to 0.863 by 1,250,000.
+- Rate: 1 of 16. With a base rate this low the result says the rule can be found, not how
+  often. Limits as before: one task family, fixed constants on random embeddings, three
+  changes of the search space at once against c-m2.
+
+### The benchmark this gives
+
+Space `--persist-m 3 --persist-init identity --recip` on collision3, 1.5M candidates, present
+search: test > 0.85 under rule 2's other conditions in 1/16 seeds, above 0.695 in 2/16, rule 2
+in 4/16. A known rule at 0.93 is in the space and was not reached. These are the numbers a
+changed search algorithm has to beat on the same seeds.
+

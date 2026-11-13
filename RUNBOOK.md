@@ -165,6 +165,9 @@ If `git` cannot be executed where the runner starts, pass the commit with
 
 ### D. Search in the space that contains Kalman delta (released 11 Nov 2026)
 
+Status 13 Nov 2026: done and checked (`runs/d-kalman/`; README, "Package D: result and
+reading"). No further package is released; wait for the owner.
+
 Question: since commit c12f791 the Kalman delta rule can be written in the search space
 (15 instructions, collision3 test 0.933, T128 K8 0.950; README, "A known target inside the
 search space"). Does the present search find it, or anything near it?
