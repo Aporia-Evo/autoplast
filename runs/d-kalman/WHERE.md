@@ -35,3 +35,35 @@ Total wall 22069 s.
 | 14 | 30.6 |
 | 15 | 34.2 |
 | 16 | 24.1 |
+
+## Seeds 17 to 32 (package E)
+
+All 16 ran on epyc, 13 Nov 2026, 15:06 to 20:32 UTC, under nice -n 10, with the same binary as seeds 1-16 (sha256 4b3d4ef3...,
+built 12 Nov 2026 09:35 UTC from e979a8e, not rebuilt). Load before the start 0.05. No seed failed, none was rerun.
+Command (RUNBOOK.md, package E), commit passed through --extra as for seeds 1-16:
+
+    python local_runner.py --seeds 17-32 --budget 1500000 --tag d-kalman --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --commit e979a8e"
+
+The runner skipped seeds 1-16 and rewrote aggregate.md for all 32 seeds. Keepalive kernel as in D. Runner log: runner_log_epyc_E.txt.
+Dump made with the epyc binary, verify.py run on workstation (same verify.py as at e979a8e) -> verify_dump_17-32.txt; dump deleted on both machines.
+
+Total wall 19314 s.
+
+| seed | minutes |
+|---|---|
+| 17 | 34.2 |
+| 18 | 16.6 |
+| 19 | 19.6 |
+| 20 | 55.4 |
+| 21 | 25.8 |
+| 22 | 28.9 |
+| 23 | 14.7 |
+| 24 | 29.6 |
+| 25 | 91.3 |
+| 26 | 15.2 |
+| 27 | 54.5 |
+| 28 | 26.8 |
+| 29 | 41.3 |
+| 30 | 61.3 |
+| 31 | 72.5 |
+| 32 | 43.6 |

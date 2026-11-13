@@ -1,4 +1,4 @@
-# d-kalman: 16 seeds
+# d-kalman: 32 seeds
 
 Settings of the first seed (all seeds of a tag must share them except seed and task seed):
 
@@ -25,14 +25,30 @@ Settings of the first seed (all seeds of a tag must share them except seed and t
 | 14 | unclassified | 0.523 ±0.014 | 1838.1 | unclassified (1,396), decayed linear attention (1,780), linear attention (4,852) | `S' = ((P1 - P2) + (((v)⊗(k) + (v)⊗(k)) + (((v)⊗(k) + (v)⊗(k)) + ((v)⊗(k) - P2))))` |
 | 15 | unclassified | 0.656 ±0.014 | 2053.3 | decayed linear attention (1,396), unclassified (8,948), linear attention (18,548), delta rule (19,828) | `S' = (P1 + (((tanh(v) - P2·tanh(k)))⊗(norm(tanh(tanh(k)))) + S))` |
 | 16 | unclassified | 0.635 ±0.014 | 1445.9 | decayed linear attention (3,188), unclassified (8,436), linear attention (11,380), delta rule (11,764), linear, not error-correcting (12,788) | `S' = ((((v - S·k) + P2·(v - S·k)))⊗((σ(0)·norm((k - ((S·k ⊙ S·S·k) + (v ⊙ S·S·k)))) - ((S·k ⊙ S·S·k) + (v ⊙ S·S·k)` |
+| 17 | unclassified | 0.623 ±0.014 | 2050.5 | decayed linear attention (884), unclassified (4,084) | `S' = ((P1 - P2) + (tanh(v))⊗(tanh(norm(tanh(tanh(k))))))` |
+| 18 | unclassified | 0.536 ±0.014 | 995.1 | decayed linear attention (2,676), unclassified (4,980), linear attention (6,772) | `S' = ((v)⊗(norm(tanh((k + P2·k)))) + 0.881·S)` |
+| 19 | decayed linear attention | 0.515 ±0.014 | 1176.8 | unclassified (756), decayed linear attention (1,140), linear attention (14,452) | `S' = (<tanh(norm((((v ⊙ v) ⊙ 1.806·k) + k))), tanh(norm((((v ⊙ v) ⊙ 1.806·k) + k)))>·S + (<tanh(norm((((v ⊙ v) ⊙ 1` |
+| 20 | unclassified | 0.520 ±0.014 | 3321.9 | unclassified (4,724), decayed linear attention (5,492) | `S' = 0.875·(S + (norm(v))⊗(norm((tanh((tanh((k + k)) + (P1)(P2)·k)) - (norm(v) ⊙ norm((P1)(P2)·k))))))` |
+| 21 | unclassified | 0.515 ±0.014 | 1547.1 | decayed linear attention (756), unclassified (5,492) | `S' = (((0.438·P2 + 1/(0.400)·(v)⊗((k)⊗(k)·tanh(k))) + (0.438·P2 + 1/(0.400)·(v)⊗((k)⊗(k)·tanh(k)))) - 0.127·1/(0.4` |
+| 22 | unclassified | 0.519 ±0.014 | 1732.2 | unclassified (4,852), decayed linear attention (6,260), linear attention (12,404) | `S' = ((v)⊗((((P2)ᵀ·P1·tanh(k) + ((norm(tanh(k)) + tanh(k)) + (P2)ᵀ·P1·tanh(k))) - tanh(P1·P1·tanh(k)))) + 0.896·S)` |
+| 23 | decayed linear attention | 0.509 ±0.014 | 883.5 | decayed linear attention (1,396), unclassified (6,132), linear attention (7,924) | `S' = ((v)⊗(tanh(tanh(k))) - (0.563·(S + S) - (S + S)))` |
+| 24 | unclassified | 0.654 ±0.014 | 1775.5 | decayed linear attention (628), linear attention (7,796), unclassified (12,148), gated delta rule (1,092,596), delta rule (1,093,108) | `S' = ((P2 - (tanh(P2·tanh(tanh(tanh(k)))))⊗(tanh(tanh(tanh(k))))) + σ(2.318)·(tanh(tanh(v)))⊗(norm(((tanh(tanh(v))` |
+| 25 | unclassified | 0.667 ±0.013 | 5479.9 | decayed linear attention (1,140), linear, not error-correcting (2,036), unclassified (6,516), linear attention (8,436), delta rule (828,532) | `S' = (((v)⊗((k + k)))(((k + k))⊗((k + k))) + (((k + k))⊗(tanh(k)) + ((P2 + (S + (v)⊗((k + k)))) - 0.424·0.424·((P2` |
+| 26 | decayed linear attention | 0.511 ±0.014 | 912.5 | decayed linear attention (1,780), unclassified (2,804), linear attention (5,364) | `S' = <tanh(tanh(tanh(v))), norm(tanh(tanh(v)))>·((v)⊗(tanh(k)) + S)` |
+| 27 | unclassified | 0.681 ±0.013 | 3271.8 | decayed linear attention (1,396), unclassified (12,404), linear attention (14,068), gated delta rule (74,740), delta rule (75,380), delta + Kronecker mix (78,068) | `S' = (σ(<tanh((P1 - (S + P2))·tanh(tanh(k))), norm((tanh((P1 - (S + P2))·tanh(tanh(k))) + tanh(tanh(v))))>·<tanh((` |
+| 28 | unclassified | 0.572 ±0.014 | 1607.3 | unclassified (884), decayed linear attention (1,524) | `S' = ((P2 - P1))ᵀ` |
+| 29 | unclassified | 0.512 ±0.014 | 2477.6 | decayed linear attention (1,780), unclassified (3,956), linear attention (5,108) | `S' = ((P1)(((v)⊗(tanh(k)) + (v)⊗(tanh(k)))) + (((v)⊗(tanh(k)) + (v)⊗(tanh(k))) + ((v)⊗(tanh(k)) + P2)))` |
+| 30 | unclassified | 0.642 ±0.014 | 3678.4 | decayed linear attention (2,164), unclassified (2,420), linear attention (5,876), delta rule (192,628), linear, not error-correcting (193,268) | `S' = (((v)⊗(k) + S) + σ(0)·<tanh(tanh((k - P2·σ(0)·k))), (k - P2·σ(0)·k)>·|((v)⊗(k) + S)·tanh((k - P2·σ(0)·k))|·(0` |
+| 31 | unclassified | 0.633 ±0.014 | 4348.2 | decayed linear attention (2,164), unclassified (6,772) | `S' = (σ(0)·(((S + P2) + (((norm(tanh(v)) + (norm(tanh(v)) + norm(tanh(v)))) + tanh(v)))⊗(k)) + (((norm(tanh(v)) + ` |
+| 32 | unclassified | 0.600 ±0.014 | 2617.4 | decayed linear attention (4,596), unclassified (9,844), linear, not error-correcting (10,996), linear attention (33,780) | `S' = ((tanh(v))⊗(tanh(k)) + 0.999·0.999·(S - (S)(P2)))` |
 
-- decayed linear attention: seen in 16/16 seeds (median 3,188 candidates), final rule in 1/16
-- delta + Kronecker mix: seen in 1/16 seeds (median 14,964 candidates), final rule in 0/16
-- delta rule: seen in 6/16 seeds (median 249,588 candidates), final rule in 0/16
-- gated delta rule: seen in 3/16 seeds (median 66,804 candidates), final rule in 0/16
-- linear attention: seen in 12/16 seeds (median 13,428 candidates), final rule in 0/16
-- linear, not error-correcting: seen in 3/16 seeds (median 11,764 candidates), final rule in 0/16
-- unclassified: seen in 16/16 seeds (median 3,828 candidates), final rule in 15/16
+- decayed linear attention: seen in 32/32 seeds (median 2,036 candidates), final rule in 4/32
+- delta + Kronecker mix: seen in 2/32 seeds (median 78,068 candidates), final rule in 0/32
+- delta rule: seen in 10/32 seeds (median 249,588 candidates), final rule in 0/32
+- gated delta rule: seen in 5/32 seeds (median 74,740 candidates), final rule in 0/32
+- linear attention: seen in 23/32 seeds (median 8,948 candidates), final rule in 0/32
+- linear, not error-correcting: seen in 6/32 seeds (median 11,764 candidates), final rule in 0/32
+- unclassified: seen in 32/32 seeds (median 4,724 candidates), final rule in 28/32
 
 ## Accuracy levels (not rediscovery)
 
@@ -54,3 +70,19 @@ Settings of the first seed (all seeds of a tag must share them except seed and t
 | 14 | 4,852 | – | – | 744,436 |
 | 15 | 18,548 | 19,572 | 20,724 | 18,932 |
 | 16 | 11,380 | 11,764 | 20,084 | 11,764 |
+| 17 | 7,412 | 822,004 | 879,988 | 70,644 |
+| 18 | 6,772 | – | – | 949,748 |
+| 19 | 14,452 | – | – | 315,764 |
+| 20 | 20,468 | – | – | 195,828 |
+| 21 | 9,972 | – | – | 1,151,860 |
+| 22 | 12,404 | – | – | 211,444 |
+| 23 | 7,924 | – | – | – |
+| 24 | 7,796 | 1,093,108 | 1,099,508 | 225,780 |
+| 25 | 8,436 | 827,252 | 828,404 | 40,820 |
+| 26 | 5,364 | – | – | – |
+| 27 | 14,068 | 75,380 | 75,892 | 74,740 |
+| 28 | 18,676 | – | – | 626,932 |
+| 29 | 5,108 | – | – | – |
+| 30 | 5,876 | 192,628 | 194,420 | 185,588 |
+| 31 | 7,412 | 306,804 | 311,284 | 305,908 |
+| 32 | 33,780 | 546,804 | – | 519,156 |
