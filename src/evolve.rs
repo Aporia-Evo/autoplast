@@ -4,7 +4,8 @@
 
 use crate::program::{Instr, Op, Program, Regs, MAX_LEN};
 use crate::rng::Rng;
-use crate::task::{evaluate, Score, Task};
+use crate::task::{evaluate_beh, Score, Task};
+use std::sync::Arc;
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::time::Instant;
@@ -29,6 +30,24 @@ pub struct SearchCfg {
     /// which the best rule has validation accuracy > A, long-episode accuracy >= L and
     /// train − validation <= 0.03 is recorded.
     pub level: Option<(f32, f32)>,
+    /// `--select` (added 15 Nov 2026). Parent selection inside the tournament.
+    pub select: Select,
+    /// `--share-radius`: niche radius for `Select::Share`, as a fraction of all train queries.
+    pub share_radius: f32,
+}
+
+/// How the parent is chosen among the `tournament` randomly drawn individuals.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Select {
+    /// Highest fitness (the search as it was).
+    Fitness,
+    /// Lexicase: episodes are drawn at random one after another; after each, only the
+    /// candidates with the most correct queries on that episode stay. When one is left, or
+    /// after 32 episodes, the fittest of those left is the parent.
+    Lexicase,
+    /// Fitness sharing: fitness is divided by the niche count, the number of individuals in the
+    /// population whose per-episode behaviour is within the radius (weighted 1 − distance/radius).
+    Share,
 }
 
 #[derive(Clone)]
@@ -36,6 +55,8 @@ pub struct Indiv {
     pub prog: Program,
     pub eff: Program,
     pub score: Score,
+    /// Correct queries per train episode; only kept for behaviour-based selection.
+    pub beh: Option<Arc<[u8]>>,
 }
 
 pub struct Milestone {
@@ -108,8 +129,10 @@ fn eval_batch(
     task: &Task,
     threads: usize,
     cache: &mut HashMap<String, Score>,
+    mut beh_cache: Option<&mut HashMap<String, Arc<[u8]>>>,
 ) -> (Vec<Indiv>, usize) {
     let d = task.cfg.d;
+    let want_beh = beh_cache.is_some();
     let effs: Vec<Program> = progs.iter().map(|p| p.effective()).collect();
     let keys: Vec<String> = effs.iter().map(|e| e.to_json()).collect();
     let mut todo: Vec<usize> = Vec::new();
@@ -120,7 +143,7 @@ fn eval_batch(
         }
     }
     let chunk = todo.len().div_ceil(threads).max(1);
-    let mut fresh: Vec<(usize, Score)> = Vec::with_capacity(todo.len());
+    let mut fresh: Vec<(usize, Score, Vec<u8>)> = Vec::with_capacity(todo.len());
     std::thread::scope(|sc| {
         let handles: Vec<_> = todo
             .chunks(chunk)
@@ -129,7 +152,11 @@ fn eval_batch(
                 sc.spawn(move || {
                     let mut regs = Regs::new(d);
                     ch.iter()
-                        .map(|&i| (i, evaluate(&effs[i], task, &mut regs)))
+                        .map(|&i| {
+                            let mut b = Vec::new();
+                            let sc = evaluate_beh(&effs[i], task, &mut regs, if want_beh { Some(&mut b) } else { None });
+                            (i, sc, b)
+                        })
                         .collect::<Vec<_>>()
                 })
             })
@@ -139,11 +166,18 @@ fn eval_batch(
         }
     });
     let n_real = fresh.len();
-    if cache.len() > 3_000_000 {
+    // the behaviour cache holds a vector per program, so it is cleared earlier
+    if cache.len() > if want_beh { 1_000_000 } else { 3_000_000 } {
         cache.clear();
+        if let Some(bc) = beh_cache.as_deref_mut() {
+            bc.clear();
+        }
     }
-    for (i, sc) in fresh {
+    for (i, sc, b) in fresh {
         cache.insert(keys[i].clone(), sc);
+        if let Some(bc) = beh_cache.as_deref_mut() {
+            bc.insert(keys[i].clone(), b.into());
+        }
     }
     let out = progs
         .into_iter()
@@ -153,9 +187,26 @@ fn eval_batch(
             prog,
             eff,
             score: cache[&k],
+            beh: beh_cache.as_deref().map(|bc| bc[&k].clone()),
         })
         .collect();
     (out, n_real)
+}
+
+/// Niche counts for fitness sharing: for every individual, the sum over the population of
+/// max(0, 1 − distance/radius), distance = L1 distance of the behaviour vectors.
+fn niche_counts(pop: &VecDeque<Indiv>, radius: f32) -> Vec<f32> {
+    let behs: Vec<&[u8]> = pop.iter().map(|i| i.beh.as_deref().unwrap()).collect();
+    behs.iter()
+        .map(|a| {
+            behs.iter()
+                .map(|b| {
+                    let dist: u32 = a.iter().zip(b.iter()).map(|(x, y)| x.abs_diff(*y) as u32).sum();
+                    (1.0 - dist as f32 / radius).max(0.0)
+                })
+                .sum()
+        })
+        .collect()
 }
 
 pub fn search(
@@ -169,7 +220,17 @@ pub fn search(
     let t0 = Instant::now();
     let mut rng = Rng::new(cfg.seed);
     let mut cache: HashMap<String, Score> = HashMap::new();
-    let (init, mut real_evals) = eval_batch(vec![crate::program::initial_program(); cfg.pop], task, cfg.threads, &mut cache);
+    let mut beh_store: HashMap<String, Arc<[u8]>> = HashMap::new();
+    let niching = cfg.select != Select::Fitness;
+    let n_queries: usize = task.episodes.iter().map(|e| e.queries.len()).sum();
+    let radius = (cfg.share_radius * n_queries as f32).max(1.0);
+    let (init, mut real_evals) = eval_batch(
+        vec![crate::program::initial_program(); cfg.pop],
+        task,
+        cfg.threads,
+        &mut cache,
+        if niching { Some(&mut beh_store) } else { None },
+    );
     let mut pop: VecDeque<Indiv> = init.into_iter().collect();
     let mut evals = cfg.pop;
     let mut best = pop[0].clone();
@@ -193,17 +254,46 @@ pub fn search(
     let mut level_hit: Option<usize> = None;
 
     while evals < cfg.budget {
+        let shared: Vec<f32> = if cfg.select == Select::Share {
+            let m = niche_counts(&pop, radius);
+            pop.iter().zip(m).map(|(i, m)| if i.score.fitness > 0.0 { i.score.fitness / m } else { i.score.fitness }).collect()
+        } else {
+            Vec::new()
+        };
         let children: Vec<Program> = (0..cfg.batch)
             .map(|_| {
                 if cfg.random {
                     return random_program(&mut rng);
                 }
                 let mut winner: Option<&Indiv> = None;
-                for _ in 0..cfg.tournament {
-                    let c = &pop[rng.below(pop.len())];
-                    if winner.map_or(true, |w| c.score.fitness > w.score.fitness) {
-                        winner = Some(c);
+                if cfg.select == Select::Fitness {
+                    for _ in 0..cfg.tournament {
+                        let c = &pop[rng.below(pop.len())];
+                        if winner.map_or(true, |w| c.score.fitness > w.score.fitness) {
+                            winner = Some(c);
+                        }
                     }
+                } else {
+                    let mut cand: Vec<usize> = (0..cfg.tournament).map(|_| rng.below(pop.len())).collect();
+                    if cfg.select == Select::Lexicase {
+                        let n_ep = task.episodes.len();
+                        for _ in 0..32 {
+                            if cand.len() <= 1 {
+                                break;
+                            }
+                            let e = rng.below(n_ep);
+                            let top = cand.iter().map(|&i| pop[i].beh.as_ref().unwrap()[e]).max().unwrap();
+                            cand.retain(|&i| pop[i].beh.as_ref().unwrap()[e] == top);
+                        }
+                    }
+                    let key = |i: usize| if cfg.select == Select::Share { shared[i] } else { pop[i].score.fitness };
+                    let mut best_i = cand[0];
+                    for &i in &cand[1..] {
+                        if key(i) > key(best_i) {
+                            best_i = i;
+                        }
+                    }
+                    winner = Some(&pop[best_i]);
                 }
                 let mut child = winner.unwrap().prog.clone();
                 child.mutate(&mut rng);
@@ -230,7 +320,7 @@ pub fn search(
                 }
             }
         }
-        let (evaluated, n_real) = eval_batch(children, task, cfg.threads, &mut cache);
+        let (evaluated, n_real) = eval_batch(children, task, cfg.threads, &mut cache, if niching { Some(&mut beh_store) } else { None });
         evals += evaluated.len();
         real_evals += n_real;
         // best member of every group, the original child on ties

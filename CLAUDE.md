@@ -99,10 +99,12 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    implemented, off by default (README, "Search method, first change"). Package F (done
    15 Nov; README, "Package F: result and reading"): no detectable effect of tuning on the
    base task (7/16 and 8/16 against 14/32), no cost either; random search never gets past
-   linear attention (0/16). Open with the owner: test tuning on collision3 in the space of
-   D and E, where constants are critical, or go to speciation first. A base-task arm of
-   16 seeds takes about 45 minutes on the university machine, so base-task arms can use 32
-   seeds. Background that led here:
+   linear attention (0/16). Decided with the owner on 15 Nov: both. Second component built:
+   parent selection by behaviour, `--select share` (fitness sharing over per-episode
+   behaviour) and `--select lexicase` (README, "Search method, second change"). Released:
+   package H (base task, 32 seeds, `h-base` / `h-share` / `h-lexicase`) and package G
+   (`--tune-consts 8` on collision3 in the space of D and E, 32 seeds). Typed crossover stays
+   deferred. Background that led here:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
    Candidates discussed: tune constants per structure instead of mutating them one at a time,

@@ -1087,3 +1087,83 @@ a structure whose constants are critical (seed 9 of d-kalman). Whether to test t
 that applies, despite the null here, is a decision for the owner and is not taken in this
 file.
 
+## Search method, second change: parent selection by behaviour (15 Nov 2026, before any result)
+
+Decided with the owner on 15 Nov 2026: build the second component (niching by behaviour), and
+in parallel test constant tuning where constants are critical, although package F showed no
+effect on the base task (package G below; this departs from the sentence fixed before F and
+is the owner's decision, for the reason given under "Package F: result and reading").
+
+**What is added.** Every individual keeps its behaviour: the number of correct queries on
+each train episode. `--select` chooses how the parent is picked among the 10 individuals
+drawn for a tournament. All of it is off by default (`--select fitness`), and committed runs
+reproduce with it off (v2 seed 3 to 100,000 candidates; f-tune8 seed 9 to 50,000).
+
+- `--select share`, fitness sharing. An individual's fitness is divided by its niche count:
+  the number of individuals in the population whose behaviour lies within a radius, each
+  weighted by 1 − distance/radius, distance = summed absolute difference of the per-episode
+  counts. `--share-radius` is that radius as a fraction of all train queries (default 0.05).
+  This is the mechanism NEAT's speciation uses to protect new structure, with distance taken
+  between behaviours instead of genomes.
+- `--select lexicase`, lexicase selection inside the tournament. Train episodes are drawn at
+  random one after another; after each, only the candidates with the most correct queries on
+  that episode stay; when one is left, or after 32 episodes, the fittest of those left is the
+  parent. It favours rules that are best on some episodes even if their overall accuracy is
+  lower.
+
+Neither option names a rule or an op; both act on which episodes a rule gets right.
+
+**Why.** In every run the seeds split into the same two groups and a third to a half stop at
+decayed linear attention (17/32 on the base task, 12/32 in the space of D and E); improvements
+come late and rarely (seed 9 of d-kalman after 1.2M candidates). With 500 individuals and
+tournaments of 10 the population is expected to sit on one behaviour; that was not measured
+directly. Random search (package F) shows that selection is what carries the search past
+linear attention, so selection is the place to change. Both options are standard (fitness
+sharing: Goldberg and Richardson 1987, NEAT 2002; lexicase: Spector 2012); what is to be
+measured is whether they change the rate here.
+
+**Cost.** Fitness sharing compares all pairs of the population once per batch and, by keeping
+the population spread, lowers the share of cached evaluations. In a function test on the base
+task (2 seeds, 300,000 candidates, one thread) it took about four times the wall time of the
+plain search; lexicase took the same time as the plain search. In that test both `share` seeds
+ended on a delta rule and both `lexicase` seeds on linear attention. Two seeds at a fifth of
+the budget are not a result.
+
+### Package H: selection by behaviour on the base task
+
+Base task (v2 setting), seeds 1 to 32, 1,500,000 candidates, batch 128, one machine for all
+arms:
+
+| tag | flags |
+|---|---|
+| `h-base` | `--val-log` (the plain search, as baseline on the same machine and seeds) |
+| `h-share` | `--select share --val-log` |
+| `h-lexicase` | `--select lexicase --val-log` |
+
+Fixed before the run:
+- Counts per arm: seeds reaching the accuracy level of delta β = 0.5; seeds whose final rule
+  is in the delta family by the structural test; seeds ending at linear attention level
+  (train < 0.84).
+- An arm shows an effect if a one-sided Fisher test against `h-base` gives p < 0.05 on the
+  first or the second count. With `h-base` near the earlier rate (14/32) that takes about
+  21/32. The two tests per arm and two arms are four tests; a single p just under 0.05 is to
+  be read with that in mind.
+- Also reported: median candidates to the level, train − test, growth factor and T128 K8 of
+  every delta rule (does the arm find more rules that only work on short episodes?),
+  real evaluations and wall time (does the arm win per candidate but lose per second?).
+- Prediction of the research agent: `h-share` shows an effect by the rule above with
+  probability 0.4, `h-lexicase` with 0.15; `h-base` gives 11 to 17 of 32 on the first count
+  with probability 0.7.
+
+### Package G: constant tuning in the space of packages D and E
+
+collision3, `--persist-m 3 --persist-init identity --recip`, seeds 1 to 32, 1,500,000
+candidates, `--tune-consts 8 --val-log --level-acc 0.651 --level-long 0.838` (`runs/g-tune8`),
+on the machine of D and E. Baseline: the 32 seeds of `runs/d-kalman`.
+
+Fixed before the run: the counts are those of E. The arm shows an effect with rule 2 in 13/32
+or more (baseline 6/32), at most 5/32 seeds stuck below 0.53 (baseline 12/32), or test > 0.85
+in 7/32 or more (baseline 1/32). Also reported: seeds whose rule has the shape of seed 9, and
+train − test. Prediction of the research agent: rule 2 in 5 to 10 of 32 with probability 0.6,
+13 or more with probability 0.12; at least one seed above 0.85 with probability 0.45.
+

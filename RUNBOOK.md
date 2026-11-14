@@ -270,8 +270,8 @@ is rewritten by the runner for all 32 seeds; that is intended. Add the new seeds
 
 ### F. Constants tuned per structure, base task (released 14 Nov 2026)
 
-Status 15 Nov 2026: done and checked (README, "Package F: result and reading"). No further
-package is released; wait for the owner.
+Status 15 Nov 2026: done and checked (README, "Package F: result and reading"). Packages H
+and G below are released; run H first.
 
 Read README, "Search method, first change", first. Three arms on the base task (the v2
 setting: no `--task`, no `--regime`, default alphabet, one state), seeds 1 to 16, 1,500,000
@@ -328,6 +328,77 @@ and `runs/v2-noaddnode` taken from their committed summaries:
 - Train minus test ow0.3 per seed and its mean per arm, against the baseline's mean.
 - The `val_acc` and `long_acc` columns of the last log row per seed.
 - Largest difference JAX against Rust on test ow0.3.
+
+### H. Parent selection by behaviour, base task (released 15 Nov 2026) — run this first
+
+Read README, "Search method, second change", first. The search code changed: build at the
+commit that contains this section and repeat the self-check of package F (same expected last
+log row). Base task (no `--task`, no `--regime`), seeds 1 to 32, 1,500,000 candidates, batch
+128, all three arms on the same machine (epyc, as in F). Predictions into
+`runs/h-base/H_VORHERSAGE.md`, committed before the first run.
+
+Timing, 2 seeds each, not committed (`share` is expected to take several times as long as the
+plain search):
+
+```bash
+python local_runner.py --seeds 1-2 --budget 150000 --tag time-h-share --parallel 2 --threads 8 --extra="--select share --val-log"
+```
+
+```bash
+python local_runner.py --seeds 1-2 --budget 150000 --tag time-h-lex --parallel 2 --threads 8 --extra="--select lexicase --val-log"
+```
+
+If the projection for all three arms is above 30 hours of wall time, stop and ask. The arms:
+
+```bash
+python local_runner.py --seeds 1-32 --budget 1500000 --tag h-base --parallel 2 --threads 8 --extra="--val-log"
+```
+
+```bash
+python local_runner.py --seeds 1-32 --budget 1500000 --tag h-share --parallel 2 --threads 8 --extra="--select share --val-log"
+```
+
+```bash
+python local_runner.py --seeds 1-32 --budget 1500000 --tag h-lexicase --parallel 2 --threads 8 --extra="--select lexicase --val-log"
+```
+
+JAX check of every best rule, per arm:
+
+```bash
+python verify/verify.py runs/h-share/seed*/best.json > runs/h-share/verify.txt
+```
+
+Report per arm in `runs/<tag>/h_report.md`, with `h-base` next to it, the columns and counts
+of package F, and in addition:
+- one-sided Fisher test of the arm against `h-base` on the accuracy-level count and on the
+  structural count (state the four p values plainly; do not pick one);
+- for every delta rule: growth factor `a` and T128 K8; per arm the number of delta rules with
+  `a` within 0.02 of 1;
+- real evaluations and minutes per seed, and their arm means;
+- the `pop_mean_acc` column of the last log row per seed, arm mean.
+
+### G. Constant tuning in the space of D and E (released 15 Nov 2026) — after H
+
+Read README, "Package G". collision3, same space, machine and counts as D and E; the baseline
+is the committed `runs/d-kalman` (32 seeds); do not rerun it. Predictions into
+`runs/g-tune8/G_VORHERSAGE.md`, committed before the first run. Timing first, not committed:
+
+```bash
+python local_runner.py --seeds 1-2 --budget 150000 --tag time-g --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --tune-consts 8 --val-log --level-acc 0.651 --level-long 0.838"
+```
+
+If the projection for 32 seeds is above 30 hours of wall time, stop and ask. The run:
+
+```bash
+python local_runner.py --seeds 1-32 --budget 1500000 --tag g-tune8 --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --tune-consts 8 --val-log --level-acc 0.651 --level-long 0.838"
+```
+
+Then dump, JAX check on the dump for all 32 seeds, delete the dump, as in D. Report in
+`runs/g-tune8/g_report.md` with the columns and counts of `e_report.md`, the 32 seeds of
+`runs/d-kalman` next to them, and in addition: the `validation level` line of every summary
+(candidates to rule 2 on validation data), train − test per seed, real evaluations and
+minutes per seed, the full formula of every seed with test above 0.72, and for each of those
+whether it has the shape of seed 9.
 
 ## Handing back
 

@@ -273,11 +273,22 @@ pub const LEN_PENALTY: f32 = 1e-4;
 
 /// Evaluate a rule. `prog` should already be the effective (dead-code-free) program.
 pub fn evaluate(prog: &Program, task: &Task, regs: &mut Regs) -> Score {
+    evaluate_beh(prog, task, regs, None)
+}
+
+/// As `evaluate`; with `beh`, also writes the number of correct queries per episode (the
+/// behaviour vector used by `--select lexicase` and `--select share`). All zeros if invalid.
+pub fn evaluate_beh(prog: &Program, task: &Task, regs: &mut Regs, mut beh: Option<&mut Vec<u8>>) -> Score {
+    if let Some(b) = beh.as_deref_mut() {
+        b.clear();
+        b.resize(task.episodes.len(), 0);
+    }
     let d = task.cfg.d;
     let mut s_mem = vec![0.0f32; d * d];
     let mut o = vec![0.0f32; d];
     let (mut correct, mut total, mut margin_sum) = (0usize, 0usize, 0.0f32);
-    for ep in &task.episodes {
+    for (ei, ep) in task.episodes.iter().enumerate() {
+        let correct_before = correct;
         s_mem.fill(0.0);
         regs.reset();
         for &(k, v) in &ep.writes {
@@ -285,6 +296,9 @@ pub fn evaluate(prog: &Program, task: &Task, regs: &mut Regs) -> Score {
             regs.run(prog);
             let out = &regs.m[0];
             if out.iter().any(|x| !x.is_finite() || x.abs() > 1e4) || !regs.persistent_ok() {
+                if let Some(b) = beh.as_deref_mut() {
+                    b.fill(0);
+                }
                 return Score::default();
             }
             s_mem.copy_from_slice(out);
@@ -332,6 +346,9 @@ pub fn evaluate(prog: &Program, task: &Task, regs: &mut Regs) -> Score {
                 correct += 1;
             }
             margin_sum += (target_score - other_best).clamp(-1.0, 1.0);
+        }
+        if let Some(b) = beh.as_deref_mut() {
+            b[ei] = (correct - correct_before).min(255) as u8;
         }
     }
     let acc = correct as f32 / total.max(1) as f32;

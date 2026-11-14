@@ -457,6 +457,13 @@ fn main() {
                 log_every: arg(&args, "--log-every", 5_000),
                 tune_consts: arg(&args, "--tune-consts", 0usize),
                 random: arg(&args, "--algo", String::from("evolve")) == "random",
+                select: match arg(&args, "--select", String::from("fitness")).as_str() {
+                    "fitness" => evolve::Select::Fitness,
+                    "lexicase" => evolve::Select::Lexicase,
+                    "share" => evolve::Select::Share,
+                    other => panic!("unknown --select {other}"),
+                },
+                share_radius: arg(&args, "--share-radius", 0.05f32),
                 level: if has(&args, "--level-acc") {
                     Some((arg(&args, "--level-acc", 0.0f32), arg(&args, "--level-long", 0.0f32)))
                 } else {
@@ -519,9 +526,14 @@ fn main() {
                 cfg.batch
             );
             summary += &format!(
-                "search: {}  tune-consts: {}\n\n",
+                "search: {}  tune-consts: {}  select: {}\n\n",
                 if cfg.random { "random programs, no selection" } else { "regularized evolution" },
-                cfg.tune_consts
+                cfg.tune_consts,
+                match cfg.select {
+                    evolve::Select::Fitness => "fitness".to_string(),
+                    evolve::Select::Lexicase => "lexicase".to_string(),
+                    evolve::Select::Share => format!("share (radius {})", cfg.share_radius),
+                }
             );
             if let Some((a, l)) = cfg.level {
                 summary += &format!(
@@ -555,7 +567,7 @@ fn main() {
                 "usage: autoplast baselines | sweep | eval --prog FILE | dump [--split train|test --out FILE] | search [--seed N --budget N --pop N --threads N --batch N --out DIR]\n\
                  task:   --task v3 | --regime collision|overload|noisyq|collision3|longgap|full|overload48|rewrite8|rewrite14|clustered|clustered8   --task-seed N  --train-episodes N  --query-gap N\n\
                  space:  --no-op A,B  --extra-ops  --recip  --evolve-readout  --persist-m N (1..4)  --persist-v N (0..4)  --persist-init identity  --no-split-edge\n\
-                 search: --tune-consts K  --algo random  --val-log  --level-acc A --level-long L"
+                 search: --tune-consts K  --select fitness|lexicase|share  --share-radius R  --algo random  --val-log  --level-acc A --level-long L"
             );
         }
     }
