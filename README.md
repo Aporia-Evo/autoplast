@@ -922,3 +922,58 @@ new 16 seeds: main count 0 with probability 0.45, 1 with 0.35, 2 or more with 0.
 least one seed above 0.695 with probability 0.85. (The last prediction of this kind, a main
 count of 0 with 0.85 for D, was wrong.)
 
+## Package E: result, and the base rate over 32 seeds (14 Nov 2026)
+
+Run by the executing agent: seeds 17 to 32 of `runs/d-kalman`, same machine and binary as D
+(commit e979a8e in every summary), 5.37 h, predictions committed before the run (107f920).
+Facts per seed: `runs/d-kalman/e_report.md`. The counts below were recomputed from the 32
+summaries and agree with the report.
+
+| collision3, space of package D, 1.5M candidates | seeds 17–32 | seeds 1–16 | all 32 |
+|---|---|---|---|
+| main count: test > 0.85, T128 K8 ≥ 0.838, train − test ≤ 0.03 | 0 | 1 (seed 9) | 1/32 |
+| above 0.695 (best rule of C1) | 0 | 2 (7, 9) | 2/32 |
+| rule 2 passed | 2 (24, 25) | 4 (2, 7, 9, 15) | 6/32 |
+| stuck at decayed linear attention level (test < 0.53) | 8 | 4 | 12/32 |
+| median test | 0.553 | 0.638 | 0.630 |
+| rule 1 against c-m2 / against 5a-A (Mann-Whitney p) | 0.72 / 0.52 | 0.44 / 0.097 | 0.82 / 0.18 |
+
+Best new seed: 27 with test 0.687. No new seed is above 0.72, so there is no second rule of
+the kind of seed 9. Seed 22 scores 0.000 on the test in Rust because one of the 768 test
+episodes passes the state bound and the guard zeroes the suite; JAX without the guard
+measures 0.515; with train 0.519 it fails rule 2 either way. For the other 31 seeds JAX and
+Rust differ by at most 0.0005.
+
+Prediction check: the research agent gave a main count of 0 a probability of 0.45 (it
+happened) and "at least one new seed above 0.695" a probability of 0.85 (it did not).
+
+### Reading
+
+- Seed 9 stays a single event: 1 in 32, with a 95% interval from about 0.5% to 16%. The claim
+  remains "the search can find it", not a rate. Nothing about the rule itself changes; it
+  was checked on fresh task draws on 13 Nov.
+- The first 16 seeds looked better than the second 16 on every count. That is what a small
+  sample does; as fixed before the run, the base rate is the count over all 32.
+- Rule 1 is not met against either control over 32 seeds. The larger space does not shift
+  the distribution of outcomes; it adds a thin upper tail.
+- Twelve of 32 seeds made their last gain in train accuracy after 1,000,000 candidates, five
+  after 1,300,000. The search has not converged at this budget, so "more candidates" is a
+  control every method comparison needs.
+
+### The baseline arm for method comparisons
+
+Setting: collision3, `--persist-m 3 --persist-init identity --recip`, seeds 1 to 32, 1.5M
+candidates, present search. Numbers to beat on the same seeds, with the size of effect that
+32 against 32 seeds can show (one-sided Fisher test, p < 0.05):
+
+| measure | present search | needed in a new arm |
+|---|---|---|
+| rule 2 passed | 6/32 | 13/32 or more |
+| stuck at decayed linear attention level | 12/32 | 5/32 or fewer |
+| main count (test > 0.85) | 1/32 | 6/32 or more |
+
+Only a large change of the search shows up at this sample size. The main count is too rare
+to serve as the primary measure; rule 2 and the stuck count are the usable ones, together
+with candidates to the first rule-2 level, which the logs do not hold yet (they record train
+accuracy every 50,000 candidates).
+

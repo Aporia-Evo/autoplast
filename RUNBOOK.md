@@ -228,6 +228,9 @@ cannot be executed, add `--commit <hash>` inside `--extra` and say so in `WHERE.
 
 ### E. Seeds 17 to 32 of package D (released 13 Nov 2026)
 
+Status 14 Nov 2026: done and checked (README, "Package E: result, and the base rate over 32
+seeds"). No further package is released; wait for the owner.
+
 Purpose: package D found one seed above 0.85 in 16. Before any search algorithm is compared
 against this setting, the base rate needs more seeds. E is D with seeds 17 to 32 and nothing
 else changed.

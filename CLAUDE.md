@@ -86,7 +86,8 @@ Done so far (details and numbers in README):
 - Evolved readout and extra ops on collision3 (5a): no arm better, no rule above tuned DeltaNet.
 - Structural rediscovery test, state budget (`--persist-m`, `--persist-v`), `--recip`.
 - Package C arm C1: second state on collision3, rules above every one-state family in 3/16.
-- Package D: space containing Kalman delta; 1/16 seeds finds an orthogonalising memory at 0.86.
+- Packages D and E: space containing Kalman delta, 32 seeds; one seed finds an orthogonalising
+  memory at 0.86, Kalman delta is not reached, rule 2 in 6/32.
 
 Open, in order. Items 2 to 4 are repeated with the baseline search algorithms on the same
 seeds and budget; that comparison is the method result. Item 3 was released ahead of item 1
@@ -96,7 +97,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
    Candidates discussed: tune constants per structure instead of mutating them one at a time,
    speciation by behaviour, typed crossover. Implement random search as a baseline.
-   Every change goes into README before results (rule 1).
+   Every change goes into README before results (rule 1). The benchmark for it now exists
+   (item 3). Controls any comparison needs: the present search with a larger budget (12 of 32
+   seeds were still improving after 1.0M candidates) and random search. The search should
+   also log when a rule first passes rule 2 on a held-out set, so candidates-to-level can be
+   compared; that is a logging change, not a search change.
 2. Measure the method on task v3 and the base task against regularized evolution, 16 seeds,
    with the structural test and the accuracy level side by side.
 3. Search with a second state. Arm C1 done (README, "Package C, arm C1"): 3 of 16 seeds
@@ -109,8 +114,10 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    fresh draws against 0.643 for tuned DeltaNet and 0.934 for Kalman delta; an old idea
    (novelty filter), found from the empty program. Kalman delta itself was not reached. The
    run is the baseline arm for item 1: 1/16 above 0.85, 2/16 above 0.695, 4/16 pass rule 2.
-   Released on 13 Nov as package E (RUNBOOK.md): seeds 17 to 32 of the same setting, to
-   firm up the base rate before any method comparison. Arm C2 of package C is withdrawn.
+   Package E (seeds 17 to 32, done 14 Nov) found no second such rule. Baseline arm over
+   32 seeds (README, "Package E"): rule 2 in 6/32, stuck at decayed linear attention in
+   12/32, test > 0.85 in 1/32. A new search arm on the same 32 seeds needs about 13/32 on
+   rule 2 or at most 5/32 stuck to show at p < 0.05. Arm C2 of package C is withdrawn.
 4. Freeze the search method: commit it with a note in README. No change to mutations,
    selection or hyperparameters after this point may be tuned on testbed 2.
 5. Testbed 2, optimizer update rules, as a transfer test of the frozen method. Program gets
