@@ -96,9 +96,13 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
 1. Method improvement. Decided with the owner on 14 Nov 2026: first component is constants
    tuned per structure (`--tune-consts`), second is speciation by behaviour, typed crossover
    is deferred. `--tune-consts`, random search (`--algo random`) and the validation log are
-   implemented, off by default (README, "Search method, first change"). Package F measures
-   them on the base task (RUNBOOK.md); if an arm shows there, it goes to collision3 in the
-   space of packages D and E against the 32-seed baseline. Background that led here:
+   implemented, off by default (README, "Search method, first change"). Package F (done
+   15 Nov; README, "Package F: result and reading"): no detectable effect of tuning on the
+   base task (7/16 and 8/16 against 14/32), no cost either; random search never gets past
+   linear attention (0/16). Open with the owner: test tuning on collision3 in the space of
+   D and E, where constants are critical, or go to speciation first. A base-task arm of
+   16 seeds takes about 45 minutes on the university machine, so base-task arms can use 32
+   seeds. Background that led here:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
    Candidates discussed: tune constants per structure instead of mutating them one at a time,

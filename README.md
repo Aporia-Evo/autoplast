@@ -1047,3 +1047,43 @@ delta family by the structural test in 11/32. Fixed before the run:
   probability 0.6 and 12 or more with probability 0.1; `f-random` reaches it in 0 of 16
   with probability 0.9.
 
+## Package F: result and reading (15 Nov 2026)
+
+Run by the executing agent on the university machine, commit 6df6477, 2.3 h for the three
+arms, predictions committed before the run (345dc58). Facts per seed: `runs/f-tune8/f_report.md`,
+`runs/f-tune3/f_report.md`, `runs/f-random/f_report.md`. The counts below were recomputed from
+the summaries and agree with the reports.
+
+| base task, 16 seeds, 1.5M candidates | accuracy level of delta β = 0.5 | median candidates to it | delta family, structural | ends at linear attention level | mean train − test |
+|---|---|---|---|---|---|
+| `f-tune8` | 7/16 | 292,436 | 5/16 | 9/16 | +0.019 |
+| `f-tune3` | 8/16 | 135,100 | 6/16 | 8/16 | +0.017 |
+| `f-random` | 0/16 | – | 0/16 | 16/16 | +0.022 |
+| baseline, `v2` + `v2-noaddnode` | 14/32 | 388,980 | 11/32 | 17/32 | +0.018 |
+
+By the rule fixed before the run (12/16 on the first count or 11/16 on the second), neither
+tuning arm shows an effect: **no detectable effect of constant tuning on the base task at
+this sample size.** The rates are the baseline's. The lower medians are within the spread of
+the baseline itself (86,000 in `v2`, 497,000 in `v2-noaddnode`). The research agent had
+predicted this outcome (5 to 9 of 16 with probability 0.6).
+
+What the run does show:
+- Tuning does not cost anything at equal budget: the same rate although every new structure
+  spends up to 9 or 4 candidates. It also does not raise train minus test.
+- Random search finds plain linear attention (two instructions, train 0.772) in all 16 seeds
+  and nothing beyond it. Selection is what gets the search past linear attention at all;
+  that is the first measured baseline of the method claim.
+- Three delta rules with growth factor 1.000 appeared (two in `f-tune8`, one in `f-tune3`);
+  those hold on long episodes (T128 K8 0.83), the others have a ≈ 1.09 to 1.14 and do not.
+  The baseline arms had none in 14 delta seeds on this task. Three of eleven against none of
+  fourteen is suggestive, not established, and it was not a pre-set count.
+- JAX agrees with Rust within 0.017 on test ow0.3 for all 48 rules.
+
+Reading for the next step. The sentence fixed before the run was that a positive result
+decides whether the arm goes to collision3. There is no positive result, so on this evidence
+it does not. The base task was, however, a weak test of this component: the delta rule's
+constants are uncritical there, while the measurement that motivated the change was made on
+a structure whose constants are critical (seed 9 of d-kalman). Whether to test tuning where
+that applies, despite the null here, is a decision for the owner and is not taken in this
+file.
+

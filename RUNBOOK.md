@@ -270,6 +270,9 @@ is rewritten by the runner for all 32 seeds; that is intended. Add the new seeds
 
 ### F. Constants tuned per structure, base task (released 14 Nov 2026)
 
+Status 15 Nov 2026: done and checked (README, "Package F: result and reading"). No further
+package is released; wait for the owner.
+
 Read README, "Search method, first change", first. Three arms on the base task (the v2
 setting: no `--task`, no `--regime`, default alphabet, one state), seeds 1 to 16, 1,500,000
 candidates, batch 128. The baseline is the committed `runs/v2` and `runs/v2-noaddnode`; do not
