@@ -229,7 +229,7 @@ cannot be executed, add `--commit <hash>` inside `--extra` and say so in `WHERE.
 ### E. Seeds 17 to 32 of package D (released 13 Nov 2026)
 
 Status 14 Nov 2026: done and checked (README, "Package E: result, and the base rate over 32
-seeds"). No further package is released; wait for the owner.
+seeds"). Package F below is the next one.
 
 Purpose: package D found one seed above 0.85 in 16. Before any search algorithm is compared
 against this setting, the base rate needs more seeds. E is D with seeds 17 to 32 and nothing
@@ -267,6 +267,64 @@ has the shape of seed 9 (README, "What seed 9 is": an address `norm(P1ᵀ k)` or
 from a persistent register, and a write along that address); say only what the formula shows.
 Rule 1 for all 32 seeds against `runs/c-m2` and `runs/5a-A` (16 seeds each). `aggregate.md`
 is rewritten by the runner for all 32 seeds; that is intended. Add the new seeds to `WHERE.md`.
+
+### F. Constants tuned per structure, base task (released 14 Nov 2026)
+
+Read README, "Search method, first change", first. Three arms on the base task (the v2
+setting: no `--task`, no `--regime`, default alphabet, one state), seeds 1 to 16, 1,500,000
+candidates, batch 128. The baseline is the committed `runs/v2` and `runs/v2-noaddnode`; do not
+rerun them. Any one machine; say which in `WHERE.md`.
+
+Build the code at the commit that contains this section. Self-check before the runs: the
+default search must still give `120052,22831,...,0.82164,0.8142,4,...` as last log row of
+
+```bash
+./target/release/autoplast search --seed 2 --budget 120000 --threads 2 --out /tmp/chk > /dev/null && tail -1 /tmp/chk/log.csv
+```
+
+on Linux (other values on Windows are possible, see rule 7; report them).
+
+Write predictions into `runs/f-tune8/F_VORHERSAGE.md` and commit them before the first run.
+Timing first, 2 seeds, not committed (tuning costs more real evaluations per candidate):
+
+```bash
+python local_runner.py --seeds 1-2 --budget 150000 --tag time-f --parallel 2 --threads 8 --extra="--tune-consts 8 --val-log"
+```
+
+Then the three arms:
+
+```bash
+python local_runner.py --seeds 1-16 --budget 1500000 --tag f-tune8 --parallel 2 --threads 8 --extra="--tune-consts 8 --val-log"
+```
+
+```bash
+python local_runner.py --seeds 1-16 --budget 1500000 --tag f-tune3 --parallel 2 --threads 8 --extra="--tune-consts 3 --val-log"
+```
+
+```bash
+python local_runner.py --seeds 1-16 --budget 1500000 --tag f-random --parallel 2 --threads 8 --extra="--algo random --val-log"
+```
+
+JAX check of every best rule of the three arms (no dump needed on the base task):
+
+```bash
+python verify/verify.py runs/f-tune8/seed*/best.json > runs/f-tune8/verify.txt
+```
+
+and the same for `f-tune3` and `f-random`.
+
+What to report, per arm, in `runs/<tag>/f_report.md`, next to the same numbers for `runs/v2`
+and `runs/v2-noaddnode` taken from their committed summaries:
+- Primary count: seeds whose summary shows `delta rule (beta=0.5)` reached under Milestones,
+  with the candidate count; median of those counts.
+- Structural count: seeds whose final rule is `delta rule` or `gated delta rule`
+  (`structure:` line), and seeds that are `unclassified` with erase c/a above 0.3.
+- Seeds ending at linear attention level (train accuracy below 0.84).
+- Per seed: train, test ow0.3, T64 K8, T128 K8, the growth factor `a` of the structure line,
+  number of instructions, real evaluations, minutes.
+- Train minus test ow0.3 per seed and its mean per arm, against the baseline's mean.
+- The `val_acc` and `long_acc` columns of the last log row per seed.
+- Largest difference JAX against Rust on test ow0.3.
 
 ## Handing back
 

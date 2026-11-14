@@ -977,3 +977,73 @@ to serve as the primary measure; rule 2 and the stuck count are the usable ones,
 with candidates to the first rule-2 level, which the logs do not hold yet (they record train
 accuracy every 50,000 candidates).
 
+## Search method, first change: constants tuned per structure (14 Nov 2026, before any result)
+
+Three additions to the search code, all off by default; with them off, committed runs
+reproduce (v2 seed 3 to 100,000 candidates, d-kalman seed 9 to 50,000).
+
+**`--tune-consts K`.** The present search changes either the structure of a rule or one
+constant per mutation, so a new structure is judged with whatever constants it happens to
+carry. With the option, a child whose structure (its effective code without the values of its
+constants) has not occurred before in the run, and that contains a constant, is evaluated
+together with K copies whose constants are perturbed: each constant is rescaled by a
+log-normal factor (probability 0.5), shifted by a normal step (0.3) or redrawn from the
+initial range (0.2). The best of the K + 1 enters the population. Every copy counts as a
+candidate, so an arm with tuning and an arm without spend the same budget. No rule or
+constant value is encoded.
+
+Why this first:
+- Seed 9 of d-kalman built its constants out of structure: a write gain of 6 from three
+  vector additions, 0.25 from `σ(0)·σ(0)`. That spends instructions and search time.
+- Measured on the collision3 train task (64 draws of the constants from the initial range
+  each; scratch measurement, not in `runs/`): the seed-9 structure scores above the level of
+  decayed linear attention in 0 of 64 draws (tuned: 0.863), so a search that hits it with the
+  wrong constants discards it. The Kalman delta structure is different: it beats tuned
+  DeltaNet in 35 of 64 draws (median 0.670, tuned 0.932). Kalman delta is therefore missed
+  for want of the structure, and constant tuning is not expected to bring it within reach.
+- The draw of the seed-9 structure used a raw decay; the rule as found passes it through a
+  sigmoid, so the 0 of 64 overstates the difficulty somewhat.
+
+Known limits: more tuning on the fixed train episodes can raise train accuracy without test
+accuracy (rule 3); and tuning constants inside a structure search is standard in symbolic
+regression, so it is a component to be ablated, not a contribution on its own.
+
+**`--algo random`.** Baseline without selection: every candidate is a fresh program of 1 to
+24 random instructions, the best is kept.
+
+**`--val-log`, `--level-acc A`, `--level-long L`.** Logging only. At every log row the best
+rule is scored on a validation draw of the train task and on 128-write episodes (seeds that
+no suite uses); two columns are appended to `log.csv`, and the first row with validation
+> A, long-episode accuracy ≥ L and train − validation ≤ 0.03 is written to the summary.
+Nothing of it reaches the search.
+
+A function test on the base task (2 seeds, 300,000 candidates, with and without
+`--tune-consts 8`; random search 100,000) ran through. It is not a result.
+
+### Package F: first measurement, on the base task
+
+The base task is used first because a seed takes minutes there and the failure is the same
+as elsewhere (seeds stop at decayed linear attention). Arms, 16 seeds, 1,500,000 candidates,
+default 19-op alphabet, one state, add-node on:
+
+| tag | flags |
+|---|---|
+| `f-tune8` | `--tune-consts 8 --val-log` |
+| `f-tune3` | `--tune-consts 3 --val-log` |
+| `f-random` | `--algo random --val-log` |
+
+Baseline: the committed `runs/v2` and `runs/v2-noaddnode`, pooled (the add-node mutation made
+no difference): final rule at the accuracy level of delta β = 0.5 in 14/32 seeds, in the
+delta family by the structural test in 11/32. Fixed before the run:
+- Primary count per arm: seeds whose best rule reaches the accuracy level of delta β = 0.5
+  (the line `delta rule (beta=0.5)` under Milestones), and next to it the structural count.
+- An arm of 16 seeds shows at one-sided p < 0.05 with 12/16 on the first count or 11/16 on
+  the second. Anything less is reported as "no detectable effect at this sample size".
+- Also reported: median candidates to that level among seeds that reach it, seeds ending at
+  linear attention level, train minus test, and growth factors (the base task rewards a > 1).
+- A positive result here is not a claim about the method; it decides whether the arm is
+  worth 6-hour runs on collision3 in the space of packages D and E.
+- Prediction of the research agent: `f-tune8` reaches 5 to 9 of 16 on the primary count with
+  probability 0.6 and 12 or more with probability 0.1; `f-random` reaches it in 0 of 16
+  with probability 0.9.
+

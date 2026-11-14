@@ -455,6 +455,13 @@ fn main() {
                 batch: arg(&args, "--batch", 64),
                 threads: arg(&args, "--threads", 2),
                 log_every: arg(&args, "--log-every", 5_000),
+                tune_consts: arg(&args, "--tune-consts", 0usize),
+                random: arg(&args, "--algo", String::from("evolve")) == "random",
+                level: if has(&args, "--level-acc") {
+                    Some((arg(&args, "--level-acc", 0.0f32), arg(&args, "--level-long", 0.0f32)))
+                } else {
+                    None
+                },
             };
             let out: String = arg(&args, "--out", format!("runs/seed{}", cfg.seed));
             fs::create_dir_all(&out).unwrap();
@@ -468,7 +475,29 @@ fn main() {
             let mut log = fs::File::create(format!("{out}/log.csv")).unwrap();
             let ctask = classify_task();
             let family_of = |p: &Program| classify::classify(p, &ctask).family;
-            let res = evolve::search(&cfg, &task, milestones, &family_of, &mut log);
+            // --val-log: at every log row the best rule is also scored on a validation draw of
+            // the train task and on 128-write episodes (both with seeds no suite uses). Logging
+            // only; nothing of it reaches the search.
+            let val_task = {
+                let mut c = train_cfg();
+                c.seed += 2000;
+                c.n_episodes *= 2;
+                c.long_episodes *= 2;
+                Task::new(c)
+            };
+            let long_task = Task::new(TaskCfg {
+                n_episodes: 0,
+                long_episodes: 64,
+                long_t: 128,
+                long_max_keys: 8,
+                ..TaskCfg::search_default(task_seed() + 2008)
+            });
+            let val_fn = |p: &Program| {
+                let mut r = Regs::new(val_task.cfg.d);
+                (evaluate(p, &val_task, &mut r).acc, evaluate(p, &long_task, &mut r).acc)
+            };
+            let val: Option<&dyn Fn(&Program) -> (f32, f32)> = if has(&args, "--val-log") { Some(&val_fn) } else { None };
+            let res = evolve::search(&cfg, &task, milestones, &family_of, val, &mut log);
             fs::write(format!("{out}/best.json"), res.best.prog.effective().to_json()).unwrap();
             let mut summary = format!(
                 "# Search seed {}\n\ntask: {}  alphabet: {}  readout: {}  add-node mutation: {}  candidates: {}  real evaluations (after cache): {}  time: {:.0}s  pop: {}  tournament: {}\n\n",
@@ -489,6 +518,18 @@ fn main() {
                 if program::PERSIST_IDENTITY.load(std::sync::atomic::Ordering::Relaxed) { "identity" } else { "zero" },
                 cfg.batch
             );
+            summary += &format!(
+                "search: {}  tune-consts: {}\n\n",
+                if cfg.random { "random programs, no selection" } else { "regularized evolution" },
+                cfg.tune_consts
+            );
+            if let Some((a, l)) = cfg.level {
+                summary += &format!(
+                    "validation level (val > {a}, T128 K8 val >= {l}, train - val <= 0.03; checked every {} candidates): {}\n\n",
+                    cfg.log_every,
+                    res.level_hit.map_or("not reached".to_string(), |e| format!("{e} candidates"))
+                );
+            }
             summary += "## Structural rediscovery (first candidate count at which the best rule belongs to a family)\n\n";
             for (fam, at) in &res.families {
                 summary += &format!("* {fam}: {at} candidates\n");
@@ -513,7 +554,8 @@ fn main() {
             eprintln!(
                 "usage: autoplast baselines | sweep | eval --prog FILE | dump [--split train|test --out FILE] | search [--seed N --budget N --pop N --threads N --batch N --out DIR]\n\
                  task:   --task v3 | --regime collision|overload|noisyq|collision3|longgap|full|overload48|rewrite8|rewrite14|clustered|clustered8   --task-seed N  --train-episodes N  --query-gap N\n\
-                 space:  --no-op A,B  --extra-ops  --recip  --evolve-readout  --persist-m N (1..4)  --persist-v N (0..4)  --persist-init identity  --no-split-edge"
+                 space:  --no-op A,B  --extra-ops  --recip  --evolve-readout  --persist-m N (1..4)  --persist-v N (0..4)  --persist-init identity  --no-split-edge\n\
+                 search: --tune-consts K  --algo random  --val-log  --level-acc A --level-long L"
             );
         }
     }

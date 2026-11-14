@@ -93,7 +93,13 @@ Open, in order. Items 2 to 4 are repeated with the baseline search algorithms on
 seeds and budget; that comparison is the method result. Item 3 was released ahead of item 1
 by the owner on 10 Nov 2026; it changes the search space, not the search algorithm.
 
-1. Decide with the owner what the method improvement is. Evidence to start from: failed seeds
+1. Method improvement. Decided with the owner on 14 Nov 2026: first component is constants
+   tuned per structure (`--tune-consts`), second is speciation by behaviour, typed crossover
+   is deferred. `--tune-consts`, random search (`--algo random`) and the validation log are
+   implemented, off by default (README, "Search method, first change"). Package F measures
+   them on the base task (RUNBOOK.md); if an arm shows there, it goes to collision3 in the
+   space of packages D and E against the 32-seed baseline. Background that led here:
+   Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
    Candidates discussed: tune constants per structure instead of mutating them one at a time,
    speciation by behaviour, typed crossover. Implement random search as a baseline.
