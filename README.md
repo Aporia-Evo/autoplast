@@ -970,7 +970,7 @@ candidates, present search. Numbers to beat on the same seeds, with the size of 
 |---|---|---|
 | rule 2 passed | 6/32 | 13/32 or more |
 | stuck at decayed linear attention level | 12/32 | 5/32 or fewer |
-| main count (test > 0.85) | 1/32 | 6/32 or more |
+| main count (test > 0.85) | 1/32 | 7/32 or more |
 
 Only a large change of the search shows up at this sample size. The main count is too rare
 to serve as the primary measure; rule 2 and the stuck count are the usable ones, together
