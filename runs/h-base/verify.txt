@@ -1,0 +1,510 @@
+
+## reference: linear attention
+  test d16 T12 ow0.3: acc 0.741 ±0.013
+  test d16 T12 ow0.0: acc 0.907 ±0.007
+  test d16 T12 ow0.6: acc 0.568 ±0.018
+  test d32 T24 ow0.3: acc 0.829 ±0.011
+  test d16 T64 K8 ow0.3: acc 0.102 ±0.013
+  test d16 T128 K8 ow0.3: acc 0.069 ±0.016
+  test collision d16 T12 ow0.3: acc 0.491 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.090 ±0.012
+  test full d16 T24 ow0.3: acc 0.567 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.082 ±0.012
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.115 ±0.009
+  S' ≈ +1.000·S +1.000·(v kᵀ) -0.000·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +1.000·S +1.000·(v kᵀ) -0.000·((S k) kᵀ) -0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## reference: delta rule (beta=0.5)
+  test d16 T12 ow0.3: acc 0.920 ±0.008
+  test d16 T12 ow0.0: acc 0.900 ±0.008
+  test d16 T12 ow0.6: acc 0.953 ±0.008
+  test d32 T24 ow0.3: acc 0.985 ±0.004
+  test d16 T64 K8 ow0.3: acc 0.852 ±0.015
+  test d16 T128 K8 ow0.3: acc 0.826 ±0.023
+  test collision d16 T12 ow0.3: acc 0.631 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.627 ±0.021
+  test full d16 T24 ow0.3: acc 0.751 ±0.013
+  test rewrite8 d16 T96 K8: acc 0.826 ±0.016
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.169 ±0.011
+  S' ≈ +1.000·S +0.500·(v kᵀ) -0.500·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +1.000·S +0.500·(v kᵀ) -0.500·((S k) kᵀ) -0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/h-base/seed1/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.414 ±0.021
+  test d16 T128 K8 ow0.3: acc 0.406 ±0.030
+  test collision d16 T12 ow0.3: acc 0.521 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.288 ±0.020
+  test full d16 T24 ow0.3: acc 0.596 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.373 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.126 ±0.010
+  S' ≈ +0.958·S +1.000·(v kᵀ) -0.000·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +0.958·S +1.000·(v kᵀ) -0.000·((S k) kᵀ) +0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/h-base/seed2/best.json
+  test d16 T12 ow0.3: acc 0.775 ±0.012
+  test d16 T12 ow0.0: acc 0.869 ±0.008
+  test d16 T12 ow0.6: acc 0.654 ±0.018
+  test d32 T24 ow0.3: acc 0.886 ±0.009
+  test d16 T64 K8 ow0.3: acc 0.455 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.433 ±0.030
+  test collision d16 T12 ow0.3: acc 0.525 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.318 ±0.020
+  test full d16 T24 ow0.3: acc 0.586 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.426 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.129 ±0.010
+  S' ≈ +0.949·S +0.908·(v kᵀ) +0.000·((S k) kᵀ)   R² = 0.9997
+  on real states: S' ≈ +0.950·S +0.908·(v kᵀ) +0.000·((S k) kᵀ) +0.005·((vᵀS k) v kᵀ)   R² = 0.9956
+
+## runs/h-base/seed3/best.json
+  test d16 T12 ow0.3: acc 0.961 ±0.006
+  test d16 T12 ow0.0: acc 0.952 ±0.005
+  test d16 T12 ow0.6: acc 0.978 ±0.005
+  test d32 T24 ow0.3: acc 0.978 ±0.004
+  test d16 T64 K8 ow0.3: acc 0.077 ±0.012
+  test d16 T128 K8 ow0.3: acc 0.019 ±0.008
+  test collision d16 T12 ow0.3: acc 0.682 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.055 ±0.010
+  test full d16 T24 ow0.3: acc 0.780 ±0.012
+  test rewrite8 d16 T96 K8: acc 0.014 ±0.005
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.192 ±0.011
+  S' ≈ +1.098·S +0.748·(v kᵀ) -0.748·((S k) kᵀ)   R² = 0.9998
+  on real states: S' ≈ +1.098·S +0.750·(v kᵀ) -0.750·((S k) kᵀ) -0.005·((vᵀS k) v kᵀ)   R² = 0.9965
+
+## runs/h-base/seed4/best.json
+  test d16 T12 ow0.3: acc 0.775 ±0.012
+  test d16 T12 ow0.0: acc 0.870 ±0.008
+  test d16 T12 ow0.6: acc 0.653 ±0.018
+  test d32 T24 ow0.3: acc 0.887 ±0.009
+  test d16 T64 K8 ow0.3: acc 0.451 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.432 ±0.030
+  test collision d16 T12 ow0.3: acc 0.524 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.316 ±0.020
+  test full d16 T24 ow0.3: acc 0.586 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.421 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.129 ±0.010
+  S' ≈ +0.950·S +0.908·(v kᵀ) +0.000·((S k) kᵀ)   R² = 0.9997
+  on real states: S' ≈ +0.950·S +0.908·(v kᵀ) +0.000·((S k) kᵀ) +0.005·((vᵀS k) v kᵀ)   R² = 0.9957
+
+## runs/h-base/seed5/best.json
+  test d16 T12 ow0.3: acc 0.776 ±0.012
+  test d16 T12 ow0.0: acc 0.873 ±0.008
+  test d16 T12 ow0.6: acc 0.662 ±0.018
+  test d32 T24 ow0.3: acc 0.889 ±0.009
+  test d16 T64 K8 ow0.3: acc 0.468 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.451 ±0.030
+  test collision d16 T12 ow0.3: acc 0.524 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.342 ±0.021
+  test full d16 T24 ow0.3: acc 0.586 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.451 ±0.022
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.132 ±0.010
+  S' ≈ +0.949·S +1.949·(v kᵀ) +0.000·((S k) kᵀ)   R² = 0.9998
+  on real states: S' ≈ +0.951·S +1.951·(v kᵀ) -0.000·((S k) kᵀ) -0.002·((vᵀS k) v kᵀ)   R² = 0.9991
+
+## runs/h-base/seed6/best.json
+  test d16 T12 ow0.3: acc 0.963 ±0.006
+  test d16 T12 ow0.0: acc 0.963 ±0.005
+  test d16 T12 ow0.6: acc 0.975 ±0.006
+  test d32 T24 ow0.3: acc 0.911 ±0.008
+  test d16 T64 K8 ow0.3: acc 0.024 ±0.007
+  test d16 T128 K8 ow0.3: acc 0.016 ±0.008  [diverged: Rust guard would score 0]
+  test collision d16 T12 ow0.3: acc 0.705 ±0.013
+  test collision d16 T64 K8 ow0.3: acc 0.018 ±0.006
+  test full d16 T24 ow0.3: acc 0.695 ±0.014
+  test rewrite8 d16 T96 K8: acc 0.011 ±0.005
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.221 ±0.012
+  S' ≈ +1.125·S +0.638·(v kᵀ) -0.756·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +1.125·S +0.638·(v kᵀ) -0.755·((S k) kᵀ) +0.003·((vᵀS k) v kᵀ)   R² = 0.9992
+
+## runs/h-base/seed7/best.json
+  test d16 T12 ow0.3: acc 0.967 ±0.005
+  test d16 T12 ow0.0: acc 0.957 ±0.005
+  test d16 T12 ow0.6: acc 0.981 ±0.005
+  test d32 T24 ow0.3: acc 0.972 ±0.005
+  test d16 T64 K8 ow0.3: acc 0.039 ±0.008
+  test d16 T128 K8 ow0.3: acc 0.019 ±0.008  [diverged: Rust guard would score 0]
+  test collision d16 T12 ow0.3: acc 0.691 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.029 ±0.007
+  test full d16 T24 ow0.3: acc 0.752 ±0.013
+  test rewrite8 d16 T96 K8: acc 0.013 ±0.005
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.220 ±0.012
+  S' ≈ +1.121·S +0.781·(v kᵀ) -0.788·((S k) kᵀ)   R² = 0.9998
+  on real states: S' ≈ +1.121·S +0.722·(v kᵀ) -0.754·((S k) kᵀ) +0.034·((vᵀS k) v kᵀ)   R² = 0.9964
+
+## runs/h-base/seed8/best.json
+  test d16 T12 ow0.3: acc 0.963 ±0.006
+  test d16 T12 ow0.0: acc 0.954 ±0.005
+  test d16 T12 ow0.6: acc 0.979 ±0.005
+  test d32 T24 ow0.3: acc 0.966 ±0.005
+  test d16 T64 K8 ow0.3: acc 0.060 ±0.010
+  test d16 T128 K8 ow0.3: acc 0.017 ±0.008  [diverged: Rust guard would score 0]
+  test collision d16 T12 ow0.3: acc 0.688 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.034 ±0.008
+  test full d16 T24 ow0.3: acc 0.757 ±0.013
+  test rewrite8 d16 T96 K8: acc 0.012 ±0.005
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.197 ±0.012
+  S' ≈ +1.107·S +0.736·(v kᵀ) -0.776·((S k) kᵀ)   R² = 0.9999
+  on real states: S' ≈ +1.107·S +0.738·(v kᵀ) -0.777·((S k) kᵀ) +0.001·((vᵀS k) v kᵀ)   R² = 0.9981
+
+## runs/h-base/seed9/best.json
+  test d16 T12 ow0.3: acc 0.961 ±0.006
+  test d16 T12 ow0.0: acc 0.957 ±0.005
+  test d16 T12 ow0.6: acc 0.973 ±0.006
+  test d32 T24 ow0.3: acc 0.960 ±0.006
+  test d16 T64 K8 ow0.3: acc 0.069 ±0.011
+  test d16 T128 K8 ow0.3: acc 0.023 ±0.009
+  test collision d16 T12 ow0.3: acc 0.686 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.058 ±0.010
+  test full d16 T24 ow0.3: acc 0.777 ±0.012
+  test rewrite8 d16 T96 K8: acc 0.017 ±0.006
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.187 ±0.011
+  S' ≈ +1.090·S +0.672·(v kᵀ) -0.670·((S k) kᵀ)   R² = 0.9999
+  on real states: S' ≈ +1.090·S +0.690·(v kᵀ) -0.686·((S k) kᵀ) +0.026·((vᵀS k) v kᵀ)   R² = 0.9994
+
+## runs/h-base/seed10/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.413 ±0.021
+  test d16 T128 K8 ow0.3: acc 0.406 ±0.030
+  test collision d16 T12 ow0.3: acc 0.521 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.287 ±0.020
+  test full d16 T24 ow0.3: acc 0.596 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.373 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.126 ±0.010
+  S' ≈ +0.958·S +0.958·(v kᵀ) +0.000·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +0.958·S +0.958·(v kᵀ) +0.000·((S k) kᵀ) -0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/h-base/seed11/best.json
+  test d16 T12 ow0.3: acc 0.795 ±0.012
+  test d16 T12 ow0.0: acc 0.856 ±0.009
+  test d16 T12 ow0.6: acc 0.732 ±0.016
+  test d32 T24 ow0.3: acc 0.873 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.560 ±0.021
+  test d16 T128 K8 ow0.3: acc 0.548 ±0.030
+  test collision d16 T12 ow0.3: acc 0.547 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.410 ±0.021
+  test full d16 T24 ow0.3: acc 0.585 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.537 ±0.022
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.166 ±0.011
+  S' ≈ +0.952·S +0.904·(v kᵀ) -0.109·((S k) kᵀ)   R² = 0.9884
+  on real states: S' ≈ +0.953·S +0.902·(v kᵀ) -0.111·((S k) kᵀ) +0.007·((vᵀS k) v kᵀ)   R² = 0.9284
+
+## runs/h-base/seed12/best.json
+  test d16 T12 ow0.3: acc 0.961 ±0.006
+  test d16 T12 ow0.0: acc 0.956 ±0.005
+  test d16 T12 ow0.6: acc 0.977 ±0.006
+  test d32 T24 ow0.3: acc 0.968 ±0.005
+  test d16 T64 K8 ow0.3: acc 0.084 ±0.012
+  test d16 T128 K8 ow0.3: acc 0.014 ±0.007
+  test collision d16 T12 ow0.3: acc 0.687 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.068 ±0.011
+  test full d16 T24 ow0.3: acc 0.791 ±0.012
+  test rewrite8 d16 T96 K8: acc 0.016 ±0.005
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.187 ±0.011
+  S' ≈ +1.089·S +0.901·(v kᵀ) -0.689·((S k) kᵀ)   R² = 0.9999
+  on real states: S' ≈ +1.089·S +0.903·(v kᵀ) -0.689·((S k) kᵀ) +0.000·((vᵀS k) v kᵀ)   R² = 0.9982
+
+## runs/h-base/seed13/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.413 ±0.021
+  test d16 T128 K8 ow0.3: acc 0.406 ±0.030
+  test collision d16 T12 ow0.3: acc 0.521 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.288 ±0.020
+  test full d16 T24 ow0.3: acc 0.596 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.373 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.126 ±0.010
+  S' ≈ +0.958·S +0.958·(v kᵀ) +0.000·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +0.958·S +0.958·(v kᵀ) -0.000·((S k) kᵀ) +0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/h-base/seed14/best.json
+  test d16 T12 ow0.3: acc 0.776 ±0.012
+  test d16 T12 ow0.0: acc 0.870 ±0.008
+  test d16 T12 ow0.6: acc 0.653 ±0.018
+  test d32 T24 ow0.3: acc 0.886 ±0.009
+  test d16 T64 K8 ow0.3: acc 0.453 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.434 ±0.030
+  test collision d16 T12 ow0.3: acc 0.524 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.310 ±0.020
+  test full d16 T24 ow0.3: acc 0.585 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.422 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.130 ±0.010
+  S' ≈ +0.949·S +1.855·(v kᵀ) +0.000·((S k) kᵀ)   R² = 0.9991
+  on real states: S' ≈ +0.950·S +1.855·(v kᵀ) +0.000·((S k) kᵀ) +0.009·((vᵀS k) v kᵀ)   R² = 0.9947
+
+## runs/h-base/seed15/best.json
+  test d16 T12 ow0.3: acc 0.795 ±0.012
+  test d16 T12 ow0.0: acc 0.855 ±0.009
+  test d16 T12 ow0.6: acc 0.735 ±0.016
+  test d32 T24 ow0.3: acc 0.875 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.561 ±0.021
+  test d16 T128 K8 ow0.3: acc 0.540 ±0.031
+  test collision d16 T12 ow0.3: acc 0.547 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.413 ±0.021
+  test full d16 T24 ow0.3: acc 0.583 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.531 ±0.022
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.169 ±0.011
+  S' ≈ +0.954·S +0.953·(v kᵀ) -0.121·((S k) kᵀ)   R² = 0.9858
+  on real states: S' ≈ +0.954·S +0.951·(v kᵀ) -0.124·((S k) kᵀ) -0.005·((vᵀS k) v kᵀ)   R² = 0.9097
+
+## runs/h-base/seed16/best.json
+  test d16 T12 ow0.3: acc 0.962 ±0.006
+  test d16 T12 ow0.0: acc 0.956 ±0.005
+  test d16 T12 ow0.6: acc 0.978 ±0.005
+  test d32 T24 ow0.3: acc 0.944 ±0.007
+  test d16 T64 K8 ow0.3: acc 0.039 ±0.008
+  test d16 T128 K8 ow0.3: acc 0.015 ±0.007  [diverged: Rust guard would score 0]
+  test collision d16 T12 ow0.3: acc 0.685 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.033 ±0.008
+  test full d16 T24 ow0.3: acc 0.749 ±0.013
+  test rewrite8 d16 T96 K8: acc 0.014 ±0.005
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.191 ±0.011
+  S' ≈ +1.108·S +0.725·(v kᵀ) -0.772·((S k) kᵀ)   R² = 0.9995
+  on real states: S' ≈ +1.108·S +0.726·(v kᵀ) -0.769·((S k) kᵀ) -0.016·((vᵀS k) v kᵀ)   R² = 0.9928
+
+## runs/h-base/seed17/best.json
+  test d16 T12 ow0.3: acc 0.775 ±0.012
+  test d16 T12 ow0.0: acc 0.869 ±0.008
+  test d16 T12 ow0.6: acc 0.654 ±0.018
+  test d32 T24 ow0.3: acc 0.886 ±0.009
+  test d16 T64 K8 ow0.3: acc 0.455 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.433 ±0.030
+  test collision d16 T12 ow0.3: acc 0.525 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.318 ±0.020
+  test full d16 T24 ow0.3: acc 0.586 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.426 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.129 ±0.010
+  S' ≈ +0.949·S +0.908·(v kᵀ) +0.000·((S k) kᵀ)   R² = 0.9997
+  on real states: S' ≈ +0.950·S +0.908·(v kᵀ) +0.000·((S k) kᵀ) +0.005·((vᵀS k) v kᵀ)   R² = 0.9956
+
+## runs/h-base/seed18/best.json
+  test d16 T12 ow0.3: acc 0.776 ±0.012
+  test d16 T12 ow0.0: acc 0.873 ±0.008
+  test d16 T12 ow0.6: acc 0.662 ±0.018
+  test d32 T24 ow0.3: acc 0.889 ±0.009
+  test d16 T64 K8 ow0.3: acc 0.468 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.451 ±0.030
+  test collision d16 T12 ow0.3: acc 0.524 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.342 ±0.021
+  test full d16 T24 ow0.3: acc 0.586 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.451 ±0.022
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.132 ±0.010
+  S' ≈ +0.949·S +1.949·(v kᵀ) +0.000·((S k) kᵀ)   R² = 0.9998
+  on real states: S' ≈ +0.951·S +1.951·(v kᵀ) -0.000·((S k) kᵀ) -0.002·((vᵀS k) v kᵀ)   R² = 0.9991
+
+## runs/h-base/seed19/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.414 ±0.021
+  test d16 T128 K8 ow0.3: acc 0.406 ±0.030
+  test collision d16 T12 ow0.3: acc 0.521 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.288 ±0.020
+  test full d16 T24 ow0.3: acc 0.596 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.373 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.126 ±0.010
+  S' ≈ +0.958·S +1.000·(v kᵀ) +0.000·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +0.958·S +1.000·(v kᵀ) -0.000·((S k) kᵀ) +0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/h-base/seed20/best.json
+  test d16 T12 ow0.3: acc 0.776 ±0.012
+  test d16 T12 ow0.0: acc 0.872 ±0.008
+  test d16 T12 ow0.6: acc 0.663 ±0.018
+  test d32 T24 ow0.3: acc 0.888 ±0.009
+  test d16 T64 K8 ow0.3: acc 0.479 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.464 ±0.031
+  test collision d16 T12 ow0.3: acc 0.526 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.347 ±0.021
+  test full d16 T24 ow0.3: acc 0.584 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.462 ±0.022
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.133 ±0.010
+  S' ≈ +0.947·S +0.947·(v kᵀ) +0.000·((S k) kᵀ)   R² = 0.9998
+  on real states: S' ≈ +0.949·S +0.949·(v kᵀ) +0.000·((S k) kᵀ) -0.003·((vᵀS k) v kᵀ)   R² = 0.9990
+
+## runs/h-base/seed21/best.json
+  test d16 T12 ow0.3: acc 0.957 ±0.006
+  test d16 T12 ow0.0: acc 0.957 ±0.005
+  test d16 T12 ow0.6: acc 0.974 ±0.006
+  test d32 T24 ow0.3: acc 0.901 ±0.009
+  test d16 T64 K8 ow0.3: acc 0.021 ±0.006
+  test d16 T128 K8 ow0.3: acc 0.023 ±0.009  [diverged: Rust guard would score 0]
+  test collision d16 T12 ow0.3: acc 0.703 ±0.013
+  test collision d16 T64 K8 ow0.3: acc 0.014 ±0.005
+  test full d16 T24 ow0.3: acc 0.625 ±0.014
+  test rewrite8 d16 T96 K8: acc 0.015 ±0.005  [diverged: Rust guard would score 0]
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.256 ±0.013
+  S' ≈ +1.145·S +0.828·(v kᵀ) -0.829·((S k) kᵀ)   R² = 0.9995
+  on real states: S' ≈ +1.144·S +0.832·(v kᵀ) -0.834·((S k) kᵀ) -0.000·((vᵀS k) v kᵀ)   R² = 0.9923
+
+## runs/h-base/seed22/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.413 ±0.021
+  test d16 T128 K8 ow0.3: acc 0.406 ±0.030
+  test collision d16 T12 ow0.3: acc 0.521 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.288 ±0.020
+  test full d16 T24 ow0.3: acc 0.596 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.373 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.126 ±0.010
+  S' ≈ +0.958·S +1.000·(v kᵀ) -0.000·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +0.958·S +1.000·(v kᵀ) -0.000·((S k) kᵀ) -0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/h-base/seed23/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.413 ±0.021
+  test d16 T128 K8 ow0.3: acc 0.406 ±0.030
+  test collision d16 T12 ow0.3: acc 0.521 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.287 ±0.020
+  test full d16 T24 ow0.3: acc 0.596 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.373 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.126 ±0.010
+  S' ≈ +0.958·S +0.958·(v kᵀ) +0.000·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +0.958·S +0.958·(v kᵀ) +0.000·((S k) kᵀ) +0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/h-base/seed24/best.json
+  test d16 T12 ow0.3: acc 0.776 ±0.012
+  test d16 T12 ow0.0: acc 0.869 ±0.008
+  test d16 T12 ow0.6: acc 0.654 ±0.018
+  test d32 T24 ow0.3: acc 0.886 ±0.009
+  test d16 T64 K8 ow0.3: acc 0.456 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.434 ±0.030
+  test collision d16 T12 ow0.3: acc 0.524 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.317 ±0.020
+  test full d16 T24 ow0.3: acc 0.586 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.425 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.129 ±0.010
+  S' ≈ +0.949·S +0.221·(v kᵀ) +0.000·((S k) kᵀ)   R² = 0.9998
+  on real states: S' ≈ +0.950·S +0.221·(v kᵀ) +0.000·((S k) kᵀ) +0.005·((vᵀS k) v kᵀ)   R² = 0.9956
+
+## runs/h-base/seed25/best.json
+  test d16 T12 ow0.3: acc 0.778 ±0.012
+  test d16 T12 ow0.0: acc 0.882 ±0.008
+  test d16 T12 ow0.6: acc 0.647 ±0.018
+  test d32 T24 ow0.3: acc 0.878 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.413 ±0.021
+  test d16 T128 K8 ow0.3: acc 0.406 ±0.030
+  test collision d16 T12 ow0.3: acc 0.521 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.287 ±0.020
+  test full d16 T24 ow0.3: acc 0.596 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.373 ±0.021
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.126 ±0.010
+  S' ≈ +0.958·S +1.000·(v kᵀ) -0.000·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +0.958·S +1.000·(v kᵀ) -0.000·((S k) kᵀ) +0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/h-base/seed26/best.json
+  test d16 T12 ow0.3: acc 0.794 ±0.012
+  test d16 T12 ow0.0: acc 0.860 ±0.009
+  test d16 T12 ow0.6: acc 0.712 ±0.017
+  test d32 T24 ow0.3: acc 0.871 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.522 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.531 ±0.031
+  test collision d16 T12 ow0.3: acc 0.543 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.385 ±0.021
+  test full d16 T24 ow0.3: acc 0.593 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.485 ±0.022
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.156 ±0.011
+  S' ≈ +0.955·S +0.955·(v kᵀ) -0.072·((S k) kᵀ)   R² = 0.9938
+  on real states: S' ≈ +0.956·S +0.950·(v kᵀ) -0.076·((S k) kᵀ) +0.013·((vᵀS k) v kᵀ)   R² = 0.9739
+
+## runs/h-base/seed27/best.json
+  test d16 T12 ow0.3: acc 0.962 ±0.006
+  test d16 T12 ow0.0: acc 0.955 ±0.005
+  test d16 T12 ow0.6: acc 0.978 ±0.005
+  test d32 T24 ow0.3: acc 0.962 ±0.006
+  test d16 T64 K8 ow0.3: acc 0.044 ±0.009
+  test d16 T128 K8 ow0.3: acc 0.015 ±0.007  [diverged: Rust guard would score 0]
+  test collision d16 T12 ow0.3: acc 0.691 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.027 ±0.007
+  test full d16 T24 ow0.3: acc 0.747 ±0.013
+  test rewrite8 d16 T96 K8: acc 0.012 ±0.005
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.204 ±0.012
+  S' ≈ +1.109·S +0.982·(v kᵀ) -0.767·((S k) kᵀ)   R² = 0.9997
+  on real states: S' ≈ +1.109·S +0.985·(v kᵀ) -0.768·((S k) kᵀ) -0.003·((vᵀS k) v kᵀ)   R² = 0.9956
+
+## runs/h-base/seed28/best.json
+  test d16 T12 ow0.3: acc 0.797 ±0.012
+  test d16 T12 ow0.0: acc 0.865 ±0.009
+  test d16 T12 ow0.6: acc 0.704 ±0.017
+  test d32 T24 ow0.3: acc 0.874 ±0.010
+  test d16 T64 K8 ow0.3: acc 0.532 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.528 ±0.031
+  test collision d16 T12 ow0.3: acc 0.537 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.395 ±0.021
+  test full d16 T24 ow0.3: acc 0.597 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.495 ±0.022
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.151 ±0.010
+  S' ≈ +0.952·S +1.893·(v kᵀ) -0.059·((S k) kᵀ)   R² = 0.9966
+  on real states: S' ≈ +0.952·S +1.882·(v kᵀ) -0.057·((S k) kᵀ) -0.025·((vᵀS k) v kᵀ)   R² = 0.9837
+
+## runs/h-base/seed29/best.json
+  test d16 T12 ow0.3: acc 0.962 ±0.006
+  test d16 T12 ow0.0: acc 0.949 ±0.005
+  test d16 T12 ow0.6: acc 0.979 ±0.005
+  test d32 T24 ow0.3: acc 0.979 ±0.004
+  test d16 T64 K8 ow0.3: acc 0.079 ±0.012
+  test d16 T128 K8 ow0.3: acc 0.015 ±0.007
+  test collision d16 T12 ow0.3: acc 0.676 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.062 ±0.010
+  test full d16 T24 ow0.3: acc 0.779 ±0.012
+  test rewrite8 d16 T96 K8: acc 0.014 ±0.005
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.184 ±0.011
+  S' ≈ +1.101·S +0.799·(v kᵀ) -0.799·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +1.101·S +0.799·(v kᵀ) -0.799·((S k) kᵀ) -0.000·((vᵀS k) v kᵀ)   R² = 1.0000
+
+## runs/h-base/seed30/best.json
+  test d16 T12 ow0.3: acc 0.777 ±0.012
+  test d16 T12 ow0.0: acc 0.862 ±0.009
+  test d16 T12 ow0.6: acc 0.664 ±0.018
+  test d32 T24 ow0.3: acc 0.851 ±0.011
+  test d16 T64 K8 ow0.3: acc 0.492 ±0.022
+  test d16 T128 K8 ow0.3: acc 0.475 ±0.031
+  test collision d16 T12 ow0.3: acc 0.521 ±0.015
+  test collision d16 T64 K8 ow0.3: acc 0.340 ±0.021
+  test full d16 T24 ow0.3: acc 0.578 ±0.015
+  test rewrite8 d16 T96 K8: acc 0.450 ±0.022
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.132 ±0.010
+  S' ≈ +0.945·S +1.945·(v kᵀ) -0.000·((S k) kᵀ)   R² = 0.9993
+  on real states: S' ≈ +0.945·S +1.946·(v kᵀ) +0.000·((S k) kᵀ) +0.001·((vᵀS k) v kᵀ)   R² = 0.9956
+
+## runs/h-base/seed31/best.json
+  test d16 T12 ow0.3: acc 0.961 ±0.006
+  test d16 T12 ow0.0: acc 0.958 ±0.005
+  test d16 T12 ow0.6: acc 0.975 ±0.006
+  test d32 T24 ow0.3: acc 0.961 ±0.006
+  test d16 T64 K8 ow0.3: acc 0.073 ±0.011
+  test d16 T128 K8 ow0.3: acc 0.017 ±0.008
+  test collision d16 T12 ow0.3: acc 0.687 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.058 ±0.010
+  test full d16 T24 ow0.3: acc 0.784 ±0.012
+  test rewrite8 d16 T96 K8: acc 0.014 ±0.005
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.190 ±0.011
+  S' ≈ +1.092·S +0.392·(v kᵀ) -0.679·((S k) kᵀ)   R² = 1.0000
+  on real states: S' ≈ +1.092·S +0.392·(v kᵀ) -0.679·((S k) kᵀ) +0.005·((vᵀS k) v kᵀ)   R² = 0.9989
+
+## runs/h-base/seed32/best.json
+  test d16 T12 ow0.3: acc 0.958 ±0.006
+  test d16 T12 ow0.0: acc 0.947 ±0.006
+  test d16 T12 ow0.6: acc 0.977 ±0.006
+  test d32 T24 ow0.3: acc 0.981 ±0.004
+  test d16 T64 K8 ow0.3: acc 0.052 ±0.010
+  test d16 T128 K8 ow0.3: acc 0.017 ±0.008  [diverged: Rust guard would score 0]
+  test collision d16 T12 ow0.3: acc 0.681 ±0.014
+  test collision d16 T64 K8 ow0.3: acc 0.035 ±0.008
+  test full d16 T24 ow0.3: acc 0.756 ±0.013
+  test rewrite8 d16 T96 K8: acc 0.013 ±0.005
+  test clustered d16 T12 (1 centre, cos 0.8): acc 0.205 ±0.012
+  S' ≈ +1.107·S +0.873·(v kᵀ) -0.793·((S k) kᵀ)   R² = 0.9994
+  on real states: S' ≈ +1.107·S +0.877·(v kᵀ) -0.800·((S k) kᵀ) -0.003·((vᵀS k) v kᵀ)   R² = 0.9926
