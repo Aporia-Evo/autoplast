@@ -1248,3 +1248,39 @@ the same test as in H (31/31 against 23/32 gives p < 0.01); at 28/32 or more the
 arms is a saving of candidates, not something more budget cannot buy. Prediction of the
 research agent: 13 to 20 of 32 with probability 0.65; 28 or more with probability 0.05.
 
+## Package G: result and reading (16 Nov 2026)
+
+Run by the executing agent on the university machine, commit ad31161, 12.0 h, predictions
+committed before the run (f72bd0f). Facts per seed: `runs/g-tune8/g_report.md`. Counts
+recomputed from the summaries; they agree with the report.
+
+| collision3, space of D and E, 32 seeds, 1.5M candidates | `g-tune8` | `d-kalman` (plain search) | needed for an effect |
+|---|---|---|---|
+| rule 2 passed | 6/32 | 6/32 | 13/32 or more |
+| stuck below 0.53 | 11/32 | 12/32 | 5/32 or fewer |
+| test > 0.85 with rule 2's other conditions | 0/32 | 1/32 | 7/32 or more |
+| above 0.695 with rule 2's other conditions | 3/32 | 2/32 | – |
+| median test | 0.639 | 0.630 | – |
+
+**No effect of constant tuning in the space where constants were measured to be critical.**
+None of the three criteria fixed before the run is met; the distributions are the same
+(Mann-Whitney p = 0.49). The best seeds reach 0.724 and 0.721 with rules that write along the
+key; none has the shape of seed 9 of d-kalman. JAX agrees with Rust within 0.0005. The
+research agent had predicted rule 2 in 5 to 10 seeds (it is 6) and had given a seed above
+0.85 a probability of 0.45 (there is none).
+
+The mean of train minus test is lower for `g-tune8` (−0.002 against +0.014), but the
+baseline's value is carried by its seed 22, whose test suite is zeroed by the state guard;
+without it the two are about equal. The first use of the validation log: 7 of 32 seeds reach
+rule 2 on validation data, median at 450,000 candidates; the baseline was run before this
+log existed.
+
+Reading. Together with package F this closes the first component: tuning constants per
+structure, as built (perturbed copies of every new structure), changes neither the rate nor
+the tail, on a task where constants are uncritical and on one where they are critical. The
+measurement that motivated it stands (the seed-9 structure is worthless with random
+constants), so the likely reason is that a handful of perturbed copies around random
+starting constants does not find a narrow band either; that reason was not tested. The
+option stays in the code, off, as a negative result. The departure from the rule fixed before
+F, taken on 15 Nov at the owner's decision, cost 12 hours and bought a clean negative.
+

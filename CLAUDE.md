@@ -26,7 +26,8 @@ re-centred on the search method the same day at the owner's direction. Branches 
 same day (README, "Merge"). State of the method claim: the add-node mutation and constant
 tuning show no effect; parent selection by behaviour (`--select share`, `--select lexicase`)
 removes the seeds that stop at linear attention on the base task (package H, 15 Nov). That
-is one task and not yet matched for wall time.
+is one task and not yet matched for wall time. Constant tuning is closed as a negative
+result (packages F and G).
 
 Stages:
 1. Rediscovery: the search assembles the delta family from nothing. Needs a rate over seeds
@@ -111,8 +112,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    delta accuracy level against 12/32, p about 1e-8); not shown on the strict structural
    count; wall time 2 to 2.5 times higher. First component that supports the method claim,
    on one task. Released: package I (plain search at 4M candidates as wall-time control).
-   Open with the owner: the same arms on collision3 in the space of D and E (about a day per
-   arm of 32 seeds) and on task v3. A cache fault found by H is fixed. Background:
+   Package G done 16 Nov (README, "Package G: result and reading"): no effect of constant
+   tuning in the space of D and E either (rule 2 in 6/32 against 6/32); the component is
+   closed. Open with the owner: `--select lexicase` and `--select share` on collision3 in the
+   space of D and E (about a day per arm of 32 seeds) and on task v3. A cache fault found by
+   H is fixed. Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
    Candidates discussed: tune constants per structure instead of mutating them one at a time,

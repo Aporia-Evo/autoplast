@@ -384,6 +384,9 @@ of package F, and in addition:
 
 ### G. Constant tuning in the space of D and E (released 15 Nov 2026) — after H
 
+Status 16 Nov 2026: done and checked (README, "Package G: result and reading"). Next is
+package I.
+
 Read README, "Package G". collision3, same space, machine and counts as D and E; the baseline
 is the committed `runs/d-kalman` (32 seeds); do not rerun it. Predictions into
 `runs/g-tune8/G_VORHERSAGE.md`, committed before the first run. Timing first, not committed:
