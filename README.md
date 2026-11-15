@@ -1230,6 +1230,14 @@ in a scratch build, where all four modes (plain, `share`, `lexicase`, `--tune-co
 the same log rows as with the normal limit. The 31 finished `h-share` seeds and all
 `h-lexicase` seeds are valid as they are: a run either aborted or was unaffected.
 
+Seed 16 was rerun with the fixed code on the review machine (`runs/h-share/seed16_local_rerun/`):
+all 30 log rows of the aborted run are reproduced, and the run ends on a gated delta rule that
+reached the accuracy level at 39,284 candidates (train 0.971, test 0.968). With it `h-share`
+stands at 32/32 on the accuracy level and 20/32 on the structural count (one-sided Fisher
+against `h-base`: p = 4e-9 and p = 0.039). The second value crosses 0.05 only with this seed
+and is one of four tests, so the structural count stays "not shown". The rerun on the
+university machine in package I is the one that enters `runs/h-share/seed16/`.
+
 ### Package I: the plain search at the wall time of the selection arms (released 15 Nov 2026, before any result)
 
 `i-base4m`: base task, plain search, seeds 1 to 32, 4,000,000 candidates (about the wall time
