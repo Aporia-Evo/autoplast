@@ -1234,7 +1234,7 @@ Seed 16 was rerun with the fixed code on the review machine (`runs/h-share/seed1
 all 30 log rows of the aborted run are reproduced, and the run ends on a gated delta rule that
 reached the accuracy level at 39,284 candidates (train 0.971, test 0.968). With it `h-share`
 stands at 32/32 on the accuracy level and 20/32 on the structural count (one-sided Fisher
-against `h-base`: p = 4e-9 and p = 0.039). The second value crosses 0.05 only with this seed
+against `h-base`: p = 1.2e-8 and p = 0.040). The second value crosses 0.05 only with this seed
 and is one of four tests, so the structural count stays "not shown". The rerun on the
 university machine in package I is the one that enters `runs/h-share/seed16/`.
 
