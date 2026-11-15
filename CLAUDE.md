@@ -114,9 +114,10 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    on one task. Released: package I (plain search at 4M candidates as wall-time control).
    Package G done 16 Nov (README, "Package G: result and reading"): no effect of constant
    tuning in the space of D and E either (rule 2 in 6/32 against 6/32); the component is
-   closed. Open with the owner: `--select lexicase` and `--select share` on collision3 in the
-   space of D and E (about a day per arm of 32 seeds) and on task v3. A cache fault found by
-   H is fixed. Background:
+   closed. Released on 16 Nov as package J: `--select lexicase`, then `--select share`, on
+   collision3 in the space of D and E, 32 seeds each, thresholds of package E (README,
+   "Package J"). Still open: the same arms on task v3. A cache fault found by H is fixed.
+   Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
    Candidates discussed: tune constants per structure instead of mutating them one at a time,

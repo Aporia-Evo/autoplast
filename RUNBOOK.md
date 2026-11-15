@@ -385,7 +385,7 @@ of package F, and in addition:
 ### G. Constant tuning in the space of D and E (released 15 Nov 2026) — after H
 
 Status 16 Nov 2026: done and checked (README, "Package G: result and reading"). Next is
-package I.
+package I, then package J.
 
 Read README, "Package G". collision3, same space, machine and counts as D and E; the baseline
 is the committed `runs/d-kalman` (32 seeds); do not rerun it. Predictions into
@@ -433,6 +433,53 @@ Report in `runs/i-base4m/i_report.md`: the counts of package H for `i-base4m` ne
 level by 1.5M candidates (from the Milestones line) and by 4M; minutes per seed. For seed 16:
 its row as in `h_report.md`, whether the first rows of its log equal those of the aborted
 run (all columns but `real_evals` and `seconds`), and the counts of `h-share` with 32 seeds.
+
+### J. Selection by behaviour in the space of D and E (released 16 Nov 2026) — after I
+
+Read README, "Package J". Same build as package I (the commit with the cache fix or later;
+`git diff 2f49b69 HEAD -- src` must be empty, otherwise rebuild and repeat the self-check).
+collision3, same space and machine as D and E; baseline is the committed `runs/d-kalman`
+(32 seeds), do not rerun it. Predictions into `runs/j-lexicase/J_VORHERSAGE.md`, committed
+before the first run of J.
+
+Timing, 2 seeds each, not committed:
+
+```bash
+python local_runner.py --seeds 1-2 --budget 150000 --tag time-j-lex --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select lexicase --val-log --level-acc 0.651 --level-long 0.838"
+```
+
+```bash
+python local_runner.py --seeds 1-2 --budget 150000 --tag time-j-share --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select share --val-log --level-acc 0.651 --level-long 0.838"
+```
+
+If the projection for one arm of 32 seeds is above 40 hours of wall time, stop and ask
+before starting that arm. First arm:
+
+```bash
+python local_runner.py --seeds 1-32 --budget 1500000 --tag j-lexicase --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select lexicase --val-log --level-acc 0.651 --level-long 0.838"
+```
+
+Report `j-lexicase` (below) before starting the second arm; it may run on while you report:
+
+```bash
+python local_runner.py --seeds 1-32 --budget 1500000 --tag j-share --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select share --val-log --level-acc 0.651 --level-long 0.838"
+```
+
+Per arm: dump, JAX check on the dump for all 32 seeds, delete the dump, as in D. A seed that
+aborts is reported with its `stderr.txt` and partial log and is not restarted without word
+from the research agent.
+
+Report in `runs/<tag>/j_report.md`, with the 32 seeds of `runs/d-kalman` next to the arm:
+- the three counts of package E (rule 2; stuck below 0.53; test > 0.85 with rule 2's other
+  conditions), seeds above 0.695 and above 0.90, median test, Mann-Whitney against
+  `runs/d-kalman`;
+- per seed: train, collision3 test, T64 K8, T128 K8, train − test, structural family, which
+  of `P1` and `P2` the `S'` formula reads, reciprocal in `S'` or not, the `validation level`
+  line, instructions, real evaluations, minutes, `pop_mean_acc` of the last log row;
+- the full formula of every seed with test above 0.72 and, for each, whether it has the shape
+  of seed 9 (an address taken from a persistent register and a write along it) or contains
+  a gain of the form `P k / (c + kᵀP k)`; say only what the formula shows;
+- real evaluations at the `validation level` row per seed (column 2 of that log row).
 
 ## Handing back
 

@@ -1284,3 +1284,35 @@ starting constants does not find a narrow band either; that reason was not teste
 option stays in the code, off, as a negative result. The departure from the rule fixed before
 F, taken on 15 Nov at the owner's decision, cost 12 hours and bought a clean negative.
 
+## Package J: selection by behaviour in the space of packages D and E (released 16 Nov 2026, before any result)
+
+Released by the owner on 16 Nov 2026. It asks whether the effect of package H carries over
+from the base task to the benchmark: collision3, `--persist-m 3 --persist-init identity
+--recip`, seeds 1 to 32, 1,500,000 candidates, batch 128, on the machine of D and E.
+
+| tag | flags added to the setting of D and E |
+|---|---|
+| `j-lexicase` | `--select lexicase --val-log --level-acc 0.651 --level-long 0.838` |
+| `j-share` | `--select share --val-log --level-acc 0.651 --level-long 0.838` |
+
+`j-lexicase` runs first (it was cheaper in H and reached 32/32 there). Baseline: the 32 seeds
+of `runs/d-kalman`. Commands: RUNBOOK.md, package J. A function test of both options in this
+space (one seed, 30,000 candidates each) ran through; it is not a result.
+
+Fixed before the run:
+- Per arm, an effect is shown by rule 2 in 13/32 or more (baseline 6/32), by at most 5/32
+  seeds stuck below 0.53 (baseline 12/32), or by test > 0.85 with rule 2's other conditions
+  in 7/32 or more (baseline 1/32). These are the thresholds of package E. Three criteria and
+  two arms are six looks; one criterion met narrowly in one arm is weak evidence.
+- Also reported: seeds above 0.695; seeds above 0.90 (the level of Kalman delta is 0.93);
+  rules with the shape of seed 9; train − test; candidates to rule 2 on validation data;
+  real evaluations and minutes per seed. The comparison per real evaluation is made as in H.
+  Wall time is not matched: the baseline at a larger budget does not exist in this space.
+- A rule above 0.85 is checked on fresh task draws and with `--query-gap` before anything is
+  said about it, as for seed 9.
+- Prediction of the research agent for `j-lexicase`: at most 5/32 stuck with probability
+  0.55; rule 2 in 13/32 or more with 0.40; at least one seed above 0.85 with 0.50; 7 or more
+  above 0.85 with 0.08; a seed above 0.90 with 0.07. For `j-share` the same numbers minus
+  0.05 each. On the base task the stuck seeds vanished entirely; here the step past decayed
+  linear attention is the same step, the steps after it are not.
+
