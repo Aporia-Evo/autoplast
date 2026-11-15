@@ -23,8 +23,10 @@ Two claims carry the paper:
 
 Scope history: corrected on 10 Nov 2026 (README, "Review and scope correction"), then
 re-centred on the search method the same day at the owner's direction. Branches merged the
-same day (README, "Merge"). State of the method claim: the add-node mutation has no effect
-in 64 runs, so no component supports it yet.
+same day (README, "Merge"). State of the method claim: the add-node mutation and constant
+tuning show no effect; parent selection by behaviour (`--select share`, `--select lexicase`)
+removes the seeds that stop at linear attention on the base task (package H, 15 Nov). That
+is one task and not yet matched for wall time.
 
 Stages:
 1. Rediscovery: the search assembles the delta family from nothing. Needs a rate over seeds
@@ -104,7 +106,13 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    behaviour) and `--select lexicase` (README, "Search method, second change"). Released:
    package H (base task, 32 seeds, `h-base` / `h-share` / `h-lexicase`) and package G
    (`--tune-consts 8` on collision3 in the space of D and E, 32 seeds). Typed crossover stays
-   deferred. Background that led here:
+   deferred. Package H done 15 Nov (README, "Package H: result and reading"): with selection
+   by behaviour no seed stops at linear attention on the base task (31/31 and 32/32 at the
+   delta accuracy level against 12/32, p about 1e-8); not shown on the strict structural
+   count; wall time 2 to 2.5 times higher. First component that supports the method claim,
+   on one task. Released: package I (plain search at 4M candidates as wall-time control).
+   Open with the owner: the same arms on collision3 in the space of D and E (about a day per
+   arm of 32 seeds) and on task v3. A cache fault found by H is fixed. Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
    Candidates discussed: tune constants per structure instead of mutating them one at a time,

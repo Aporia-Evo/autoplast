@@ -124,6 +124,9 @@ fn random_program(rng: &mut Rng) -> Program {
 /// Functional-equivalence cache: programs whose effective code is identical get the cached
 /// score instead of being re-run (same idea as AutoML-Zero's FEC; here exact, not hashed
 /// behaviour). Returns (individuals, number of real evaluations performed).
+const CACHE_LIMIT: usize = 3_000_000;
+const CACHE_LIMIT_BEH: usize = 1_000_000;
+
 fn eval_batch(
     progs: Vec<Program>,
     task: &Task,
@@ -133,6 +136,18 @@ fn eval_batch(
 ) -> (Vec<Indiv>, usize) {
     let d = task.cfg.d;
     let want_beh = beh_cache.is_some();
+    // Bound the cache. It is emptied here, before any lookup of this batch, so every program of
+    // the batch is either still cached or evaluated again. (Until 15 Nov 2026 it was emptied
+    // after the evaluation and before the lookups, which lost the cached programs of the same
+    // batch and aborted the run: h-share seed 16.) Scores do not depend on the cache, so this
+    // changes the count of real evaluations, not the search. The behaviour cache holds a
+    // vector per program and is bounded earlier.
+    if cache.len() > if want_beh { CACHE_LIMIT_BEH } else { CACHE_LIMIT } {
+        cache.clear();
+        if let Some(bc) = beh_cache.as_deref_mut() {
+            bc.clear();
+        }
+    }
     let effs: Vec<Program> = progs.iter().map(|p| p.effective()).collect();
     let keys: Vec<String> = effs.iter().map(|e| e.to_json()).collect();
     let mut todo: Vec<usize> = Vec::new();
@@ -166,13 +181,6 @@ fn eval_batch(
         }
     });
     let n_real = fresh.len();
-    // the behaviour cache holds a vector per program, so it is cleared earlier
-    if cache.len() > if want_beh { 1_000_000 } else { 3_000_000 } {
-        cache.clear();
-        if let Some(bc) = beh_cache.as_deref_mut() {
-            bc.clear();
-        }
-    }
     for (i, sc, b) in fresh {
         cache.insert(keys[i].clone(), sc);
         if let Some(bc) = beh_cache.as_deref_mut() {

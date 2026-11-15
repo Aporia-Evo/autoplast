@@ -1167,3 +1167,76 @@ in 7/32 or more (baseline 1/32). Also reported: seeds whose rule has the shape o
 train − test. Prediction of the research agent: rule 2 in 5 to 10 of 32 with probability 0.6,
 13 or more with probability 0.12; at least one seed above 0.85 with probability 0.45.
 
+## Package H: result and reading (15 Nov 2026)
+
+Run by the executing agent on the university machine, commit ad31161, 7.2 h, predictions
+committed before the run (fcb1b3c). Facts per seed: `runs/h-base/h_report.md`,
+`runs/h-share/h_report.md`, `runs/h-lexicase/h_report.md`. Counts below recomputed from the
+summaries; they agree with the reports.
+
+| base task, 1.5M candidates | `h-base` | `h-share` | `h-lexicase` |
+|---|---|---|---|
+| seeds finished | 32 | 31 (seed 16 aborted, see below) | 32 |
+| accuracy level of delta β = 0.5 reached | 12/32 | 31/31 | 32/32 |
+| one-sided Fisher against `h-base` | – | p = 1.7e-8 | p = 1.2e-8 |
+| delta family by the structural test | 12/32 | 19/31 | 10/32 |
+| one-sided Fisher against `h-base` | – | p = 0.051 | p = 0.78 |
+| ends at linear attention level (train < 0.84) | 19/32 | 0/31 | 0/32 |
+| test ow0.3, median over seeds | 0.798 | 0.950 | 0.969 |
+| test ow0.3, best seed | 0.971 | 0.970 | 0.975 |
+| mean train − test | +0.019 | +0.005 | +0.007 |
+| median candidates to the level | 140,340 | 90,100 | 74,548 |
+| real evaluations per seed, mean | 457,000 | 940,000 | 747,000 |
+| minutes per seed, mean | 4.9 | 12.2 | 9.2 |
+| instructions of the final rule, median | 9 | 14 | 15 |
+| delta-level rules with growth factor within 0.02 of 1 | 0 | 12 | 1 |
+| final rules with T128 K8 ≥ 0.80 | 0 | 10 | 1 |
+
+By the rule fixed before the run (p < 0.05 on the first or the second count), **both arms
+show an effect**: with selection by behaviour no seed stops at linear attention, against 19
+of 32 with the plain search. The effect is on the accuracy level. On the strict structural
+count it is not shown (`h-share` p = 0.051, `h-lexicase` p = 0.78). Counting the aborted seed
+of `h-share` as a failure gives p = 1.8e-7 and 0.066. The research agent had given `h-share`
+a probability of 0.4 and `h-lexicase` 0.15; the second was a clear underestimate.
+
+Checks and limits:
+- **Not bought with more evaluations.** The arms run more real evaluations at the same
+  candidate budget (fewer cache hits). But every `h-share` seed is at the level within 277,000
+  real evaluations and every `h-lexicase` seed within 232,000; within those many real
+  evaluations 11 and 10 of the 32 `h-base` seeds are, and `h-base` spends 457,000 on average.
+- **Wall time is not matched.** The arms take 2.5 and 1.9 times as long per seed. The plain
+  search with the same wall time (about 4M candidates) has not been run; package I does it.
+- **What the rules are.** Most final rules of the two arms erase along the key (erase above
+  0.3 in all but two) but are longer and carry nonlinear terms, so the structural test at
+  R² ≥ 0.99 leaves 9 (`h-share`) and 18 (`h-lexicase`) unclassified. The result is "every seed
+  gets past linear attention to delta-level accuracy", not "every seed rediscovers the delta
+  rule". No rule is above tuned Gated DeltaNet (0.969) beyond noise.
+- **Growth factors (rule 3).** The base task rewards a > 1, and most rules of all arms fail
+  on 128-write episodes. `h-share` differs: 12 of its rules have a growth factor of 1 and 10
+  hold on T128 K8 (≥ 0.80), against none in `h-base`. This was not a pre-set count.
+- **Overfitting.** Train minus test is smaller in the two arms than in `h-base`.
+- **One task.** The base task only. Task v3 and collision3 in the space of D and E are not
+  run with these arms.
+- JAX agrees with Rust for all rules (reports of the executing agent).
+
+**A fault in the search code, found by this run.** With `--select share` or `lexicase` the
+score cache was emptied at 1,000,000 entries after a batch had been evaluated but before its
+programs looked up their scores, so a program that had been a cache hit in that batch was
+missing and the run aborted (`h-share` seed 16, after 681 s). The same order existed for the
+plain search at 3,000,000 entries, which no run has reached. Fixed on 15 Nov: the cache is
+emptied at the start of a batch. Scores do not depend on the cache, so the fix changes the
+count of real evaluations and nothing else; tested by forcing the limit down to 4,000 entries
+in a scratch build, where all four modes (plain, `share`, `lexicase`, `--tune-consts`) ran to
+the same log rows as with the normal limit. The 31 finished `h-share` seeds and all
+`h-lexicase` seeds are valid as they are: a run either aborted or was unaffected.
+
+### Package I: the plain search at the wall time of the selection arms (released 15 Nov 2026, before any result)
+
+`i-base4m`: base task, plain search, seeds 1 to 32, 4,000,000 candidates (about the wall time
+of `h-share` at 1.5M), same machine. Also the rerun of `h-share` seed 16 with the fixed code.
+Fixed before the run: the count is seeds at the accuracy level of delta β = 0.5 at 4M. If
+`i-base4m` stays below 24/32, the selection arms beat the plain search at equal wall time by
+the same test as in H (31/31 against 23/32 gives p < 0.01); at 28/32 or more the gain of the
+arms is a saving of candidates, not something more budget cannot buy. Prediction of the
+research agent: 13 to 20 of 32 with probability 0.65; 28 or more with probability 0.05.
+

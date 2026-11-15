@@ -331,6 +331,11 @@ and `runs/v2-noaddnode` taken from their committed summaries:
 
 ### H. Parent selection by behaviour, base task (released 15 Nov 2026) — run this first
 
+Status 15 Nov 2026: done and checked (README, "Package H: result and reading"). The abort of
+`h-share` seed 16 was a fault in the search code (cache emptied before the lookups); it is
+fixed in the commit that adds this note. Thank you for not patching it and for reporting the
+cause. Package I below follows after G.
+
 Read README, "Search method, second change", first. The search code changed: build at the
 commit that contains this section and repeat the self-check of package F (same expected last
 log row). Base task (no `--task`, no `--regime`), seeds 1 to 32, 1,500,000 candidates, batch
@@ -399,6 +404,32 @@ Then dump, JAX check on the dump for all 32 seeds, delete the dump, as in D. Rep
 (candidates to rule 2 on validation data), train − test per seed, real evaluations and
 minutes per seed, the full formula of every seed with test above 0.72, and for each of those
 whether it has the shape of seed 9.
+
+### I. Plain search with the wall time of the selection arms (released 15 Nov 2026) — after G
+
+Purpose: `h-share` and `h-lexicase` take 2.5 and 1.9 times as long per seed as `h-base`. I
+gives the plain search that time. Build at the commit that contains this section (it holds
+the cache fix) and repeat the self-check of package F. Base task, same machine as H.
+Predictions into `runs/i-base4m/I_VORHERSAGE.md`, committed before the run. No timing step
+(`h-base` took 4.9 minutes per seed at 1.5M).
+
+```bash
+python local_runner.py --seeds 1-32 --budget 4000000 --tag i-base4m --parallel 2 --threads 8 --extra="--val-log"
+```
+
+Also rerun the one aborted seed of H with the fixed code (the runner skips the 31 finished
+seeds; first delete the directory of the aborted run, after copying its `log.csv` and
+`stderr.txt` to `runs/h-share/seed16_aborted/`):
+
+```bash
+python local_runner.py --seeds 16-16 --budget 1500000 --tag h-share --parallel 1 --threads 8 --extra="--select share --val-log"
+```
+
+Report in `runs/i-base4m/i_report.md`: the counts of package H for `i-base4m` next to
+`h-base`, `h-share`, `h-lexicase`; for `i-base4m` also the number of seeds at the accuracy
+level by 1.5M candidates (from the Milestones line) and by 4M; minutes per seed. For seed 16:
+its row as in `h_report.md`, whether the first rows of its log equal those of the aborted
+run (all columns but `real_evals` and `seconds`), and the counts of `h-share` with 32 seeds.
 
 ## Handing back
 
