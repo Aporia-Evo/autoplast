@@ -1,0 +1,88 @@
+# i-base4m: 32 seeds
+
+Settings of the first seed (all seeds of a tag must share them except seed and task seed):
+
+    task: v2  alphabet: 19 ops  readout: fixed o = S q  add-node mutation: on  candidates: 4000116  real evaluations (after cache): 641437  time: 314s  pop: 500  tournament: 10
+    commit: 50c2d10  task seed: 1  train episodes: 96  persistent registers: 1 matrix, 0 vector, start zero  batch: 128
+
+## Structural rediscovery
+
+| seed | family of final best rule | train acc | wall s | families seen as best rule (first candidate count) | best rule |
+|---|---|---|---|---|---|
+| 1 | linear attention | 0.814 ±0.014 | 314.1 | decayed linear attention (3,060), linear, not error-correcting (4,596), unclassified (5,620), linear attention (130,932) | `S' = ((v)⊗(k) + 0.958·S)` |
+| 2 | linear attention | 0.817 ±0.013 | 448.2 | decayed linear attention (3,316), linear, not error-correcting (4,084), unclassified (4,596), linear attention (65,012) | `S' = (<v, tanh(v)>·S + (tanh(tanh(v)))⊗(k))` |
+| 3 | gated delta rule | 0.975 ±0.005 | 649.0 | unclassified (884), decayed linear attention (1,268), linear, not error-correcting (1,908), linear attention (23,412), delta rule (61,044), gated delta rule (310,132) | `S' = 1.098·((0.750·(v - S·k))⊗(tanh(tanh(k))) + S)` |
+| 4 | linear attention | 0.818 ±0.013 | 466.1 | decayed linear attention (3,316), linear attention (4,724) | `S' = (|tanh(v)|·S + (tanh(1.026·tanh(v)))⊗(k))` |
+| 5 | unclassified | 0.978 ±0.005 | 603.2 | unclassified (884), decayed linear attention (2,292), linear attention (32,500), delta rule (2,174,196), linear, not error-correcting (2,176,372), gated delta rule (2,212,596), delta + Kronecker mix (2,419,316) | `S' = (σ(0.145·<(tanh(v) - S·k), (tanh(v) - S·k)>·<(tanh(v) - S·k), (tanh(v) - S·k)>) + σ(0.145·<(tanh(v) - S·k), (` |
+| 6 | gated delta rule | 0.973 ±0.006 | 578.9 | decayed linear attention (1,012), linear, not error-correcting (1,268), unclassified (2,676), linear attention (14,196), delta rule (16,756), gated delta rule (92,532) | `S' = (1.104·S - (0.739·(1.104·S·tanh(k) - tanh(v)))⊗(tanh(k)))` |
+| 7 | gated delta rule | 0.977 ±0.005 | 1104.3 | decayed linear attention (4,084), linear, not error-correcting (4,980), unclassified (5,876), gated delta rule (39,028), linear attention (52,212), delta rule (440,436) | `S' = ((σ((σ(<(0 - S)·tanh(k), (0 - S)·tanh(k)>) + σ(<(0 - S)·tanh(k), (0 - S)·tanh(k)>)))·((0 - S)·tanh(k) + tanh(` |
+| 8 | gated delta rule | 0.973 ±0.006 | 712.9 | unclassified (1,140), decayed linear attention (3,572), linear attention (4,852), delta rule (396,916), linear, not error-correcting (399,092), gated delta rule (1,220,852) | `S' = 1.107·(S - (0.738·(tanh(v) + S·(0 - k)))⊗(tanh((0 - k))))` |
+| 9 | gated delta rule | 0.971 ±0.006 | 738.6 | decayed linear attention (2,164), linear, not error-correcting (2,804), unclassified (5,492), linear attention (93,044), delta rule (1,299,444), gated delta rule (1,370,996) | `S' = 1.095·((tanh(0.681·(v - S·k)))⊗(k) - (0 - S))` |
+| 10 | linear attention | 0.814 ±0.014 | 314.2 | unclassified (3,188), decayed linear attention (3,828), linear, not error-correcting (4,468), linear attention (14,964) | `S' = 0.958·((v)⊗(k) + S)` |
+| 11 | gated delta rule | 0.971 ±0.006 | 2693.8 | decayed linear attention (1,908), linear, not error-correcting (3,060), unclassified (3,060), linear attention (10,484), delta rule (2,836,852), gated delta rule (3,167,732) | `S' = ((v)⊗(k) - (1.099·(0 - S) - ((0 - S))(0.798·(k)⊗(k))))` |
+| 12 | gated delta rule | 0.975 ±0.005 | 2426.1 | unclassified (756), linear attention (19,060), delta rule (41,332), gated delta rule (86,772) | `S' = ((σ(0.203)·S + σ(0.203)·S) + ((tanh(v))⊗(tanh(tanh(k))) - (σ(σ(σ(0.203)))·(σ(0.203)·S)((k)⊗(k)) + σ(σ(σ(0.203` |
+| 13 | linear attention | 0.814 ±0.014 | 299.9 | decayed linear attention (5,748), linear, not error-correcting (8,308), unclassified (8,436), linear attention (24,308) | `S' = 0.958·((v)⊗(k) + S)` |
+| 14 | unclassified | 0.949 ±0.008 | 2015.7 | unclassified (884), decayed linear attention (1,012), linear, not error-correcting (1,652), linear attention (5,620), delta rule (2,638,836) | `S' = (((tanh(tanh(tanh(v))) + <S·k, S·k>·((<tanh(tanh(v)), tanh(tanh(tanh(v)))>·tanh(tanh(v)) - norm(tanh(tanh(tan` |
+| 15 | unclassified | 0.841 ±0.013 | 3061.0 | decayed linear attention (1,780), linear, not error-correcting (2,932), unclassified (3,828), linear attention (13,428) | `S' = 0.955·(((norm(tanh(v)))⊗(k) + S) - (((S + S) + 0.704·(((norm(tanh(v)))⊗(k))((norm(tanh(v)))⊗(k)))ᵀ))((((norm(` |
+| 16 | gated delta rule | 0.972 ±0.006 | 666.5 | decayed linear attention (4,212), linear, not error-correcting (4,852), unclassified (5,364), linear attention (6,644), delta rule (14,068), gated delta rule (64,756) | `S' = 1.108·(S + ((v - S·((k ⊙ (v ⊙ v)) + k)))⊗(0.616·((k ⊙ (v ⊙ v)) + k)))` |
+| 17 | linear attention | 0.817 ±0.013 | 443.6 | unclassified (1,140), decayed linear attention (2,676), linear attention (25,588) | `S' = (<v, tanh(v)>·S + (tanh(tanh(v)))⊗(k))` |
+| 18 | delta rule | 0.938 ±0.008 | 509.0 | unclassified (1,012), decayed linear attention (2,036), linear, not error-correcting (2,676), linear attention (21,620), delta rule (3,785,972) | `S' = ((S + (tanh(v))⊗(0.223·norm((k + S·k)))) - ((S + (tanh(v))⊗(0.223·norm((k + S·k)))))(((norm((k + S·k)) + (0.2` |
+| 19 | gated delta rule | 0.969 ±0.006 | 2028.0 | unclassified (1,268), decayed linear attention (1,524), linear, not error-correcting (2,036), linear attention (9,588), delta rule (2,110,836), gated delta rule (2,127,604) | `S' = (((tanh(v))⊗(k) + (S - -0.065·S)) + (-0.065·S)((((((tanh(v))⊗(k) + (S - -0.065·S)) + (((tanh(v))⊗(k) + ((tanh` |
+| 20 | gated delta rule | 0.976 ±0.005 | 500.9 | decayed linear attention (1,268), linear, not error-correcting (2,036), unclassified (3,572), linear attention (20,596), delta rule (2,946,804), gated delta rule (2,947,316) | `S' = (1.104·S - ((σ(|tanh(tanh(S·k))|)·S·k - v))⊗(k))` |
+| 21 | gated delta rule | 0.970 ±0.006 | 770.9 | unclassified (6,004), decayed linear attention (6,516), linear attention (7,028), delta rule (197,748), gated delta rule (198,260) | `S' = (1.145·S + ((tanh(v) - S·tanh(k)))⊗(tanh(tanh(tanh(k)))))` |
+| 22 | gated delta rule | 0.972 ±0.006 | 452.2 | decayed linear attention (628), linear, not error-correcting (1,908), unclassified (2,548), linear attention (11,380), delta rule (2,341,748), gated delta rule (2,342,644) | `S' = (0.950·((v - S·tanh(0.950·k)))⊗(tanh(0.950·k)) + 1.107·S)` |
+| 23 | linear attention | 0.814 ±0.014 | 332.2 | unclassified (13,300), decayed linear attention (14,196), linear attention (16,756) | `S' = 0.958·(S + (v)⊗(k))` |
+| 24 | gated delta rule | 0.971 ±0.006 | 1220.2 | decayed linear attention (5,236), linear, not error-correcting (6,260), unclassified (6,900), linear attention (42,356), gated delta rule (1,918,196), delta rule (2,334,580) | `S' = (((v)⊗(0.730·k) + 1.117·S) - (((v)⊗(0.730·k) + 1.117·S))((k)⊗(0.730·k)))` |
+| 25 | gated delta rule | 0.975 ±0.005 | 424.0 | unclassified (1,780), decayed linear attention (2,932), linear attention (14,196), delta rule (3,169,780), gated delta rule (3,170,804) | `S' = (((|tanh(v)|·(v - S·tanh(k)) + (v - 0)))⊗(|tanh(v)|·tanh(tanh(k))) + 1.110·S)` |
+| 26 | gated delta rule | 0.975 ±0.005 | 2238.1 | decayed linear attention (3,572), unclassified (4,340), linear attention (13,940), delta rule (1,572,980), gated delta rule (1,941,876) | `S' = 1.097·((((tanh(v))⊗(tanh((k + k))) - S))((-0.811·(k)⊗(k))(-0.811·(k)⊗(k))) + S)` |
+| 27 | gated delta rule | 0.975 ±0.005 | 954.1 | unclassified (1,652), decayed linear attention (2,420), linear, not error-correcting (3,188), linear attention (56,820), delta rule (114,036), gated delta rule (409,844) | `S' = (((tanh(v) - S·k))⊗(0.840·tanh(tanh(k))) + 1.109·S)` |
+| 28 | gated delta rule | 0.975 ±0.005 | 2424.8 | unclassified (3,956), decayed linear attention (4,724), linear, not error-correcting (5,236), linear attention (8,180), delta rule (1,578,612), gated delta rule (1,578,996) | `S' = ((1.106·S + <v, tanh(v)>·(v)⊗((tanh(tanh(k)) + tanh(k)))) - ((S)(((tanh(v))⊗(tanh(tanh(k))))ᵀ))((tanh(v))⊗(ta` |
+| 29 | gated delta rule | 0.975 ±0.005 | 593.7 | decayed linear attention (3,956), linear, not error-correcting (5,364), unclassified (5,876), linear attention (11,508), delta rule (166,644), gated delta rule (254,068) | `S' = 1.098·(S + (0.750·(v - S·k))⊗(tanh(tanh(k))))` |
+| 30 | gated delta rule | 0.969 ±0.006 | 943.7 | unclassified (5,620), decayed linear attention (6,644), linear, not error-correcting (8,692), linear attention (79,220), gated delta rule (3,355,636) | `S' = (((tanh(1.147·v) - S·tanh((tanh(1.147·v) + (k - tanh(tanh(1.147·v)))))))⊗(norm(tanh((tanh(1.147·v) + (k - tan` |
+| 31 | gated delta rule | 0.973 ±0.006 | 2145.0 | unclassified (6,388), decayed linear attention (10,484), linear, not error-correcting (11,764), linear attention (31,220), delta rule (206,580), gated delta rule (209,396) | `S' = 1.091·((tanh(v))⊗(tanh(k)) + (S - 0.636·(S)((k)⊗(k))))` |
+| 32 | gated delta rule | 0.972 ±0.006 | 817.4 | unclassified (628), decayed linear attention (884), linear, not error-correcting (1,396), linear attention (9,972), delta rule (62,964), gated delta rule (88,052) | `S' = (((tanh(v) - tanh(S·tanh(tanh(k)))))⊗(tanh(tanh(tanh(k)))) + 0.553·(S + S))` |
+
+- decayed linear attention: seen in 31/32 seeds (median 3,060 candidates), final rule in 0/32
+- delta + Kronecker mix: seen in 1/32 seeds (median 2,419,316 candidates), final rule in 0/32
+- delta rule: seen in 23/32 seeds (median 1,299,444 candidates), final rule in 1/32
+- gated delta rule: seen in 22/32 seeds (median 1,370,996 candidates), final rule in 21/32
+- linear attention: seen in 32/32 seeds (median 16,756 candidates), final rule in 7/32
+- linear, not error-correcting: seen in 25/32 seeds (median 4,084 candidates), final rule in 0/32
+- unclassified: seen in 31/32 seeds (median 3,572 candidates), final rule in 3/32
+
+## Accuracy levels (not rediscovery)
+
+| seed | linear attention | delta rule (beta=1) | delta rule (beta=0.5) | gated delta (alpha=0.9) |
+|---|---|---|---|---|
+| 1 | 130,804 | – | – | 130,804 |
+| 2 | 65,012 | – | – | 65,012 |
+| 3 | 23,412 | 58,612 | 61,044 | 23,156 |
+| 4 | 4,724 | – | – | 4,724 |
+| 5 | 34,036 | 2,175,220 | 2,176,884 | 32,500 |
+| 6 | 14,196 | 16,756 | 18,676 | 14,196 |
+| 7 | 52,212 | 439,924 | 440,436 | 48,244 |
+| 8 | 5,876 | 397,556 | 531,572 | 4,724 |
+| 9 | 93,044 | 1,299,572 | 1,349,108 | 93,044 |
+| 10 | 14,964 | – | – | 14,708 |
+| 11 | 10,484 | 2,421,748 | 2,840,948 | 10,484 |
+| 12 | 19,060 | 41,332 | 41,588 | 19,060 |
+| 13 | 24,308 | – | – | 24,308 |
+| 14 | 5,620 | 2,575,220 | 2,638,836 | 5,620 |
+| 15 | 13,428 | – | – | 13,428 |
+| 16 | 6,644 | 14,068 | 14,836 | 6,644 |
+| 17 | 25,588 | – | – | 25,588 |
+| 18 | 21,748 | 3,786,996 | 3,788,532 | 21,620 |
+| 19 | 9,588 | 2,112,244 | 2,114,548 | 9,588 |
+| 20 | 20,596 | 2,946,804 | 2,947,060 | 20,596 |
+| 21 | 7,028 | 198,260 | 198,516 | 7,028 |
+| 22 | 11,380 | 2,342,388 | 2,342,644 | 11,380 |
+| 23 | 16,756 | – | – | 16,756 |
+| 24 | 42,356 | 1,918,196 | 2,322,036 | 41,204 |
+| 25 | 14,196 | 3,170,676 | 3,171,060 | 14,196 |
+| 26 | 13,940 | 1,572,980 | 1,574,516 | 13,940 |
+| 27 | 56,820 | 110,836 | 114,036 | 56,820 |
+| 28 | 8,180 | 1,578,996 | 1,578,996 | 8,180 |
+| 29 | 11,508 | 164,980 | 166,644 | 11,508 |
+| 30 | 79,220 | 2,661,236 | 2,682,612 | 79,220 |
+| 31 | 31,220 | 205,684 | 207,348 | 31,220 |
+| 32 | 9,972 | 63,732 | 66,292 | 9,972 |

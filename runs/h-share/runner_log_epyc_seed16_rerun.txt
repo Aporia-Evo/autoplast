@@ -1,0 +1,15 @@
+1 seeds, 1 at a time x 8 threads, budget 1500000
+seed 16: exit 0, 693 s (elapsed 693 s)
+Traceback (most recent call last):
+  File "/home/jupyter-mavan/autoplast-i/local_runner.py", line 107, in <module>
+    main()
+  File "/home/jupyter-mavan/autoplast-i/local_runner.py", line 102, in main
+    print(agg.write(ROOT / "runs" / a.tag))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jupyter-mavan/autoplast-i/aggregate.py", line 32, in write
+    for d in sorted(base.glob("seed*"), key=lambda p: int(p.name[4:])):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jupyter-mavan/autoplast-i/aggregate.py", line 32, in <lambda>
+    for d in sorted(base.glob("seed*"), key=lambda p: int(p.name[4:])):
+                                                      ^^^^^^^^^^^^^^^
+ValueError: invalid literal for int() with base 10: '16_local_rerun'

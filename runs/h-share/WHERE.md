@@ -49,3 +49,13 @@ Total wall 11913 s.
 | 30 | 10.1 |
 | 31 | 9.2 |
 | 32 | 12.6 |
+
+## Seed 16, rerun (package I)
+
+Seed 16 was rerun on epyc on 16 Nov 2026 with commit 50c2d10 (cache fix), 1,500,000 candidates, 693 s:
+
+    python local_runner.py --seeds 16-16 --budget 1500000 --tag h-share --parallel 1 --threads 8 --extra="--select share --val-log --commit 50c2d10"
+
+Before the rerun, log.csv and stderr.txt of the aborted run were copied to seed16_aborted/ and the old seed16/ was deleted.
+seed16_local_rerun/ was not touched. Runner log: runner_log_epyc_seed16_rerun.txt; JAX: verify_seed16.txt. aggregate.md was not
+rewritten (aggregate.py stops on the folder name seed16_local_rerun, see runs/i-base4m/i_report.md).
