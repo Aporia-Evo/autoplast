@@ -29,7 +29,9 @@ def field(summary: str, prefix: str, default: str = "?") -> str:
 
 def write(base: pathlib.Path) -> str:
     rows = []
-    for d in sorted(base.glob("seed*"), key=lambda p: int(p.name[4:])):
+    # only directories named seed<number>; side folders such as seed16_aborted are not runs
+    seed_dirs = [p for p in base.glob("seed*") if p.name[4:].isdigit()]
+    for d in sorted(seed_dirs, key=lambda p: int(p.name[4:])):
         f = d / "summary.md"
         if not f.exists():
             continue

@@ -40,7 +40,7 @@ for tag, flags, what in TAGS:
     fam = collections.Counter()
     old = n = 0
     rows = []
-    for d in sorted((ROOT / "runs" / tag).glob("seed*"), key=lambda p: int(p.name[4:])):
+    for d in sorted((p for p in (ROOT / "runs" / tag).glob("seed*") if p.name[4:].isdigit()), key=lambda p: int(p.name[4:])):
         if not (d / "best.json").exists():
             continue
         out = subprocess.run([str(EXE), "eval", "--prog", str(d / "best.json")] + flags.split(), capture_output=True, text=True).stdout

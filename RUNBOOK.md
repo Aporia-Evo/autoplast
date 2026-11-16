@@ -434,6 +434,12 @@ level by 1.5M candidates (from the Milestones line) and by 4M; minutes per seed.
 its row as in `h_report.md`, whether the first rows of its log equal those of the aborted
 run (all columns but `real_evals` and `seconds`), and the counts of `h-share` with 32 seeds.
 
+Note of 16 Nov 2026: `aggregate.py` failed on `runs/h-share` because of the side folder
+`seed16_local_rerun` (it read every `seed*` folder as a seed number). Fixed in the commit that
+adds this note; it now takes only folders named `seed<number>`. The search binary is not
+affected, no rebuild is needed. After fetching the rerun of seed 16, write the table with
+`python aggregate.py runs/h-share` from a checkout that has the fix.
+
 ### J. Selection by behaviour in the space of D and E (released 16 Nov 2026) — after I
 
 Read README, "Package J". Same build as package I (the commit with the cache fix or later;
