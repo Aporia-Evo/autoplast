@@ -410,6 +410,11 @@ whether it has the shape of seed 9.
 
 ### I. Plain search with the wall time of the selection arms (released 15 Nov 2026) — after G
 
+Status 17 Nov 2026: done and checked (README, "Package I: result and reading"), including
+the rerun of `h-share` seed 16 and the rewritten `runs/h-share/aggregate.md`. Package J is
+released and unchanged; its reading got one added condition (README, "Addition to package
+J"), which does not change what you run or report.
+
 Purpose: `h-share` and `h-lexicase` take 2.5 and 1.9 times as long per seed as `h-base`. I
 gives the plain search that time. Build at the commit that contains this section (it holds
 the cache fix) and repeat the self-check of package F. Base task, same machine as H.

@@ -25,9 +25,9 @@ Scope history: corrected on 10 Nov 2026 (README, "Review and scope correction"),
 re-centred on the search method the same day at the owner's direction. Branches merged the
 same day (README, "Merge"). State of the method claim: the add-node mutation and constant
 tuning show no effect; parent selection by behaviour (`--select share`, `--select lexicase`)
-removes the seeds that stop at linear attention on the base task (package H, 15 Nov). That
-is one task and not yet matched for wall time. Constant tuning is closed as a negative
-result (packages F and G).
+removes the seeds that stop at linear attention on the base task (package H, 15 Nov), and
+the plain search does not catch up with more wall time (package I, 17 Nov). That is one task.
+Constant tuning is closed as a negative result (packages F and G).
 
 Stages:
 1. Rediscovery: the search assembles the delta family from nothing. Needs a rate over seeds
@@ -116,7 +116,12 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    tuning in the space of D and E either (rule 2 in 6/32 against 6/32); the component is
    closed. Released on 16 Nov as package J: `--select lexicase`, then `--select share`, on
    collision3 in the space of D and E, 32 seeds each, thresholds of package E (README,
-   "Package J"). Still open: the same arms on task v3. A cache fault found by H is fixed.
+   "Package J"). Package I done 17 Nov (README, "Package I: result and reading"): the plain
+   search at 4M candidates and more wall time reaches the delta accuracy level in 24/32,
+   against 32/32 for both arms at 1.5M (p = 0.0024); on the structural count it equals
+   `share` (22 vs 20) and beats `lexicase` (22 vs 10). `share` is the variant to carry
+   forward. A positive J needs a wall-time-matched plain arm in that space before it is
+   claimed. Still open: the same arms on task v3. A cache fault found by H is fixed.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.

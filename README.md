@@ -1316,3 +1316,66 @@ Fixed before the run:
   0.05 each. On the base task the stuck seeds vanished entirely; here the step past decayed
   linear attention is the same step, the steps after it are not.
 
+## Package I: result and reading (17 Nov 2026)
+
+Run by the executing agent on the university machine, commit 50c2d10, 4.9 h, predictions
+committed before the run (e7c41e0). Facts per seed: `runs/i-base4m/i_report.md`. Counts
+recomputed from the summaries; they agree with the report.
+
+| base task | `i-base4m`, plain, 4M | `h-base`, plain, 1.5M | `h-share`, 1.5M | `h-lexicase`, 1.5M |
+|---|---|---|---|---|
+| accuracy level of delta β = 0.5 | 24/32 | 12/32 | 32/32 | 32/32 |
+| delta family by the structural test | 22/32 | 12/32 | 20/32 | 10/32 |
+| ends at linear attention level (train < 0.84) | 7/32 | 19/32 | 0/32 | 0/32 |
+| median test ow0.3 | 0.966 | 0.798 | 0.950 | 0.969 |
+| minutes per seed | 17.6 | 4.9 | 12.2 | 9.1 |
+| real evaluations per seed | 1,357,000 | 457,000 | 942,000 | 747,000 |
+| wall time within which every seed of the arm reached the level | – | – | 215 s | 141 s |
+| plain-search seeds at the level within that wall time | – | – | 13/32 | 10/32 |
+| delta-level rules with growth factor within 0.02 of 1 | 2 | 0 | 12 | 1 |
+| final rules with T128 K8 ≥ 0.80 | 2 | 0 | 10 | 1 |
+
+The rule fixed before the run said "below 24/32: the arms beat the plain search at equal
+wall time; 28/32 or more: their gain is a saving of candidates". The result is exactly 24,
+which the rule does not decide: its two cases left 24 to 27 open. The test the rule names
+still favours the arms (32/32 against 24/32, one-sided Fisher p = 0.0024), and the plain
+search was given more wall time than either arm, not equal (17.6 minutes per seed against
+12.2 and 9.1). Within the wall time in which every seed of `h-share` had reached the level,
+13 of 32 plain-search seeds had; for `h-lexicase` it is 10 of 32 (seconds read from the log
+rows, every 50,000 candidates; same machine). The research agent's prediction (13 to 20 of
+32 with probability 0.65) was wrong; the plain search improves more with budget than
+expected.
+
+**Accuracy level and structure part ways.** On the structural count the plain search with
+more budget is level with `h-share` (22 against 20) and well ahead of `h-lexicase` (22 against
+10; one-sided Fisher p = 0.003, a test chosen after seeing the data). `h-lexicase` reaches
+delta-level accuracy faster than any other arm, but mostly with longer rules that erase along
+the key and carry nonlinear terms the structural test does not accept. `h-share` reaches the
+level in every seed and keeps the structural rate of the plain search at 2.7 times its budget;
+it is also the only arm that finds many rules with growth factor 1 that hold on long episodes.
+
+Other checks: up to 1.5M candidates `i-base4m` reaches the level in exactly the same 12 seeds
+as `h-base` (the cache fix did not change the search). The rerun of `h-share` seed 16 on the
+university machine is identical, row for row and in its final rule, to the research agent's
+rerun on the review machine and to the 30 rows of the aborted run; `h-share` now has 32 seeds
+of record (32/32 on the level, 20/32 structural).
+
+Reading for the method claim, on the base task only:
+- Selection by behaviour gets every seed to delta-level accuracy, in less wall time and fewer
+  real evaluations than the plain search needs for three quarters of its seeds. That holds
+  for both variants and survives the wall-time control.
+- On rediscovering the delta rule itself, `share` matches the plain search at a fraction of
+  the budget and `lexicase` is worse. If one variant is carried forward as "the method",
+  the evidence points to `share`; `lexicase` buys speed to an accuracy level with less
+  interpretable rules.
+- Whether any of this carries over to a task where the plain search fails is the question of
+  package J.
+
+### Addition to package J, 17 Nov 2026, before any J result
+
+Package I shows that the plain search gains a lot from a larger budget. If an arm of J shows an
+effect, the comparison against `runs/d-kalman` is at equal candidates but not at equal wall
+time, and the claim is held back until a plain-search arm in the same space with the arm's
+wall time has been run. This adds a condition to the reading of J; the criteria of J are
+unchanged.
+
