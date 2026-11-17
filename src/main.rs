@@ -395,6 +395,9 @@ fn main() {
     if arg(&args, "--persist-init", String::from("zero")) == "identity" {
         program::PERSIST_IDENTITY.store(true, std::sync::atomic::Ordering::Relaxed);
     }
+    if has(&args, "--residual-insert") {
+        program::RESIDUAL_INSERT.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
     task::QUERY_GAP.store(arg(&args, "--query-gap", 0usize), std::sync::atomic::Ordering::Relaxed);
     TRAIN_TASK_SEED.store(arg(&args, "--task-seed", 1u64), std::sync::atomic::Ordering::Relaxed);
     TRAIN_EPISODES.store(arg(&args, "--train-episodes", 0usize), std::sync::atomic::Ordering::Relaxed);
@@ -526,14 +529,15 @@ fn main() {
                 cfg.batch
             );
             summary += &format!(
-                "search: {}  tune-consts: {}  select: {}\n\n",
+                "search: {}  tune-consts: {}  select: {}  residual-insert: {}\n\n",
                 if cfg.random { "random programs, no selection" } else { "regularized evolution" },
                 cfg.tune_consts,
                 match cfg.select {
                     evolve::Select::Fitness => "fitness".to_string(),
                     evolve::Select::Lexicase => "lexicase".to_string(),
                     evolve::Select::Share => format!("share (radius {})", cfg.share_radius),
-                }
+                },
+                if program::RESIDUAL_INSERT.load(std::sync::atomic::Ordering::Relaxed) { "on" } else { "off" }
             );
             if let Some((a, l)) = cfg.level {
                 summary += &format!(
@@ -567,7 +571,7 @@ fn main() {
                 "usage: autoplast baselines | sweep | eval --prog FILE | dump [--split train|test --out FILE] | search [--seed N --budget N --pop N --threads N --batch N --out DIR]\n\
                  task:   --task v3 | --regime collision|overload|noisyq|collision3|longgap|full|overload48|rewrite8|rewrite14|clustered|clustered8   --task-seed N  --train-episodes N  --query-gap N\n\
                  space:  --no-op A,B  --extra-ops  --recip  --evolve-readout  --persist-m N (1..4)  --persist-v N (0..4)  --persist-init identity  --no-split-edge\n\
-                 search: --tune-consts K  --select fitness|lexicase|share  --share-radius R  --algo random  --val-log  --level-acc A --level-long L"
+                 search: --tune-consts K  --residual-insert  --select fitness|lexicase|share  --share-radius R  --algo random  --val-log  --level-acc A --level-long L"
             );
         }
     }

@@ -36,6 +36,15 @@ fn any_persist() -> bool {
 /// Ablation switch for the NEAT-style add-node mutation (on by default).
 pub static SPLIT_EDGE: AtomicBool = AtomicBool::new(true);
 
+/// `--residual-insert` (added 17 Nov 2026, off by default): with probability 1/6 per mutation,
+/// insert a residual branch `r = r + ε·op(a, b)` for a random register r, a random op that
+/// produces r's type, random inputs and a small random ε. The branch is near-neutral when it
+/// is inserted and its weight can grow through constant mutations, so a structure that only
+/// pays off once several instructions are in place gets a fitness slope instead of a plateau.
+/// Generic: any register type, any op; the analogue of a zero-initialised residual branch or of
+/// NEAT's new connection with a small weight. When off, no random number is drawn for it.
+pub static RESIDUAL_INSERT: AtomicBool = AtomicBool::new(false);
+
 pub const NM: usize = 4;
 pub const NV: usize = 6;
 pub const NS: usize = 4;
@@ -468,7 +477,53 @@ impl Program {
         self.mutate_write(rng);
     }
 
+    /// Residual branch insertion, see `RESIDUAL_INSERT`. Four instructions at a random position:
+    ///   t = op(a, b);  s = Const(ε);  t = s·t;  r = r + t
+    /// with t, s random registers of the right type (t ≠ r), ε = ±10^U(-3, -1).
+    fn residual_insert(&mut self, rng: &mut Rng) -> bool {
+        let len = self.instrs.len();
+        if len + 4 > MAX_LEN {
+            return false;
+        }
+        let ty = [Ty::M, Ty::V, Ty::S][rng.below(3)];
+        let ops: Vec<Op> = active_ops().iter().copied().filter(|o| o.sig().0 == ty && *o != Op::Const).collect();
+        if ops.is_empty() {
+            return false;
+        }
+        let op = ops[rng.below(ops.len())];
+        let (_, ins) = op.sig();
+        let pick = |rng: &mut Rng, t: Ty| rng.below(n_regs(t)) as u8;
+        let r = pick(rng, ty);
+        let mut t = pick(rng, ty);
+        if t == r {
+            t = ((t as usize + 1) % n_regs(ty)) as u8;
+        }
+        let a = ins.first().map(|&x| pick(rng, x)).unwrap_or(0);
+        let b = ins.get(1).map(|&x| pick(rng, x)).unwrap_or(0);
+        let sreg = pick(rng, Ty::S);
+        let eps = 10f32.powf(-1.0 - 2.0 * rng.uniform()) * if rng.below(2) == 0 { 1.0 } else { -1.0 };
+        let (scale, add) = match ty {
+            Ty::M => (Op::MatScale, Op::MatAdd),
+            Ty::V => (Op::VecScale, Op::VecAdd),
+            Ty::S => (Op::SMul, Op::SAdd),
+        };
+        let block = [
+            Instr { op, out: t, a, b, c: 0.0 },
+            Instr { op: Op::Const, out: sreg, a: 0, b: 0, c: eps },
+            Instr { op: scale, out: t, a: sreg, b: t, c: 0.0 },
+            Instr { op: add, out: r, a: r, b: t, c: 0.0 },
+        ];
+        let pos = rng.below(len + 1);
+        for (i, ins) in block.into_iter().enumerate() {
+            self.instrs.insert(pos + i, ins);
+        }
+        true
+    }
+
     fn mutate_write(&mut self, rng: &mut Rng) {
+        if RESIDUAL_INSERT.load(Ordering::Relaxed) && rng.below(6) == 5 && self.residual_insert(rng) {
+            return;
+        }
         if SPLIT_EDGE.load(Ordering::Relaxed) && rng.below(6) == 5 && self.split_edge(rng) {
             return;
         }

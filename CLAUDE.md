@@ -130,6 +130,12 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    not a new algorithm; a down-sampling control (plain tournament on a random subset of train
    episodes per batch) is missing and is the first thing a reviewer asks. Still open: that
    control, and the same arms on task v3. A cache fault found by H is fixed.
+   Direction decided by the owner on 17 Nov: aim for a new capability, a search that reaches
+   Kalman delta (or its level) from the empty program where the present search never does
+   (0/64 above 0.90). The path from delta to Kalman delta is nearly monotone but every step
+   needs 3 to 5 specific instructions before it changes fitness (README, "Direction 2").
+   Third component built for that barrier: `--residual-insert` (off by default). A package
+   follows after J; any success needs a held-out target with the method frozen first.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.

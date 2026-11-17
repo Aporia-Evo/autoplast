@@ -1458,3 +1458,65 @@ bibliographies or reference lists (marked "secondary"). Not exhaustive.
    Baxter 1992; Bengio et al. 1994; Real et al. 2020; plus the memory-rule literature listed in
    CLAUDE.md. The secondary items must be read before they are cited.
 
+## Direction 2: a search that reaches a known strong rule (17 Nov 2026)
+
+Decided by the owner on 17 Nov 2026 after the literature check: the project aims at a new
+capability rather than a new component. Target: a search that finds the Kalman delta rule, or
+a rule at its level, from the empty program in the space of packages D and E, where the
+present search never does (0 of 64 seeds above 0.90 in `d-kalman` and `g-tune8`; Kalman delta
+written by hand reaches 0.933). Known components are acceptable if the capability is new.
+
+### Why the present search does not get there (`python verify/probe_path_kalman.py`)
+
+Hand-written programs between the delta rule and Kalman delta, each adding one piece, best
+constants on a small grid, train accuracy as the search sees it (collision3, task seed 1):
+
+| step from the delta rule | added instructions | train | test | T128 K8 |
+|---|---|---|---|---|
+| A delta rule | – | 0.617 | 0.640 | 0.828 |
+| write key `P k` with P = I, P never updated | 1 | same as A | | |
+| B normalised gain `g = Pk/(δ + kᵀPk)`, P fixed | +5 | 0.618 | 0.635 | 0.845 |
+| D' unnormalised `P' = P − c·(Pk)(Pk)ᵀ`, best c = 0.1 | +4 to A | 0.646 | 0.668 | 0.765 |
+| D B + `P' = P − c·g(Pk)ᵀ`, c = 0.05 / 0.2 / 0.5 / 1.0 | +4 to B | 0.658 / 0.782 / 0.826 / 0.624 | | |
+| E D + `q·I`, c = 0.2 / 0.5 / 1.0 | +3 to D | 0.718 / 0.813 / 0.932 | | 0.950 at c = 1 |
+
+Reading:
+- There is a path along which fitness rises almost monotonically: delta → key `Pk` (neutral)
+  → normalised gain (neutral) → partial update of P with a small factor c (rising to 0.826
+  at c = 0.5) → add `q·I` (about neutral at c = 0.5) → raise c to 1 (0.932). No deep valley.
+- But every step needs three to five specific instructions in place before it changes
+  anything: the update of P is four (`Outer`, `Const`, `MatScale`, `MatSub`), the normalised
+  gain five, the `q·I` term three. Until the last of them is inserted the others are dead code,
+  invisible to selection. With 20 ops and 4 to 6 registers per type, a specific instruction
+  is drawn about once in a few thousand insertions, so a specific four-instruction step is far
+  out of reach of 1.5M candidates. This is the barrier, measured, not assumed.
+- Seed 9 of `d-kalman` found a shorter route to a projector state (three to four
+  instructions), which is why it, and nothing better, appeared.
+
+### Search method, third change: residual branch insertion (logged before any result)
+
+`--residual-insert`, off by default. With probability 1/6 per mutation, four instructions are
+inserted at a random position:
+
+    t = op(a, b)        random op producing the type of r, random inputs
+    s = Const(ε)        ε = ±10^U(−3, −1)
+    t = s · t
+    r = r + t           r a random register of that type (matrix, vector or scalar)
+
+The branch is live at once but nearly neutral, and its weight can grow by constant mutation.
+A step that pays off only once complete is then reachable through a slope: for the update of
+P, a single residual insertion with `op = Outer`, both inputs the register holding `Pk` and a
+negative ε is the step D' at small c. Nothing in the mutation names a rule, an op or a
+register; it is the zero-initialised residual branch of deep learning, or NEAT's new
+connection with a small weight, applied to typed programs. When off, no random number is
+drawn for it and committed runs reproduce (v2 seed 3 to 100,000 candidates, d-kalman seed 9
+to 50,000).
+
+Known risk, stated now: the mutation was chosen after measuring the path to one target. A
+success on that target alone would be open to the charge that the method was fitted to it.
+Any claim therefore needs a held-out target the method was not designed on (testbed 2,
+item 5 of CLAUDE.md, or another known rule in another regime), with the method frozen first.
+
+Status: implemented and smoke-tested; a local pilot (4 seeds, 300,000 candidates) is
+running and is not a result. A package on the university machine follows after package J.
+
