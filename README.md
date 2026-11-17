@@ -1379,3 +1379,82 @@ time, and the claim is held back until a plain-search arm in the same space with
 wall time has been run. This adds a condition to the reading of J; the criteria of J are
 unchanged.
 
+## Literature check of the method components (17 Nov 2026)
+
+Asked by the owner after package I. Question: is selection by behaviour (`--select share`,
+`--select lexicase`) new, and how new is evolving a memory update rule from scratch? Sources
+were read in full where an arXiv copy exists (marked "read"); others only from abstracts,
+bibliographies or reference lists (marked "secondary"). Not exhaustive.
+
+### Selection by behaviour: not new
+
+- **Fitness sharing** goes back to Goldberg and Richardson (1987); NEAT (Stanley and
+  Miikkulainen 2002) uses it inside species. Secondary.
+- **Fitness sharing in genetic programming**, including behaviour (phenotype) based variants:
+  McKay (2000, 2001) applied implicit fitness sharing to program populations and reports the
+  results of raw fitness with populations two to three times smaller, attributed to preserved
+  diversity. A GECCO 2002 study contrasts behaviour-based with tree-distance-based sharing in
+  GP. Secondary (abstracts in the GP bibliography).
+- **Semantic and behavioural methods in GP** are an established line (survey: Vanneschi,
+  Castelli and Silva 2014; behavioural programming: Krawiec and O'Reilly 2014); novelty search
+  (Lehman and Stanley 2011) and MAP-Elites (Mouret and Clune 2015) select on behaviour
+  descriptors. Secondary.
+- **Behaviour-based niching in GP is still being published**: Liu, Mei and Zhang (2026,
+  arXiv 2609.24104) niche GP individuals by behaviour descriptors of the search they induce;
+  the effect on solution quality is small, the effect on program size is clear. Read.
+- **Lexicase selection** (Spector 2012; Helmuth, Spector and Matheson 2014, IEEE TEVC) selects
+  on individual training cases and is known to keep diversity (Helmuth, McPhee and Spector
+  2016). Secondary. **Geiger, Briesch, Sobania and Rothlauf (2025, arXiv 2502.18093)** show for
+  symbolic regression that tournament selection with random or informed down-sampling of the
+  training cases matches ε-lexicase in error and diversity and is faster. Read. This is the
+  control a reviewer will ask for (see below).
+
+### Evolving learning or memory update rules from scratch: not new either
+
+- **Chalmers (1990)**, "The evolution of learning: an experiment in genetic connectionism",
+  evolved learning rules for single-layer networks with a genetic algorithm, starting from a
+  population that could not learn; the delta rule (or a rule very close to it) emerged. The
+  rule space was a fixed parametric form over local quantities, not a program space.
+  Secondary (abstract, and reference [6] of Baxter 1992).
+- **Baxter (1992)**, read (arXiv 2512.01203): a GA over network architecture and a local binary
+  rule; Hebb's rule evolved in all five runs.
+- **Bengio, Bengio and Cloutier (1994, 1995)** used genetic programming to search the form of a
+  synaptic learning rule. Secondary. Radi and Poli (2003) evolved less constrained rules with
+  GP that resemble backpropagation; known only from a citation, not checked.
+- **AutoML-Zero (Real, Liang, So and Le 2020)**, read: regularized evolution from empty
+  programs over basic linear-algebra ops finds gradient descent and two-layer networks. The
+  search upgrades that helped were migration between workers, functional-equivalence caching,
+  dataset diversity (half the workers on another dataset) and hurdles; crossover and
+  geographic structure did not. No fitness sharing, niching or lexicase. This project's search
+  is that method, scaled down.
+- Recent symbolic discovery of learning rules without evolution: Perin, Anselmi and Deny (2026,
+  arXiv 2611.12248) regress local losses on a dictionary of monomials. Read. Jordan et al.
+  (2021) evolve plasticity rules with Cartesian GP. Secondary.
+- No paper was found that searches update rules of matrix-valued fast-weight or linear-attention
+  memories with program evolution from an empty program, or that applies behaviour-based
+  selection inside an AutoML-Zero-style search. The search for both was two queries in a paper
+  index and one web query each; that is weak evidence of absence.
+
+### What this means for the paper
+
+1. **The method claim cannot be "a new search algorithm".** Fitness sharing, lexicase and
+   behavioural niching are decades old. What the data of this project can support is an
+   empirical finding: in an AutoML-Zero-style search for memory update rules, the component
+   that decides whether seeds escape linear attention is parent selection by behaviour, while
+   a NEAT-style add-node mutation and constant tuning do nothing measurable. That is a
+   component study. Its value rises with the number of tasks and testbeds it holds on.
+2. **"Rediscovery of the delta rule by evolution" is 36 years old** (Chalmers 1990). It stays a
+   sanity check of the search; it is not a result. What is less covered: a program space with
+   matrix state from an empty program, the structural test, and the 2026 rule families (Kalman
+   delta, preconditioning) as held-out targets.
+3. **A control is missing.** Geiger et al. (2025) found that most of lexicase's advantage
+   comes back with down-sampled training cases under plain tournaments. The obvious control
+   here: the plain search with a random subset of the train episodes per batch. If it closes
+   most of the gap of package H, the finding becomes "any source of selection noise or
+   diversity", not "behaviour-based selection". Not implemented; to be decided with the owner.
+4. Related-work section to write, at least: Goldberg and Richardson 1987; Stanley and
+   Miikkulainen 2002; McKay 2000/2001; Vanneschi et al. 2014; Lehman and Stanley 2011; Mouret
+   and Clune 2015; Spector 2012; Helmuth et al. 2014, 2016; Geiger et al. 2025; Chalmers 1990;
+   Baxter 1992; Bengio et al. 1994; Real et al. 2020; plus the memory-rule literature listed in
+   CLAUDE.md. The secondary items must be read before they are cited.
+

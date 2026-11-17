@@ -62,7 +62,12 @@ Stages:
    Erase-then-Delta (Jun 2026), Preconditioned DeltaNet (Apr 2026), Kalman Delta Networks
    (Sep 2026), Kronecker Delta Rule (NXAI, Oct 2026), Dual DeltaNet, Muir, RWKV-7, Longhorn,
    MesaNet, NTM erase/add, Titans, Modular TTT, Memory Mosaics. Method neighbours:
-   AutoML-Zero, ASI-Arch (LLM-driven, starts from DeltaNet).
+   AutoML-Zero, ASI-Arch (LLM-driven, starts from DeltaNet). Selection by behaviour is not
+   new: fitness sharing (Goldberg and Richardson 1987; in GP: McKay 2000/2001), semantic GP,
+   novelty search, MAP-Elites, lexicase (Spector 2012; Helmuth et al.), and down-sampled
+   tournaments as its rival (Geiger et al. 2025). Evolving learning rules is not new: Chalmers
+   1990 evolved the delta rule; Bengio et al. 1994 used GP (README, "Literature check of the
+   method components").
 6. Hand-written rules may be used as reference points and headroom probes only. They never
    enter a population, a mutation or the fitness.
 
@@ -121,7 +126,10 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    against 32/32 for both arms at 1.5M (p = 0.0024); on the structural count it equals
    `share` (22 vs 20) and beats `lexicase` (22 vs 10). `share` is the variant to carry
    forward. A positive J needs a wall-time-matched plain arm in that space before it is
-   claimed. Still open: the same arms on task v3. A cache fault found by H is fixed.
+   claimed. Literature check 17 Nov: the method claim has to be framed as a component study,
+   not a new algorithm; a down-sampling control (plain tournament on a random subset of train
+   episodes per batch) is missing and is the first thing a reviewer asks. Still open: that
+   control, and the same arms on task v3. A cache fault found by H is fixed.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
