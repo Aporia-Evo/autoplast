@@ -1517,6 +1517,112 @@ success on that target alone would be open to the charge that the method was fit
 Any claim therefore needs a held-out target the method was not designed on (testbed 2,
 item 5 of CLAUDE.md, or another known rule in another regime), with the method frozen first.
 
-Status: implemented and smoke-tested; a local pilot (4 seeds, 300,000 candidates) is
-running and is not a result. A package on the university machine follows after package J.
+Status: implemented and smoke-tested. A pilot on this agent's container (collision3, space of
+D and E, 300,000 candidates, seeds 1 to 4, `--residual-insert` with `--select fitness` and with
+`--select share`) was stopped at the container's time limit with 7 of 8 seeds done; collision3
+test 0.632 / 0.508 / 0.516 / 0.666 and 0.661 / 0.660 / 0.638; the committed seeds 1 to 4 of
+`d-kalman` had train 0.517 / 0.669 / 0.510 / 0.624 at 300,000 candidates. Too small to read;
+it is not a result. A package on the
+university machine follows after package J.
 
+## Package J, arm j-lexicase: result and reading (18 Nov 2026)
+
+Run: `runs/j-lexicase`, commit 50c2d10, seeds 1 to 32, 1,500,000 candidates, epyc, 16.1 h of
+wall time. The executing agent's report is `runs/j-lexicase/j_report.md`. The baseline is
+`runs/d-kalman`. On collision3 test: ridge ceiling 1.000, Kalman delta written in the space
+0.933, tuned DeltaNet 0.640, tuned Gated DeltaNet 0.644.
+
+### Outcome against what was fixed before the run
+
+| | j-lexicase | d-kalman | fixed threshold | met |
+|---|---|---|---|---|
+| rule 2 | 12/32, **11/32 without seed 6** | 6/32 | ≥ 13/32 | no (p = 0.13 for 11 vs 6) |
+| stuck below 0.53 | **0/32** | 12/32 | ≤ 5/32 | yes, Fisher one-sided p = 6.9e-5 |
+| test > 0.85 with rule 2's other conditions | 1/32 (seed 6), **0/32 without** | 1/32 | ≥ 7/32 | no |
+| above 0.695 under those conditions | 5/32, 4/32 without seed 6 | 2/32 | reported | |
+| above 0.90 | 0/32 | 0/32 | reported | |
+| median test | 0.682 | 0.630 | reported | Mann-Whitney p = 6.6e-6 |
+| mean train − test | +0.000 | +0.014 | | |
+| mean real evaluations per seed | 806,780 | 784,926 | | |
+| mean minutes per seed | 59.5 | 42.2 | | |
+
+Seed 6 is excluded under CLAUDE.md rule 3 (below). JAX against Rust on the dump: largest
+difference 0.0006. Validation level reached in 20/32 seeds (`d-kalman` has no validation log).
+The prediction (stuck ≤ 5 with 0.55, rule 2 ≥ 13 with 0.40, a seed above 0.85 with 0.50, a seed
+above 0.90 with 0.07) came out as the likeliest case: only the stuck count moved.
+
+### Seed 6: a strong rule written through the epsilon of Normalize
+
+The executing agent read off that seed 6's write cancels in exact arithmetic,
+S' = 1.011·(S + v rᵀ)(I − û ûᵀ) with r = k + P1·tanh(k) and û = r/|r|, so S stays zero, and
+it took the accuracy (Rust 0.893) for float32 rounding residue. That mechanism is not right.
+`verify/verify.py` now has a float64 mode (`--x64`) and a settable epsilon for Normalize
+(`--norm-eps`, default 1e-6 as in `src/program.rs`); `verify/eps_scale.py` measures whether the
+size of S follows that epsilon. JAX on the collision3 test dump (`runs/eps-check/`):
+
+| program | float32, ε 1e-6 | float64, ε 1e-6 | float64, ε 1e-3 | float64, ε 1e-9 | max\|S\| at ε 1e-3 / at ε 1e-6 |
+|---|---|---|---|---|---|
+| j-lexicase seed 6 | 0.893 | 0.896 | 0.897 | **0.000** | **1000** |
+| j-lexicase seed 7 | 0.711 | 0.714 | 0.713 | 0.502 | 0.99 |
+| d-kalman seed 9 | 0.855 | 0.858 | 0.846 | 0.834 | 0.94 |
+| j-lexicase seed 2 | 0.721 | 0.721 | | 0.721 | 1.00 |
+
+Float64 keeps the accuracy, so it is not rounding. The write is the leak of the epsilon:
+Normalize is x/(|x| + 1e-6), û is slightly shorter than a unit vector, and v rᵀ(I − û ûᵀ)
+leaves about 1e-6·(1 + |r|)·v ûᵀ. To first order in ε the program is
+S' = 1.011·[S(I − û ûᵀ) + ε(1 + |r|)·v ûᵀ]: a delta rule with step 1 on the key û, every write
+scaled by ε. S starts at zero and the rule is linear in S and in the write, so S is ε times the
+state of the same rule written at scale 1. Argmax decoding ignores that factor, and the readout
+clears the 1e-6 norm threshold of `src/task.rs` only because of the factors 1.011 per step and
+1 + |r|. At ε = 1e-9 every readout falls below the threshold. The program as found is a scale
+trick under rule 3 and is not counted.
+
+What the rule computes once the epsilon is taken out (reference probe only, rule 6;
+`verify/probe_j6.py`, Rust `eval` in `runs/eps-check/j6_rust_eval.txt`):
+
+| program | train | collision3 test | T64 K8 | T128 K8 |
+|---|---|---|---|---|
+| found (writes through ε) | 0.909 | 0.893 | 0.997 | 0.995 |
+| b: S' = 1.011·[S(I − û ûᵀ) + (1 + \|r\|)·v ûᵀ] | 0.907 | 0.898 | 1.000 | 0.999 |
+| a: S' = 1.011·[S(I − û ûᵀ) + v ûᵀ] | 0.874 | 0.881 | 1.000 | 0.999 |
+
+with P' = 0.9935·P − 0.366·r rᵀ and P = I at the start, the constants as evolved. This is the
+delta rule with step 1 on a key decorrelated by a second state that subtracts a decayed sum of
+r rᵀ from the identity: a first-order estimate of the inverse key covariance. At 0.898 it lies
+between `d-kalman` seed 9 (0.855) and Kalman delta (0.933). Neighbours: Preconditioned DeltaNet
+(Tumma, Loo and Rus, ICML 2026, arXiv 2604.21100; the delta rule with the curvature of the
+least-squares loss as preconditioner), OSDN (May 2026; a diagonal preconditioner on the write
+key), decorrelation by anti-Hebbian learning (Földiák 1990) and Kohonen's novelty filter. The
+rewrite is hand-written and no claim rests on it. What it shows is that lexicase reached the
+region of strong rules once in 32 seeds, by a route that a scale check excludes.
+
+### The same check on every arm in this space
+
+All 96 best rules of `d-kalman`, `g-tune8` and `j-lexicase`, float32 at ε 1e-6 against float64
+at ε 1e-9: 92 do not move (difference ≤ 0.0005). Four move: j-lexicase 6 (the scale trick),
+j-lexicase 7 (0.711 to 0.502), `d-kalman` 9 (0.855 to 0.834) and `d-kalman` 20 (0.513 to 0.510).
+In seeds 7 and 9 the epsilon is a numerical floor for normalising vectors that can come close to
+zero, and S does not scale with it (ratio 0.99 and 0.94). Seed 7 is in no count (T128 K8 0.713).
+Seed 9 stays above 0.695 and its count stands. Its 0.855 does depend a little on the constant,
+and in float32 at ε 1e-9 it falls to 0.742.
+
+From now on this is a verification step for every arm in this space, applied to all compared arms
+alike: `verify.py --x64 --norm-eps 1e-9` on the dump, then `verify/eps_scale.py` for every seed
+that moves by more than 0.02. A ratio near 1000 is a scale trick and the seed is not counted. The
+fitness is unchanged, so the arms stay comparable. Closing the channel in the fitness itself
+(counting a query only if |o| > 1e-3, as values have unit norm) would change the fitness and
+make new arms incomparable with `d-kalman`, `g-tune8` and J. That is left to the owner.
+
+### Reading
+
+- In this space too, lexicase removes the seeds that stop at decayed linear attention: 0/32
+  against 12/32 (p = 6.9e-5), at equal real evaluations and 1.4 times the wall time. This
+  carries package H to a second task. It is one of three criteria, the one predicted most likely.
+- It does not raise the top. Rule 2 is reached in 11/32, there is no counted seed above 0.85 and
+  none above 0.90. The median moves because the bottom moves.
+- The condition of 17 Nov applies: the stuck count is not claimed for this space until a plain
+  arm at j-lexicase's wall time (about 2.1M candidates) has run. In package I, more wall time
+  for the plain search removed part of the stuck seeds, not all of them (24/32 against 32/32).
+- For Direction 2 the arm adds one hint: a rule at about 0.90 exists in this space at 24
+  instructions, and the search assembled it once, in a form that writes through the epsilon.
+- `j-share` is running. It is read with the same counts and the same epsilon check.

@@ -480,6 +480,23 @@ Per arm: dump, JAX check on the dump for all 32 seeds, delete the dump, as in D.
 aborts is reported with its `stderr.txt` and partial log and is not restarted without word
 from the research agent.
 
+Added 18 Nov 2026 after `j-lexicase` (README, "Package J, arm j-lexicase"), for `j-share` and
+every later arm in this space. On the same dump, before deleting it, from a checkout that has
+`verify/eps_scale.py`:
+
+```bash
+python verify/verify.py --x64 --norm-eps 1e-9 --task-json runs/<tag>/collision3_test.json runs/<tag>/seed*/best.json > runs/<tag>/verify_x64_eps1e-9.txt
+```
+
+For every seed whose accuracy there differs from `verify_dump.txt` by more than 0.02:
+
+```bash
+python verify/eps_scale.py --task-json runs/<tag>/collision3_test.json runs/<tag>/seed<N>/best.json >> runs/<tag>/eps_scale.txt
+```
+
+Report both files and list those seeds with their ratio. Do not exclude a seed yourself; the
+research agent applies rule 3.
+
 Report in `runs/<tag>/j_report.md`, with the 32 seeds of `runs/d-kalman` next to the arm:
 - the three counts of package E (rule 2; stuck below 0.53; test > 0.85 with rule 2's other
   conditions), seeds above 0.695 and above 0.90, median test, Mann-Whitney against

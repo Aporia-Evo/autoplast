@@ -136,6 +136,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    needs 3 to 5 specific instructions before it changes fitness (README, "Direction 2").
    Third component built for that barrier: `--residual-insert` (off by default). A package
    follows after J; any success needs a held-out target with the method frozen first.
+   Package J arm `j-lexicase` done 18 Nov (README, "Package J, arm j-lexicase"): stuck 0/32
+   against 12/32 (criterion met, p = 7e-5, not yet wall-time matched), rule 2 11/32, nothing
+   counted above 0.85. Seed 6 (0.893) writes only through the 1e-6 in Normalize, a scale trick
+   (rule 3), not counted; its epsilon-free rewrite reaches 0.898. Every arm in this space now
+   gets `verify.py --x64 --norm-eps 1e-9` and `verify/eps_scale.py`. `j-share` running.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.

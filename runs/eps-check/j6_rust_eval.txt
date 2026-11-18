@@ -1,0 +1,36 @@
+== runs/j-lexicase/seed6/best.json
+S' = -1.011·((((v)⊗((k + P1·tanh(k))) + S))((norm(norm((k + P1·tanh(k)))))⊗(norm((k + P1·tanh(k))))) - ((v)⊗((k + P1·tanh(k))) + S))
+structure: unclassified  [a=0.000 b=0.000 c=0.000 g=0.000, erase c/a=0.000, R²=0.1052, 1408 steps]
+train acc 0.909 ±0.008
+test regime collision3: acc 0.893  margin 0.240  ±0.004
+test d16 T12 ow0.3: acc 0.991  margin 0.360  ±0.001
+test d16 T12 ow0.0: acc 0.977  margin 0.314  ±0.002
+test d16 T12 ow0.6: acc 0.995  margin 0.378  ±0.001
+test d32 T24 ow0.3: acc 0.999  margin 0.446  ±0.000
+test d8 T6 ow0.3: acc 0.931  margin 0.195  ±0.005
+test d16 T64 K8 ow0.3: acc 0.997  margin 0.377  ±0.001
+test d16 T128 K8 ow0.3: acc 0.995  margin 0.370  ±0.002
+== runs/eps-check/j6_clean_a.json
+S' = 1.011·((S - (S)((norm((k + P1·tanh(k))))⊗(norm((k + P1·tanh(k)))))) + (v)⊗(norm((k + P1·tanh(k)))))
+structure: unclassified  [a=0.987 b=0.915 c=-0.738 g=-0.019, erase c/a=0.748, R²=0.7190, 1408 steps]
+train acc 0.874 ±0.010
+test regime collision3: acc 0.881  margin 0.237  ±0.004
+test d16 T12 ow0.3: acc 0.991  margin 0.367  ±0.001
+test d16 T12 ow0.0: acc 0.985  margin 0.321  ±0.002
+test d16 T12 ow0.6: acc 0.998  margin 0.385  ±0.001
+test d32 T24 ow0.3: acc 1.000  margin 0.455  ±0.000
+test d8 T6 ow0.3: acc 0.940  margin 0.197  ±0.005
+test d16 T64 K8 ow0.3: acc 1.000  margin 0.377  ±0.000
+test d16 T128 K8 ow0.3: acc 0.999  margin 0.370  ±0.001
+== runs/eps-check/j6_clean_b.json
+S' = 1.011·(((S - (S)((norm((k + P1·tanh(k))))⊗(norm((k + P1·tanh(k)))))) + (v)⊗(norm((k + P1·tanh(k))))) + (v)⊗((k + P1·tanh(k))))
+structure: unclassified  [a=0.994 b=1.648 c=-0.747 g=-0.032, erase c/a=0.752, R²=0.7106, 1408 steps]
+train acc 0.907 ±0.008
+test regime collision3: acc 0.898  margin 0.240  ±0.004
+test d16 T12 ow0.3: acc 0.991  margin 0.359  ±0.001
+test d16 T12 ow0.0: acc 0.978  margin 0.316  ±0.002
+test d16 T12 ow0.6: acc 0.997  margin 0.378  ±0.001
+test d32 T24 ow0.3: acc 0.999  margin 0.446  ±0.000
+test d8 T6 ow0.3: acc 0.933  margin 0.195  ±0.005
+test d16 T64 K8 ow0.3: acc 1.000  margin 0.378  ±0.000
+test d16 T128 K8 ow0.3: acc 0.999  margin 0.371  ±0.001

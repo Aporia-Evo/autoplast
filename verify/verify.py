@@ -29,6 +29,18 @@ import numpy as np
 
 NM, NV, NS = 4, 6, 4
 
+# `--x64` (added 18 Nov 2026): run the interpreter in float64. A rule whose accuracy depends on
+# float32 rounding residue (memory that is zero in exact arithmetic) loses it here; see README,
+# "Package J, arm j-lexicase". Must be set before any array is built.
+X64 = "--x64" in sys.argv
+if X64:
+    jax.config.update("jax_enable_x64", True)
+# `--norm-eps X` (added 18 Nov 2026): epsilon of the Normalize op, 1e-6 as in Rust. A rule whose
+# accuracy changes when it goes to 1e-9 lives on the epsilon (README, "Package J, arm j-lexicase").
+NORM_EPS = float(sys.argv[sys.argv.index("--norm-eps") + 1]) if "--norm-eps" in sys.argv else 1e-6
+FT = jnp.float64 if X64 else jnp.float32
+NFT = np.float64 if X64 else np.float32
+
 
 def build_step(instrs, read=False, pm=1, pv=0, ident=False):
     """Return step(S, k, v) -> S' for a write program, or, with read=True, read(S, q) -> o for
@@ -44,7 +56,7 @@ def build_step(instrs, read=False, pm=1, pv=0, ident=False):
         d = S.shape[0]
         m = [S] + list(extra_m) + [jnp.zeros((d, d)) for _ in range(NM - pm)]
         vec = [k, v] + list(extra_v) + [jnp.zeros(d) for _ in range(NV - 2 - pv)]
-        s = [jnp.float32(0.0)] * NS
+        s = [FT(0.0)] * NS
         for ins in instrs:
             op, o, a, b, c = ins["op"], ins["out"], ins["a"], ins["b"], ins["c"]
             if op == "Outer":
@@ -70,13 +82,13 @@ def build_step(instrs, read=False, pm=1, pv=0, ident=False):
             elif op == "Hadamard":
                 vec[o] = vec[a] * vec[b]
             elif op == "Normalize":
-                vec[o] = vec[a] / (jnp.linalg.norm(vec[a]) + 1e-6)
+                vec[o] = vec[a] / (jnp.linalg.norm(vec[a]) + NORM_EPS)
             elif op == "Tanh":
                 vec[o] = jnp.tanh(vec[a])
             elif op == "Dot":
                 s[o] = vec[a] @ vec[b]
             elif op == "Const":
-                s[o] = jnp.float32(c)
+                s[o] = FT(c)
             elif op == "SAdd":
                 s[o] = s[a] + s[b]
             elif op == "SMul":
@@ -125,14 +137,14 @@ def build_step(instrs, read=False, pm=1, pv=0, ident=False):
 
 def make_task(rng, d, n_keys, n_vals, T, p_ow, n_ep, max_keys=None, clusters=None, cluster_cos=None):
     def unit(n):
-        x = rng.standard_normal((n, d)).astype(np.float32)
+        x = rng.standard_normal((n, d)).astype(NFT)
         return x / np.linalg.norm(x, axis=1, keepdims=True)
 
     if clusters:
         # stage-2 collision regime: key i = normalize(sqrt(c)*centre[i % C] + sqrt(1-c)*u_i)
         centres, noise = unit(clusters), unit(n_keys)
         keys = np.sqrt(cluster_cos) * centres[np.arange(n_keys) % clusters] + np.sqrt(1 - cluster_cos) * noise
-        keys = (keys / np.linalg.norm(keys, axis=1, keepdims=True)).astype(np.float32)
+        keys = (keys / np.linalg.norm(keys, axis=1, keepdims=True)).astype(NFT)
     else:
         keys = unit(n_keys)
     vals = unit(n_vals)
@@ -178,7 +190,7 @@ def accuracy_counts(step, task, read=None):
             bad = jnp.where(jnp.all(jnp.isfinite(M)), jnp.max(jnp.abs(M)), jnp.inf)
             return (S, jnp.maximum(mx, bad)), None
 
-        (S, mx), _ = jax.lax.scan(body, (init(d), jnp.float32(0.0)), w)
+        (S, mx), _ = jax.lax.scan(body, (init(d), FT(0.0)), w)
         S = mem(S)
         qk = keys[q[:, 0]] if qv is None else qv
         o = (S @ qk.T).T if read is None else jax.vmap(lambda x: read(S, x))(qk)  # (T, d)
@@ -201,8 +213,8 @@ def load_task_json(path):
     by write length so that no padding enters S; returns a list of task tuples."""
     j = json.load(open(path))
     d = j["d"]
-    keys = np.array(j["keys"], dtype=np.float32).reshape(-1, d)
-    vals = np.array(j["vals"], dtype=np.float32).reshape(-1, d)
+    keys = np.array(j["keys"], dtype=NFT).reshape(-1, d)
+    vals = np.array(j["vals"], dtype=NFT).reshape(-1, d)
     groups = {}
     for e in j["episodes"]:
         groups.setdefault(len(e["w"]), []).append(e)
@@ -213,12 +225,12 @@ def load_task_json(path):
         Q = np.zeros((len(eps), nq, 2), dtype=np.int32)
         Qm = np.zeros((len(eps), nq), dtype=bool)
         has_qv = any(len(e["qv"]) for e in eps)
-        QV = np.zeros((len(eps), nq, d), dtype=np.float32)
+        QV = np.zeros((len(eps), nq, d), dtype=NFT)
         for i, e in enumerate(eps):
             Q[i, : len(e["q"])] = e["q"]
             Qm[i, : len(e["q"])] = True
             if has_qv:
-                QV[i, : len(e["q"])] = np.array(e["qv"], dtype=np.float32).reshape(-1, d)
+                QV[i, : len(e["q"])] = np.array(e["qv"], dtype=NFT).reshape(-1, d)
         t = (jnp.array(keys), jnp.array(vals), jnp.array(W), jnp.array(Q), jnp.array(Qm))
         tasks.append(t + ((jnp.array(QV),) if has_qv else ()))
     return tasks
@@ -238,10 +250,10 @@ def report_json(name, instrs, tasks, read_instrs=None, pm=1, pv=0, ident=False):
 
 def decompose(step, d=16, n=4000, seed=0):
     rng = np.random.default_rng(seed)
-    S = rng.standard_normal((n, d, d)).astype(np.float32) * 0.3
-    k = rng.standard_normal((n, d)).astype(np.float32)
+    S = rng.standard_normal((n, d, d)).astype(NFT) * 0.3
+    k = rng.standard_normal((n, d)).astype(NFT)
     k /= np.linalg.norm(k, axis=1, keepdims=True)
-    v = rng.standard_normal((n, d)).astype(np.float32)
+    v = rng.standard_normal((n, d)).astype(NFT)
     v /= np.linalg.norm(v, axis=1, keepdims=True)
     Sn = np.asarray(jax.jit(jax.vmap(step))(jnp.array(S), jnp.array(k), jnp.array(v)))
     Sk = np.einsum("nij,nj->ni", S, k)
@@ -337,6 +349,12 @@ def report(name, instrs, rng_seed=12345, read_instrs=None, pm=1, pv=0, ident=Fal
 
 
 if __name__ == "__main__":
+    sys.argv = [a for a in sys.argv if a != "--x64"]
+    if "--norm-eps" in sys.argv:
+        i = sys.argv.index("--norm-eps")
+        sys.argv = sys.argv[:i] + sys.argv[i + 2 :]
+    if X64 or NORM_EPS != 1e-6:
+        print(f"float64: {X64}  Normalize epsilon: {NORM_EPS:g}")
     if "--task-json" in sys.argv:
         # exact Rust data: python verify/verify.py --task-json task.json prog.json ...
         i = sys.argv.index("--task-json")
