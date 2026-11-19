@@ -1848,3 +1848,40 @@ Reading:
 summary. A seed that was running restarts from the beginning. Seeds are deterministic for a given
 binary, flags and machine, so a restarted seed gives the result it would have given anyway and
 the restart does not bias the arm. Resumed with the same command (RUNBOOK, package K).
+
+## clustered8: a found rule against the tuned families and against an obvious fix (19 Nov 2026)
+
+Prompted by the second outside review (owner, 19 Nov): `clustered8` (T48, 8 keys around one
+centre, cos ≈ 0.8) is the regime with the largest measured gap between the best tuned family
+and the ceiling (Kalman delta 0.680, ridge 1.000; `runs/sweeps/clustered8.md`), and no search
+has been run on it. The 128 best rules of the space of D and E (`d-kalman`, `g-tune8`,
+`j-lexicase`, `j-share`), all found on collision3, were evaluated on it unchanged.
+
+| rule (state) | clustered8 test | 12 fresh draws, mean | gain over Kalman delta, draws won | T128 K8 |
+|---|---|---|---|---|
+| tuned DeltaNet (S) | 0.205 | 0.210 | −0.462, 0/12 | |
+| Kalman delta (S, P), sweep, native | 0.680 | | | |
+| Kalman delta in the space (S, P), δ and q tuned on clustered8 | 0.673 | 0.672 | – | |
+| centred delta rule, hand-written reference (S, one vector) | 0.805 | | | 0.695 |
+| `d-kalman` seed 9 as found on collision3 (P1, P2; S is recomputed each step) | **0.856** | **0.860** | **+0.188 ± 0.002, 12/12** | 0.885 |
+| ridge ceiling | 1.000 | | | |
+
+`verify/c8_checks.py` (fresh draws), `verify/probe_centering.py` (centring). JAX on the
+clustered8 test dump reproduces seed 9 exactly (0.8564). Epsilon check: 0.804 at ε = 1e-9 in
+float64, size of S independent of ε (ratio 0.87). The epsilon is a numerical floor there, as
+described for seed 9 under package D, not a scale trick. Of the other 127 rules none is above
+0.70 (best 0.603).
+
+Reading:
+- One rule found from the empty program on another regime beats every tuned family on
+  clustered8 by 0.18 at a budget of two d×d states. It is one rule. A claim under rule 2 needs
+  a rate over seeds from searches on clustered8 itself.
+- The headroom is mostly structural and an obvious fix closes most of it. The keys share one
+  centre. Subtracting a running mean of the keys before a delta write uses one extra vector
+  and reaches 0.805. Centring does nothing on collision3 (best ρ = 1, i.e. no centring).
+  Against "known families plus centring", seed 9 is ahead by 0.05, with more state. A discovery
+  claim on clustered8 would have to include centred versions of the families as baselines, and
+  a reviewer would read the regime as built around a single mean.
+- Not released as a package. Searching here could still show whether the search finds rules
+  above the centred delta rule at the same budget. That depends on the owner's choice of
+  direction.

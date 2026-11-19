@@ -62,12 +62,15 @@ Stages:
 5. Literature check before calling anything new; the field moves monthly, so search again
    each time. Known neighbours: DeltaNet, Gated DeltaNet, Gated DeltaNet-2 (May 2026),
    Erase-then-Delta (Jun 2026), Preconditioned DeltaNet (Apr 2026), Kalman Delta Networks
-   (Sep 2026), Kronecker Delta Rule (NXAI, Oct 2026), Dual DeltaNet, Muir, RWKV-7, Longhorn,
+   (Sep 2026, arXiv 2609.07816), Gated KalmaNet (arXiv 2511.21016), Kalman Linear Attention
+   (Feb 2026), Momentum DeltaNet (May 2026), OSDN (May 2026), Kronecker Delta Rule (NXAI,
+   Oct 2026), Dual DeltaNet (not found in a search on 19 Nov), Muir, RWKV-7, Longhorn,
    MesaNet, NTM erase/add, Titans, Modular TTT, Memory Mosaics. Method neighbours:
    AutoML-Zero, ASI-Arch (LLM-driven, starts from DeltaNet). Selection by behaviour is not
    new: fitness sharing (Goldberg and Richardson 1987; in GP: McKay 2000/2001), semantic GP,
    novelty search, MAP-Elites, lexicase (Spector 2012; Helmuth et al.), and down-sampled
-   tournaments as its rival (Geiger et al. 2025). Evolving learning rules is not new: Chalmers
+   tournaments as its rival (Geiger et al. 2025), Dominated Novelty Search (Bahlous-Boldi
+   et al. 2025, arXiv 2502.00593). Evolving learning rules is not new: Chalmers
    1990 evolved the delta rule; Bengio et al. 1994 used GP (README, "Literature check of the
    method components").
 6. Hand-written rules may be used as reference points and headroom probes only. They never
@@ -160,6 +163,10 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    effect of H belongs to behaviour-based selection, not to random episode subsets (base task
    only). `k-ri-lex` was stopped by a restart of the hub on epyc; resumed (safe: seeds are
    deterministic).
+   clustered8 check 19 Nov (README, "clustered8: a found rule..."): d-kalman seed 9, found on
+   collision3, scores 0.860 on clustered8 fresh draws against 0.672 for tuned Kalman delta
+   (12/12 draws); one rule of 128. An obvious hand-made fix (key centring + delta rule, one extra
+   vector) reaches 0.805, so the regime's headroom is mostly a single key mean. No package yet.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
