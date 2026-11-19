@@ -2016,3 +2016,63 @@ Fixed before the run, on task seed 1 (the train task of all searches so far):
 - Prediction of the research agent: A stops below 0.70 with probability 0.6. B reaches the
   partial level with 0.35 and success with 0.2. The main risks are the length limit (24) and
   the greedy loop taking decay at T2.
+
+### Closed-loop growth test: result and reading (19 Nov 2026)
+
+`python verify/grow.py --arm A|B --task-seed N`, design as fixed above, run once per arm and
+task seed (the loop is deterministic). Logs and final programs: `runs/grow/arm{A,B}_task{N}/`.
+Test is the fixed collision3 test suite; train is the train task of that task seed. The new
+command `autoplast evalmany` scores a batch of programs with the search's own fitness. On two
+committed rules it gives the summaries' train accuracies (0.732, 0.863).
+
+| task seed | arm | train | collision3 test | T128 K8 | length | stopped by | taps taken | Rust evaluations | seconds |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | A | 0.509 | 0.511 | 0.554 | 23 | length limit | – | 3,373 | 277 |
+| 1 | B | 0.850 | **0.860** | 0.984 | 23 | length limit | 1 | 2,795 | 415 |
+| 2 | A | 0.665 | 0.654 | 0.714 | 24 | length limit | – | 3,389 | 309 |
+| 2 | B | 0.527 | 0.527 | 0.000 | 16 | no improvement | 1 | 2,295 | 158 |
+| 3 | A | 0.654 | 0.644 | 0.778 | 17 | no improvement | – | 3,513 | 169 |
+| 3 | B | 0.664 | 0.645 | 0.708 | 22 | length limit | 1 | 1,945 | 300 |
+| 4 | A | 0.647 | 0.642 | 0.687 | 18 | no improvement | – | 3,241 | 186 |
+| 4 | B | 0.799 | 0.771 | 0.895 | 21 | length limit | 1 | 2,137 | 356 |
+
+Seconds are on this agent's 4-core container. On top of the Rust evaluations each round has
+one forward-backward pass for the adjoints and 60 for the constant polish (about 300 per run).
+
+Against what was fixed before the run (task seed 1):
+- Success (≥ 0.90): not reached by either arm.
+- Partial success (≥ 0.85 with rule 2's other conditions and the epsilon check): **arm B,
+  0.860**, T128 K8 0.984, train − test −0.010. The JAX check reproduces 0.8602, also in float64
+  at ε = 1e-9, and S does not scale with ε (ratio 1.0). Growth factor 0.975.
+- The taps matter: B reaches a level A does not (0.860 against 0.511).
+- Prediction: A below 0.70 (0.6) came true; B partial (0.35) came true; B success (0.2) did not.
+
+Replicates (task seeds 2 to 4, reported as fixed):
+- A ends between 0.64 and 0.65 every time (decay or delta rule, then nothing more).
+- B is above A on seeds 1 and 4 (by 0.35 and 0.13), equal on 3, and below on 2 (by 0.13).
+  On seed 2 the loop took a tap on v instead of k, a weak step it could not leave, and the
+  rule fails on long episodes (T128 K8 0.000).
+- B is above 0.85 in 1 of 4 and above 0.695 in 2 of 4. For the evolutionary search in this
+  space the figures are 1 of 32 and 2 of 32 per seed (`d-kalman`). Four task seeds are too few
+  for a rate under rule 2.
+
+What the rule of task seed 1 is (`runs/grow/armB_task1/best.json`, 23 instructions):
+P2' = P2 − 0.678·tanh(u) uᵀ with u = P2 k (an anti-Hebbian key preconditioner starting at I),
+and S' = 0.973·[S − 0.243 (S k)kᵀ − 0.387 (S k)ûᵀ] + 0.013 v uᵀ, which is a delta-type rule
+writing at the preconditioned key with an erase along k and along û. It is step D' of the
+measured path plus erase terms. It is not new (Preconditioned DeltaNet, anti-Hebbian
+decorrelation), and the claim here is not about the rule.
+
+Reading:
+- The mechanism works where it was meant to. In every B run a tap was taken in round 2 or 3,
+  and the P update was entered in a single step, which the evolutionary search does in 1 of 32
+  seeds at best. On task seed 1 that gives the level of `d-kalman` seed 9 in 2,795 Rust
+  evaluations and about 300 gradient passes, against roughly 0.8M real evaluations per
+  evolutionary seed.
+- The loop is not reliable yet. It is greedy and runs one trajectory per task. One bad early
+  choice (seed 2) cannot be undone. Three of four B runs stopped at the length limit of 24,
+  because every step costs four or five instructions, including a `Const` and a scale.
+- Next, before any claim: keep several programs per round instead of one (a beam). After
+  each step, try deleting instructions and keep a deletion when fitness does not drop, to free
+  length. Then run 8 or more task seeds against the evolutionary rates. These are changes to
+  the loop and will be fixed in README before the run.

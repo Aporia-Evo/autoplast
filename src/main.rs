@@ -434,6 +434,41 @@ fn main() {
             let out: String = arg(&args, "--out", String::from("task.json"));
             fs::write(&out, Task::new(cfg).to_json()).unwrap();
         }
+        "evalmany" => {
+            // (19 Nov 2026) train-task score of many programs, one JSON program per input line,
+            // under the state budget given by the flags; prints "fitness acc margin" per line.
+            // Used by verify/grow.py. Same evaluation as the search (effective program).
+            let path: String = arg(&args, "--in", String::new());
+            let threads: usize = arg(&args, "--threads", 4usize);
+            let split: String = arg(&args, "--split", String::from("train"));
+            let text = fs::read_to_string(&path).expect("read --in");
+            let progs: Vec<Program> = text.lines().filter(|l| !l.trim().is_empty()).map(|l| Program::from_json(l).expect("parse prog")).collect();
+            let cfg = if split == "train" {
+                train_cfg()
+            } else {
+                test_suites().into_iter().find(|(n, _)| n.starts_with("test regime")).expect("--regime needed").1
+            };
+            let task = Task::new(cfg);
+            let mut out = vec![(0f32, 0f32, 0f32); progs.len()];
+            let chunk = (progs.len() + threads - 1) / threads.max(1);
+            std::thread::scope(|sc| {
+                for (ps, os) in progs.chunks(chunk.max(1)).zip(out.chunks_mut(chunk.max(1))) {
+                    let task = &task;
+                    sc.spawn(move || {
+                        let mut regs = Regs::new(task.cfg.d);
+                        for (p, o) in ps.iter().zip(os.iter_mut()) {
+                            let sc = evaluate(&p.effective(), task, &mut regs);
+                            *o = (sc.fitness, sc.acc, sc.margin);
+                        }
+                    });
+                }
+            });
+            let mut w = String::new();
+            for (f, a, m) in out {
+                w += &format!("{f:.6} {a:.6} {m:.6}\n");
+            }
+            print!("{w}");
+        }
         "mutstat" => {
             // diagnostic (19 Nov 2026): what one residual insertion does to given programs.
             // autoplast mutstat --regime R [flags] --n N [--legacy] PROG.json ...

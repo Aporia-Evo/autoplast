@@ -171,7 +171,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    feasibility test done (README, "Feasibility test: result and reading"): next step of the
    measured path ranked first in 3/5 transitions (T2 rank 10, T5 rank 31, whose top candidate
    reaches 0.898 of 0.932). Neither pre-set criterion met; promising, with a known gap (neutral
-   pairs such as reading an unchanged P). Next: closed-loop growth test in JAX, to be fixed.
+   pairs such as reading an unchanged P). Closed-loop growth test done 19 Nov (README,
+   "Closed-loop growth test: result and reading"): with neutral taps (arm B) the loop reaches
+   0.860 test on task seed 1 (partial success, all checks pass) in 2.8k Rust evaluations; without
+   (arm A) 0.511. Replicates: B 0.527 / 0.645 / 0.771, A 0.64 to 0.65. Works, not yet reliable:
+   greedy, length-bound. Next: beam + deletion step, 8+ task seeds, fixed in README first.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
