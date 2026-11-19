@@ -1965,6 +1965,54 @@ Reading:
   Reading P while P is still the identity is a neutral step. Its first-order effect is zero
   and so is that of updating an unread P. That pair cannot be found by first-order ranking
   alone. It needs neutral drift (as in the evolutionary search) or a second-order term.
-- Next test, not yet fixed: a closed loop in JAX that grows a program from the empty one by
-  rank-then-verify. It would show whether the method walks the path on its own and where it
-  stops.
+- Next test: a closed loop that grows a program from the empty one by rank-then-verify
+  (below).
+
+### Closed-loop growth test (fixed 19 Nov 2026, before running)
+
+Owner's go on 19 Nov, with two points from the outside review taken over: constants are
+polished by gradient after every accepted step, and residuals may target registers of any
+type. A third point is tested as its own arm. That is the neutral tap: an unread persistent
+matrix P that starts at I can be read through a tap `x ← P x`, which changes nothing while
+P = I. Together with a write branch `P ← P + ε Δ` the pair has a first-order effect. Its
+adjoint for P comes from the adjoints already computed:
+G_P(t) = Σ_{τ>t} (∂L/∂x_τ) x_τᵀ. No extra pass is needed and no rule is named. The principle
+(function-preserving growth, new part chosen by the gradient of its weights) is that of
+GradMax (Evci et al., ICLR 2022, arXiv 2201.05125) and of Net2Net and network morphism. What
+is new here is the use on typed recurrent programs, not the principle.
+
+Loop (`verify/grow.py`, JAX for gradients, the Rust interpreter for every accuracy):
+1. Sites are a register r at a position p of the program (before instruction p, or at the end
+   of the step). For each site, the adjoint G = ∂L/∂r with the loss of the feasibility test
+   (τ = 10). Candidates are expressions of one or two ops over the registers at p, as in the
+   feasibility test, scored by the slope |⟨G, e⟩| / ‖e‖.
+2. The best 60 (site, candidate) pairs over all sites, at most 3 per site, are inserted as
+   `t = e; s = Const(ε); t = s·t; r = r + t`, with temporaries that are dead at p (as in
+   `--residual-insert`), for ε in ±{0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 3}. Each is scored by
+   Rust train fitness (the search's fitness). The best is kept if it beats the current program.
+3. Constant polish: 60 Adam steps on all `Const` values for the smooth loss. Kept if the Rust
+   train fitness does not drop.
+4. Stop when no candidate improves, when no candidate fits into `MAX_LEN` = 24, or after 20
+   rounds.
+
+Same space as packages D and E (`--persist-m 3 --persist-init identity --recip`, the 20 ops,
+registers, `MAX_LEN` 24, collision3 train task); start is the empty program.
+
+| arm | sites |
+|---|---|
+| A | every register of every type at every position, and S, P1, P2 at the end of the step |
+| B | A, plus neutral taps `x ← P x` for every vector x at every position and every P not yet read |
+
+Fixed before the run, on task seed 1 (the train task of all searches so far):
+- Success of the loop: collision3 test ≥ 0.90 with rule 2's other conditions (T128 K8 ≥ 0.838,
+  train − test ≤ 0.03) and the epsilon check. Partial success: ≥ 0.85 (the level of `d-kalman`
+  seed 9).
+- The taps matter if B reaches a level A does not reach (success or partial success for B
+  only).
+- Replicates: task seeds 2, 3 and 4, run after seed 1 and reported in full, whatever seed 1
+  shows.
+- Reported per round: the step taken, train and test accuracy, length, Rust evaluations and
+  JAX passes. The cost is set against the 0.8M real evaluations of an evolutionary seed.
+- Prediction of the research agent: A stops below 0.70 with probability 0.6. B reaches the
+  partial level with 0.35 and success with 0.2. The main risks are the length limit (24) and
+  the greedy loop taking decay at T2.
