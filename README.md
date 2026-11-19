@@ -2076,3 +2076,51 @@ Reading:
   each step, try deleting instructions and keep a deletion when fitness does not drop, to free
   length. Then run 8 or more task seeds against the evolutionary rates. These are changes to
   the loop and will be fixed in README before the run.
+
+### Growth loop, second version (fixed 19 Nov 2026, before running)
+
+Owner's go on 19 Nov, with three points of the outside review taken over. All changes are
+generic; none names an op pattern of a known rule.
+
+1. **Beam of 4, kept diverse.** Each round every beam member is expanded as in the first
+   version (best 60 site-candidate pairs, at most 3 per site, all ε), and for every candidate
+   the best ε gives one child. The next beam is the 4 best programs among the children and
+   the current beam, by Rust fitness. At most one program is kept per skeleton (effective
+   program without constant values). Among the children, at most one is kept per step
+   signature (kind of step, target register, root op of the expression, tapped register).
+   This prevents the beam from filling with variants of one path, the failure that behaviour
+   selection removed in packages H and J. Stop when the beam does not change, or after 20
+   rounds.
+2. **Compaction** of every new beam member after the constant polish. The following steps
+   are repeated until none applies. Each variant is scored by Rust fitness and kept only if
+   fitness does not drop (the fitness carries the length penalty):
+   - deletion of one instruction;
+   - unit coefficient: `s = c; u = s·t; r = r + u` becomes `r = r + t` or `r = r − t`;
+   - self residual: `s = c; u = s·r; r = r + u` becomes `s = 1 + c; r = s·r`;
+   - common subexpressions: a repeated instruction whose inputs are unchanged is removed, and
+     its readers read the first result.
+   This addresses the length limit: every residual step costs a `Const` and a scale. Known
+   rules mostly need neither (coefficients ±1).
+3. **Reporting.** Per run: Rust evaluations, gradient passes (adjoints and polish) and wall
+   time. The loop is deterministic, so its replicates are task seeds (train tasks 1 to 8).
+   The replicates of the evolutionary search were search seeds on task seed 1. All rules are
+   scored on the same fixed collision3 test suite and T128 K8. Any rule at 0.85 or above also
+   gets 12 fresh draws, the epsilon check and JAX.
+
+Arms: `B2` (with taps) on task seeds 1 to 8, then `A2` (without taps) on the same seeds.
+
+Fixed before the run:
+- An effect against the evolutionary search is shown if `B2` reaches ≥ 0.85 (with rule 2's
+  other conditions and the epsilon check) in 3 or more of 8 task seeds. The evolutionary rate
+  is 1 of 32 per seed (`d-kalman`); one-sided Fisher p = 0.023 for 3/8, 0.0034 for 4/8.
+- The method is reliable enough to freeze and take to testbed 2 if `B2` does so in 5 or more
+  of 8.
+- A seed at ≥ 0.90 is reported as reaching the level of Kalman delta on that task seed; one
+  seed is not a rate.
+- The taps matter if `B2` has more seeds at ≥ 0.85 than `A2`.
+- Prediction of the research agent: `B2` at ≥ 0.85 in 3 or more of 8 with probability 0.5,
+  in 5 or more with 0.2; some seed ≥ 0.90 with 0.35; `A2` any seed ≥ 0.85 with 0.1.
+
+Neighbours for the growth principle: GradMax (Evci et al., ICLR 2022, arXiv 2201.05125),
+splitting steepest descent (Wu, Wang and Liu, NeurIPS 2019, arXiv 1910.02366; splitting
+neurons to escape saddle points, a second-order criterion), Net2Net, network morphism.
