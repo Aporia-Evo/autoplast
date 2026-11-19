@@ -1,0 +1,34 @@
+| program | len | inserted | live | live, same acc | live, |Δacc| ≤ 0.005 | Δacc < -0.05 | Δacc > 0 | live, fitness ≥ parent |
+|---|---|---|---|---|---|---|---|---|
+| runs/d-kalman/seed1/best.json | 19 | 94% | 38% | 58% | 80% | 1% | 0% | 0% |
+| runs/d-kalman/seed2/best.json | 23 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| runs/d-kalman/seed3/best.json | 15 | 96% | 30% | 49% | 94% | 0% | 0% | 1% |
+| runs/d-kalman/seed4/best.json | 16 | 91% | 32% | 51% | 85% | 0% | 0% | 0% |
+| runs/d-kalman/seed5/best.json | 13 | 100% | 38% | 47% | 95% | 0% | 0% | 0% |
+| runs/d-kalman/seed6/best.json | 13 | 97% | 30% | 36% | 82% | 0% | 0% | 0% |
+| runs/d-kalman/seed7/best.json | 18 | 86% | 38% | 38% | 60% | 7% | 0% | 0% |
+| runs/d-kalman/seed8/best.json | 8 | 100% | 19% | 58% | 85% | 0% | 0% | 0% |
+| runs/d-kalman/seed9/best.json | 22 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| runs/d-kalman/seed10/best.json | 15 | 88% | 24% | 33% | 81% | 0% | 0% | 0% |
+| runs/d-kalman/seed11/best.json | 12 | 97% | 42% | 64% | 82% | 0% | 0% | 0% |
+| runs/d-kalman/seed12/best.json | 21 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| runs/d-kalman/seed13/best.json | 13 | 99% | 31% | 51% | 78% | 4% | 1% | 3% |
+| runs/d-kalman/seed14/best.json | 17 | 79% | 35% | 54% | 88% | 1% | 0% | 0% |
+| runs/d-kalman/seed15/best.json | 14 | 97% | 34% | 56% | 83% | 1% | 0% | 0% |
+| runs/d-kalman/seed16/best.json | 18 | 96% | 52% | 59% | 92% | 0% | 0% | 0% |
+| runs/d-kalman/seed17/best.json | 16 | 99% | 28% | 49% | 91% | 1% | 0% | 0% |
+| runs/d-kalman/seed18/best.json | 16 | 99% | 35% | 34% | 60% | 0% | 0% | 0% |
+| runs/d-kalman/seed19/best.json | 14 | 95% | 30% | 56% | 83% | 1% | 0% | 0% |
+| runs/d-kalman/seed20/best.json | 17 | 96% | 42% | 64% | 76% | 1% | 0% | 0% |
+| runs/d-kalman/seed21/best.json | 14 | 92% | 29% | 45% | 91% | 0% | 0% | 0% |
+| runs/d-kalman/seed22/best.json | 17 | 93% | 43% | 61% | 86% | 0% | 0% | 0% |
+| runs/d-kalman/seed23/best.json | 8 | 100% | 21% | 45% | 87% | 2% | 1% | 4% |
+| runs/d-kalman/seed24/best.json | 19 | 100% | 28% | 43% | 87% | 1% | 0% | 0% |
+| runs/d-kalman/seed25/best.json | 16 | 97% | 34% | 39% | 70% | 2% | 0% | 0% |
+| runs/d-kalman/seed26/best.json | 9 | 100% | 22% | 62% | 80% | 1% | 0% | 0% |
+| runs/d-kalman/seed27/best.json | 24 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| runs/d-kalman/seed28/best.json | 18 | 98% | 28% | 49% | 80% | 1% | 0% | 0% |
+| runs/d-kalman/seed29/best.json | 10 | 97% | 26% | 55% | 88% | 0% | 0% | 0% |
+| runs/d-kalman/seed30/best.json | 23 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| runs/d-kalman/seed31/best.json | 20 | 98% | 28% | 40% | 69% | 2% | 0% | 0% |
+| runs/d-kalman/seed32/best.json | 16 | 99% | 25% | 51% | 86% | 1% | 0% | 0% |

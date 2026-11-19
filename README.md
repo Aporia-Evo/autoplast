@@ -1705,3 +1705,103 @@ Fixed before the run:
   probability 0.12, at least one seed above 0.90 with 0.22, secondary count met with 0.20, median
   below that of `j-lexicase` with 0.35, stuck at most 5/32 with 0.85. `k-plain2m`: 5 or more stuck
   with 0.80, above 0.90 with 0.03. The pilot of 18 Nov gave no sign either way.
+
+## Outside review of 19 Nov 2026, residual insertion corrected, down-sampling control (before any result of package K)
+
+The owner had the project reviewed by a second model on 19 Nov. Each point was checked against
+the code; what was confirmed is fixed or recorded here, before any run of package K.
+
+### Residual insertion overwrote live registers (confirmed, fixed)
+
+The block `t = op(a, b); s = Const(ε); t = s·t; r = r + t` drew its temporaries t and s among
+all registers of their type. In the space of D and E three of the four matrix registers are S
+or persistent, and V0, V1 hold k and v, so t or s often overwrote a value the rule still
+needed. The block was not near-neutral, as README ("Search method, third change") claimed.
+Since this commit t and s are drawn only among registers whose value is not needed at the
+insertion point (backward liveness, persistent registers counted as needed when the next step
+reads them); if there is none, no block is inserted. `MAX_LEN` = 24 counts dead code too, and
+programs in the population sit at that limit: in a function test (seed 1, 60,000 candidates,
+`--select lexicase --residual-insert`) 86% of attempts met a program at the limit. The first
+version would have failed there. Now just enough dead instructions, chosen at random, are
+removed first (no change in behaviour); 86% of attempts then insert a block. `MAX_LEN` is
+unchanged. The summary counts attempts, inserted blocks and removals. With the flag off nothing
+changed (`d-kalman` seed 9 gives the same 50,036-candidate row and the self-check of package F
+the same 120,052-candidate row, after every change of this section).
+
+A side observation: since an ordinary insertion at the limit turns into a deletion, every
+search here runs with programs full of dead code at 24 instructions. Rules that need more than
+about 20 live instructions are hard to reach for any arm; Kalman delta needs 15.
+
+Measured with the new diagnostic `autoplast mutstat` (250 insertions into each of the 32 best
+rules of `j-lexicase` and of `d-kalman`, collision3 train task; `runs/ri-diag/`):
+
+| | version of 17 Nov, j-lexicase | corrected, j-lexicase | 17 Nov, d-kalman | corrected, d-kalman |
+|---|---|---|---|---|
+| rules that can take a block (length ≤ 20) | 28/32 | 28/32 | 27/32 | 27/32 |
+| insertion drops train accuracy by more than 0.05 | **37%** | **1.9%** | **29%** | **1.0%** |
+| block live (the effective program grows) | 48% | 33% | 48% | 32% |
+| live block within ±0.005 of the parent's accuracy | 28% | 80% | 37% | 82% |
+| insertion raises train accuracy | 0.1% | 0.5% | 0.1% | 0.1% |
+| live block with fitness ≥ parent | 1% | 2% | 0% | 0% |
+
+The pilot of 18 Nov ran the faulty version; it says nothing about the mutation.
+
+### Length penalty against near-neutral blocks (confirmed, left as is)
+
+A live block costs 4 · 1e-4 of fitness, so a block that leaves accuracy unchanged is almost
+never as fit as its parent (last row above). Along the measured path the penalty is smaller
+than the signal once the block has some weight: a P update with weight c = 0.002 raises train
+accuracy by 0.001 to 0.002, c = 0.01 by 0.008, c = 0.05 by 0.04 (delta rule with normalised
+gain, `verify/probe_path_kalman.py` programs, β = 1, δ = 0.01 and 0.03). Under lexicase the
+penalty only breaks ties between rules with the same per-episode counts. Changing it would
+change the fitness of every arm and the comparison with `j-lexicase`; it stays, and is a
+candidate explanation if `k-ri-lex` shows nothing.
+
+### Points checked and not taken over
+
+- "Individuals live only 3.9 batches." With 500 individuals and 128 children per batch an
+  individual is replaced after 500 children, as in regularized evolution with one child per
+  step, and it enters about as many tournaments (about 10). Not a defect; population size is
+  an untested hyperparameter.
+- "A smooth training loss (MSE) would give slopes." On the measured path accuracy already
+  rises at small weights (above); the barrier is that a partial step is dead code. A loss
+  change would also change the fitness of all 160 seeds in this space. Not adopted now. It
+  would close the epsilon channel of 18 Nov by construction; recorded as an option.
+- "The additive block cannot build the normalised gain `P k / (δ + kᵀP k)`." Correct as a
+  limit: the block offers the P update (step D') in one insertion, not the normalisation. Stated
+  as a limit of the mutation, not a defect.
+
+### Points that stand as limits of results already reported
+
+- `--select lexicase` is lexicase inside a tournament of 10, with at most 32 episodes, as
+  specified on 15 Nov. It is not lexicase over the whole population; a rule that is best on
+  few episodes rarely enters the pool. Every lexicase result here (H, J) is for this variant.
+- Constant tuning (F, G) is closed for the version tested: 8 random joint perturbations once
+  per new structure. A stronger local optimiser of the constants was not tested.
+- Scope: the reviewer reads the method claim as too thin for a main-track paper unless the
+  search reaches Kalman delta and transfers to testbed 2; that is the reading of 17 Nov
+  ("Literature check of the method components"). The venue is the owner's decision.
+
+### The down-sampling control (built; package L)
+
+`--select downsample` (off by default): once per batch a random subset of `--ds-rate` (default
+0.1, not tuned) of the train episodes is drawn, and the parent is the candidate of the
+tournament with the most correct queries on that subset, ties broken by fitness as in
+lexicase. Every rule is still scored on all episodes; only selection uses the subset. This is
+the rival Geiger et al. (2025) set against lexicase: selection on random subsets of cases also
+keeps a population diverse. If it removes the stuck seeds as well as lexicase does, the effect
+of H and J belongs to selection on random episode subsets, not to lexicase or sharing as such.
+
+Package L, base task as in H, seeds 1 to 32, 1.5M candidates, `--select downsample --val-log`,
+baseline `h-base`, `h-lexicase`, `h-share`. Fixed before the run: down-sampling alone gives an
+effect if it reaches the accuracy level of delta β = 0.5 in 20/32 or more (against 12/32 of
+`h-base`, p = 0.040); lexicase does more than down-sampling if `l-downsample` reaches it in
+27/32 or fewer (against 32/32, p = 0.026). Both can hold. Prediction of the research agent:
+20 or more with probability 0.6, 27 or fewer with probability 0.5.
+
+### Package K after the correction
+
+`k-ri-lex` runs with the corrected mutation, at the commit of this section; thresholds and
+predictions of package K are unchanged. `k-plain2m` is not affected (flag off). If `k-ri-lex`
+shows nothing, two explanations are open before the mutation is given up: the length penalty
+above, and the length limit (4 of 32 final rules of `j-lexicase` are too long for a block).

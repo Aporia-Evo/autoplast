@@ -434,6 +434,59 @@ fn main() {
             let out: String = arg(&args, "--out", String::from("task.json"));
             fs::write(&out, Task::new(cfg).to_json()).unwrap();
         }
+        "mutstat" => {
+            // diagnostic (19 Nov 2026): what one residual insertion does to given programs.
+            // autoplast mutstat --regime R [flags] --n N [--legacy] PROG.json ...
+            let n: usize = arg(&args, "--n", 2000usize);
+            let legacy = has(&args, "--legacy");
+            let task = Task::new(train_cfg());
+            let mut regs = Regs::new(task.cfg.d);
+            let mut rng = rng::Rng::new(arg(&args, "--seed", 1u64));
+            println!("| program | len | inserted | live | live, same acc | live, |Δacc| ≤ 0.005 | Δacc < -0.05 | Δacc > 0 | live, fitness ≥ parent |");
+            println!("|---|---|---|---|---|---|---|---|---|");
+            for path in args.iter().filter(|a| a.ends_with(".json")) {
+                let text = fs::read_to_string(path).expect("read prog");
+                let (pm, pv, pid) = Program::json_budget(&text);
+                program::PERSIST_M.store(pm, std::sync::atomic::Ordering::Relaxed);
+                program::PERSIST_V.store(pv, std::sync::atomic::Ordering::Relaxed);
+                program::PERSIST_IDENTITY.store(pid == 1, std::sync::atomic::Ordering::Relaxed);
+                let prog = Program::from_json(&text).expect("parse prog");
+                let base = evaluate(&prog, &task, &mut regs);
+                let base_len = prog.effective().instrs.len();
+                let (mut ins, mut live, mut same, mut small, mut bad, mut up, mut fit) = (0, 0, 0, 0, 0, 0, 0);
+                for _ in 0..n {
+                    let mut c = prog.clone();
+                    if !c.residual_insert(&mut rng, legacy) {
+                        continue;
+                    }
+                    ins += 1;
+                    let eff = c.effective();
+                    let sc = evaluate(&eff, &task, &mut regs);
+                    let d = sc.acc - base.acc;
+                    let is_live = eff.instrs.len() > base_len;
+                    bad += (d < -0.05) as usize;
+                    up += (d > 1e-6) as usize;
+                    if is_live {
+                        live += 1;
+                        same += (d.abs() < 1e-6) as usize;
+                        small += (d.abs() <= 0.005) as usize;
+                        fit += (sc.fitness >= base.fitness) as usize;
+                    }
+                }
+                let pc = |x: usize, of: usize| if of == 0 { 0.0 } else { 100.0 * x as f64 / of as f64 };
+                println!(
+                    "| {path} | {} | {:.0}% | {:.0}% | {:.0}% | {:.0}% | {:.0}% | {:.0}% | {:.0}% |",
+                    prog.instrs.len(),
+                    pc(ins, n),
+                    pc(live, ins),
+                    pc(same, live),
+                    pc(small, live),
+                    pc(bad, ins),
+                    pc(up, ins),
+                    pc(fit, live)
+                );
+            }
+        }
         "eval" => {
             let path: String = arg(&args, "--prog", String::new());
             let text = fs::read_to_string(&path).expect("read prog");
@@ -464,9 +517,11 @@ fn main() {
                     "fitness" => evolve::Select::Fitness,
                     "lexicase" => evolve::Select::Lexicase,
                     "share" => evolve::Select::Share,
+                    "downsample" => evolve::Select::Downsample,
                     other => panic!("unknown --select {other}"),
                 },
                 share_radius: arg(&args, "--share-radius", 0.05f32),
+                ds_rate: arg(&args, "--ds-rate", 0.1f32),
                 level: if has(&args, "--level-acc") {
                     Some((arg(&args, "--level-acc", 0.0f32), arg(&args, "--level-long", 0.0f32)))
                 } else {
@@ -536,9 +591,19 @@ fn main() {
                     evolve::Select::Fitness => "fitness".to_string(),
                     evolve::Select::Lexicase => "lexicase".to_string(),
                     evolve::Select::Share => format!("share (radius {})", cfg.share_radius),
+                    evolve::Select::Downsample => format!("downsample (rate {})", cfg.ds_rate),
                 },
                 if program::RESIDUAL_INSERT.load(std::sync::atomic::Ordering::Relaxed) { "on" } else { "off" }
             );
+            if program::RESIDUAL_INSERT.load(std::sync::atomic::Ordering::Relaxed) {
+                let ld = |c: &std::sync::atomic::AtomicU64| c.load(std::sync::atomic::Ordering::Relaxed);
+                summary += &format!(
+                    "residual insert: {} attempts, {} blocks inserted, {} times dead instructions removed first\n\n",
+                    ld(&program::RI_ATTEMPTS),
+                    ld(&program::RI_INSERTED),
+                    ld(&program::RI_COMPACTED)
+                );
+            }
             if let Some((a, l)) = cfg.level {
                 summary += &format!(
                     "validation level (val > {a}, T128 K8 val >= {l}, train - val <= 0.03; checked every {} candidates): {}\n\n",
@@ -571,7 +636,7 @@ fn main() {
                 "usage: autoplast baselines | sweep | eval --prog FILE | dump [--split train|test --out FILE] | search [--seed N --budget N --pop N --threads N --batch N --out DIR]\n\
                  task:   --task v3 | --regime collision|overload|noisyq|collision3|longgap|full|overload48|rewrite8|rewrite14|clustered|clustered8   --task-seed N  --train-episodes N  --query-gap N\n\
                  space:  --no-op A,B  --extra-ops  --recip  --evolve-readout  --persist-m N (1..4)  --persist-v N (0..4)  --persist-init identity  --no-split-edge\n\
-                 search: --tune-consts K  --residual-insert  --select fitness|lexicase|share  --share-radius R  --algo random  --val-log  --level-acc A --level-long L"
+                 search: --tune-consts K  --residual-insert  --select fitness|lexicase|share|downsample  --share-radius R  --ds-rate F  --algo random  --val-log  --level-acc A --level-long L"
             );
         }
     }

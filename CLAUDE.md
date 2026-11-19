@@ -149,6 +149,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    lexicase, against `j-lexicase`; main count 2/32 above 0.90) on epyc, and `k-plain2m` (plain
    search at 2.1M, the wall-time control of J; J's stuck effect stands if 5/32 or more stuck)
    on the workstation. A success of `k-ri-lex` needs testbed 2 as held-out target, method frozen.
+   Outside review 19 Nov (README, "Outside review of 19 Nov 2026"): the residual insertion of
+   17 Nov overwrote live registers (37% of insertions destroyed the rule); corrected before
+   any K run (1.9%). Length penalty works against neutral blocks; left as is, noted. Lexicase
+   here is lexicase inside a tournament of 10 (a limit of H and J). Down-sampling control built
+   (`--select downsample`), released as package L on the base task, before `k-plain2m`.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.

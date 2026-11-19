@@ -515,8 +515,16 @@ Report in `runs/<tag>/j_report.md`, with the 32 seeds of `runs/d-kalman` next to
 
 ### K. Residual insertion on collision3, and the wall-time control of J (released 19 Nov 2026)
 
-Read README, "Package K". The search code changed since 50c2d10 (`--residual-insert`, off by
-default): build at the commit that contains this section, on both machines.
+Read README, "Package K" and "Outside review of 19 Nov 2026". The search code changed since
+50c2d10 (`--residual-insert`, off by default; corrected on 19 Nov): build at the commit that
+contains the note "Corrected 19 Nov" below, or later, on both machines.
+
+Corrected 19 Nov 2026: the residual insertion of the first release overwrote live registers.
+If `k-ri-lex` (or its timing run) was started with an earlier build, stop it, move its folder
+to `runs/k-ri-lex-faulty/` without committing it, and report how far it got. `k-plain2m` does
+not use the flag; a run started with the earlier build may continue. The summary of
+`k-ri-lex` now has a line `residual insert: ... attempts, ... blocks inserted, ... compacted`;
+report those three numbers per seed.
 
 Self-checks after the build, on each machine:
 
@@ -541,7 +549,7 @@ python local_runner.py --seeds 1-2 --budget 150000 --tag time-k-plain2m --parall
 ```
 
 If the projection for an arm is above 30 hours of wall time, stop and ask before starting it.
-The two arms run at the same time, one per machine:
+The two arms run at the same time, one per machine (on the workstation after package L):
 
 ```bash
 python local_runner.py --seeds 1-32 --budget 1500000 --tag k-ri-lex --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select lexicase --residual-insert --val-log --level-acc 0.651 --level-long 0.838"
@@ -568,6 +576,28 @@ Report in `runs/<tag>/k_report.md`:
 - `k-plain2m`, with `d-kalman`, `j-lexicase` and `j-share` next to it: the same counts; per seed
   also the train accuracy of the last log row at or below 1,500,100 candidates (to compare with
   `d-kalman`, where 11 of 32 seeds were below 0.53 at that point); minutes per seed.
+
+### L. Down-sampling control, base task (released 19 Nov 2026) — on the workstation, before `k-plain2m`
+
+Read README, "The down-sampling control". Same build as K (corrected). Base task as in H (no
+`--task`, no `--regime`), seeds 1 to 32, 1.5M candidates. Baseline: the committed `h-base`,
+`h-share`, `h-lexicase`; do not rerun them. Predictions into `runs/l-downsample/L_VORHERSAGE.md`,
+committed before the run. No timing step: `h-lexicase` took 9.2 minutes per seed, expect about
+2.5 to 3 h in total. Self-check of package F first.
+
+```bash
+python local_runner.py --seeds 1-32 --budget 1500000 --tag l-downsample --parallel 2 --threads 8 --extra="--select downsample --val-log"
+```
+
+```bash
+python verify/verify.py runs/l-downsample/seed*/best.json > runs/l-downsample/verify.txt
+```
+
+Report in `runs/l-downsample/l_report.md`, with `h-base`, `h-share` and `h-lexicase` next to it,
+the counts and columns of package H (accuracy level of delta β = 0.5; one-sided Fisher against
+`h-base` and against `h-lexicase`; structural count; ends at linear attention level; median and
+best test; train − test; candidates and real evaluations to the level; minutes per seed;
+growth factors; T128 K8 ≥ 0.80). Then start `k-plain2m`.
 
 ## Handing back
 

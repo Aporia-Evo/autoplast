@@ -10,7 +10,7 @@
 //! other program in the space. The readout is fixed for every rule: o = S q.
 
 use crate::rng::Rng;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::OnceLock;
 
 /// State budget (`--persist-m`, `--persist-v`). Matrix registers M0..M{PERSIST_M-1} keep their
@@ -44,6 +44,11 @@ pub static SPLIT_EDGE: AtomicBool = AtomicBool::new(true);
 /// Generic: any register type, any op; the analogue of a zero-initialised residual branch or of
 /// NEAT's new connection with a small weight. When off, no random number is drawn for it.
 pub static RESIDUAL_INSERT: AtomicBool = AtomicBool::new(false);
+/// Counters for `--residual-insert` (logging only, added 19 Nov 2026): attempts, blocks
+/// inserted, and programs from which dead instructions were removed to make room.
+pub static RI_ATTEMPTS: AtomicU64 = AtomicU64::new(0);
+pub static RI_INSERTED: AtomicU64 = AtomicU64::new(0);
+pub static RI_COMPACTED: AtomicU64 = AtomicU64::new(0);
 
 pub const NM: usize = 4;
 pub const NV: usize = 6;
@@ -309,6 +314,12 @@ pub fn initial_program() -> Program {
 
 /// Backward liveness from one output register.
 fn live(instrs: &[Instr], out_ty: Ty, out_idx: usize) -> Vec<Instr> {
+    let keep = live_mask(instrs, out_ty, out_idx);
+    instrs.iter().zip(keep).filter(|(_, k)| *k).map(|(i, _)| i.clone()).collect()
+}
+
+/// `live` as a mask over the instructions.
+fn live_mask(instrs: &[Instr], out_ty: Ty, out_idx: usize) -> Vec<bool> {
     let mut live_m = [false; NM];
     let mut live_v = [false; NV];
     let mut live_s = [false; NS];
@@ -344,13 +355,19 @@ fn live(instrs: &[Instr], out_ty: Ty, out_idx: usize) -> Vec<Instr> {
             }
         }
     }
-    instrs.iter().zip(keep).filter(|(_, k)| *k).map(|(i, _)| i.clone()).collect()
+    keep
 }
 
 /// Liveness of a write program with persistent registers: a persistent register is live at
 /// exit if the next step reads it, found by iterating to a fixpoint. Only used when the state
 /// budget is above the default.
 fn live_persistent(instrs: &[Instr]) -> Vec<Instr> {
+    let keep = live_persistent_mask(instrs);
+    instrs.iter().zip(keep).filter(|(_, k)| *k).map(|(i, _)| i.clone()).collect()
+}
+
+/// `live_persistent` as a mask over the instructions.
+fn live_persistent_mask(instrs: &[Instr]) -> Vec<bool> {
     let mut out_m = [false; NM];
     let mut out_v = [false; NV];
     out_m[0] = true;
@@ -399,7 +416,67 @@ fn live_persistent(instrs: &[Instr]) -> Vec<Instr> {
             }
         }
         if !changed {
-            return instrs.iter().zip(keep).filter(|(_, k)| *k).map(|(i, _)| i.clone()).collect();
+            return keep;
+        }
+    }
+}
+
+/// Registers whose value at position `pos` of a write program is still needed: read at or
+/// after `pos` by a live instruction before being overwritten, or carried out of the step (M0,
+/// and persistent registers the next step reads, found as in `live_persistent`).
+fn live_at(instrs: &[Instr], pos: usize) -> ([bool; NM], [bool; NV], [bool; NS]) {
+    let mut out_m = [false; NM];
+    let mut out_v = [false; NV];
+    out_m[0] = true;
+    loop {
+        let (mut lm, mut lv, mut ls) = (out_m, out_v, [false; NS]);
+        let mut at_pos = None;
+        for (idx, ins) in instrs.iter().enumerate().rev() {
+            let (ot, o) = ins.output();
+            let o = o as usize;
+            let is_live = match ot {
+                Ty::M => lm[o],
+                Ty::V => lv[o],
+                Ty::S => ls[o],
+            };
+            if is_live {
+                match ot {
+                    Ty::M => lm[o] = false,
+                    Ty::V => lv[o] = false,
+                    Ty::S => ls[o] = false,
+                }
+                for (ty, i) in ins.inputs() {
+                    let i = i as usize;
+                    match ty {
+                        Ty::M => lm[i] = true,
+                        Ty::V => lv[i] = true,
+                        Ty::S => ls[i] = true,
+                    }
+                }
+            }
+            if idx == pos {
+                at_pos = Some((lm, lv, ls));
+            }
+        }
+        if pos >= instrs.len() {
+            at_pos = Some((out_m, out_v, [false; NS]));
+        }
+        // registers live at the start of the step: persistent ones are live-out of the step
+        let mut changed = false;
+        for i in 0..NM {
+            if persist_m(i) && lm[i] && !out_m[i] {
+                out_m[i] = true;
+                changed = true;
+            }
+        }
+        for i in 0..NV {
+            if persist_v(i) && lv[i] && !out_v[i] {
+                out_v[i] = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            return at_pos.unwrap();
         }
     }
 }
@@ -479,8 +556,33 @@ impl Program {
 
     /// Residual branch insertion, see `RESIDUAL_INSERT`. Four instructions at a random position:
     ///   t = op(a, b);  s = Const(ε);  t = s·t;  r = r + t
-    /// with t, s random registers of the right type (t ≠ r), ε = ±10^U(-3, -1).
-    fn residual_insert(&mut self, rng: &mut Rng) -> bool {
+    /// ε = ±10^U(-3, -1). Since 19 Nov 2026 (README, "Residual insertion, corrected") the
+    /// temporaries t and s are drawn only among registers whose value is not needed at that
+    /// position, so the block changes nothing but r; before, they were drawn among all
+    /// registers and often overwrote S, a persistent register, k or v. If the program is too
+    /// long for four more instructions, just enough dead instructions (randomly chosen) are
+    /// removed first, which does not change behaviour. `legacy` gives the version of 17 Nov
+    /// (same distribution, not the same random stream), kept for `autoplast mutstat` only.
+    pub fn residual_insert(&mut self, rng: &mut Rng, legacy: bool) -> bool {
+        RI_ATTEMPTS.fetch_add(1, Ordering::Relaxed);
+        if !legacy && self.instrs.len() + 4 > MAX_LEN && !READ_EVOLVE.load(Ordering::Relaxed) {
+            let need = self.instrs.len() + 4 - MAX_LEN;
+            let mask = if any_persist() { live_persistent_mask(&self.instrs) } else { live_mask(&self.instrs, Ty::M, 0) };
+            let mut dead: Vec<usize> = (0..self.instrs.len()).filter(|&i| !mask[i]).collect();
+            if dead.len() < need {
+                return false;
+            }
+            for i in 0..need {
+                let j = i + rng.below(dead.len() - i);
+                dead.swap(i, j);
+            }
+            let mut drop: Vec<usize> = dead[..need].to_vec();
+            drop.sort_unstable_by(|a, b| b.cmp(a));
+            for i in drop {
+                self.instrs.remove(i);
+            }
+            RI_COMPACTED.fetch_add(1, Ordering::Relaxed);
+        }
         let len = self.instrs.len();
         if len + 4 > MAX_LEN {
             return false;
@@ -494,13 +596,39 @@ impl Program {
         let (_, ins) = op.sig();
         let pick = |rng: &mut Rng, t: Ty| rng.below(n_regs(t)) as u8;
         let r = pick(rng, ty);
-        let mut t = pick(rng, ty);
-        if t == r {
-            t = ((t as usize + 1) % n_regs(ty)) as u8;
-        }
         let a = ins.first().map(|&x| pick(rng, x)).unwrap_or(0);
         let b = ins.get(1).map(|&x| pick(rng, x)).unwrap_or(0);
-        let sreg = pick(rng, Ty::S);
+        let pos = rng.below(len + 1);
+        let (t, sreg) = if legacy {
+            let mut t = pick(rng, ty);
+            if t == r {
+                t = ((t as usize + 1) % n_regs(ty)) as u8;
+            }
+            (t, pick(rng, Ty::S))
+        } else {
+            let (lm, lv, ls) = live_at(&self.instrs, pos);
+            let dead = |ty: Ty| -> Vec<u8> {
+                (0..n_regs(ty))
+                    .filter(|&i| match ty {
+                        Ty::M => !lm[i],
+                        Ty::V => !lv[i],
+                        Ty::S => !ls[i],
+                    })
+                    .map(|i| i as u8)
+                    .collect()
+            };
+            let ts: Vec<u8> = dead(ty).into_iter().filter(|&x| x != r).collect();
+            if ts.is_empty() {
+                return false;
+            }
+            let t = ts[rng.below(ts.len())];
+            let ss: Vec<u8> =
+                dead(Ty::S).into_iter().filter(|&x| !(ty == Ty::S && (x == r || x == t))).collect();
+            if ss.is_empty() {
+                return false;
+            }
+            (t, ss[rng.below(ss.len())])
+        };
         let eps = 10f32.powf(-1.0 - 2.0 * rng.uniform()) * if rng.below(2) == 0 { 1.0 } else { -1.0 };
         let (scale, add) = match ty {
             Ty::M => (Op::MatScale, Op::MatAdd),
@@ -513,15 +641,15 @@ impl Program {
             Instr { op: scale, out: t, a: sreg, b: t, c: 0.0 },
             Instr { op: add, out: r, a: r, b: t, c: 0.0 },
         ];
-        let pos = rng.below(len + 1);
         for (i, ins) in block.into_iter().enumerate() {
             self.instrs.insert(pos + i, ins);
         }
+        RI_INSERTED.fetch_add(1, Ordering::Relaxed);
         true
     }
 
     fn mutate_write(&mut self, rng: &mut Rng) {
-        if RESIDUAL_INSERT.load(Ordering::Relaxed) && rng.below(6) == 5 && self.residual_insert(rng) {
+        if RESIDUAL_INSERT.load(Ordering::Relaxed) && rng.below(6) == 5 && self.residual_insert(rng, false) {
             return;
         }
         if SPLIT_EDGE.load(Ordering::Relaxed) && rng.below(6) == 5 && self.split_edge(rng) {

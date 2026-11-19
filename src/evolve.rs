@@ -34,6 +34,8 @@ pub struct SearchCfg {
     pub select: Select,
     /// `--share-radius`: niche radius for `Select::Share`, as a fraction of all train queries.
     pub share_radius: f32,
+    /// `--ds-rate`: fraction of train episodes drawn per batch for `Select::Downsample`.
+    pub ds_rate: f32,
 }
 
 /// How the parent is chosen among the `tournament` randomly drawn individuals.
@@ -48,6 +50,11 @@ pub enum Select {
     /// Fitness sharing: fitness is divided by the niche count, the number of individuals in the
     /// population whose per-episode behaviour is within the radius (weighted 1 − distance/radius).
     Share,
+    /// Down-sampled tournament (added 19 Nov 2026; the control for lexicase that Geiger et al.
+    /// 2025 use): once per batch a random subset of `ds_rate` of the train episodes is drawn;
+    /// the parent is the candidate with the most correct queries on that subset, ties broken by
+    /// fitness as in `Lexicase`. Selection only: every rule is still scored on all episodes.
+    Downsample,
 }
 
 #[derive(Clone)]
@@ -268,6 +275,23 @@ pub fn search(
         } else {
             Vec::new()
         };
+        let ds: Vec<u32> = if cfg.select == Select::Downsample {
+            let n_ep = task.episodes.len();
+            let m = ((cfg.ds_rate * n_ep as f32).round() as usize).clamp(1, n_ep);
+            let mut idx: Vec<usize> = (0..n_ep).collect();
+            for i in 0..m {
+                let j = i + rng.below(n_ep - i);
+                idx.swap(i, j);
+            }
+            pop.iter()
+                .map(|ind| {
+                    let b = ind.beh.as_ref().unwrap();
+                    idx[..m].iter().map(|&e| b[e] as u32).sum()
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         let children: Vec<Program> = (0..cfg.batch)
             .map(|_| {
                 if cfg.random {
@@ -295,9 +319,16 @@ pub fn search(
                         }
                     }
                     let key = |i: usize| if cfg.select == Select::Share { shared[i] } else { pop[i].score.fitness };
+                    let better = |i: usize, j: usize| {
+                        if cfg.select == Select::Downsample && ds[i] != ds[j] {
+                            ds[i] > ds[j]
+                        } else {
+                            key(i) > key(j)
+                        }
+                    };
                     let mut best_i = cand[0];
                     for &i in &cand[1..] {
-                        if key(i) > key(best_i) {
+                        if better(i, best_i) {
                             best_i = i;
                         }
                     }

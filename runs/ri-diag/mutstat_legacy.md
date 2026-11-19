@@ -1,0 +1,34 @@
+| program | len | inserted | live | live, same acc | live, |Δacc| ≤ 0.005 | Δacc < -0.05 | Δacc > 0 | live, fitness ≥ parent |
+|---|---|---|---|---|---|---|---|---|
+| runs/j-lexicase/seed1/best.json | 22 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| runs/j-lexicase/seed2/best.json | 20 | 100% | 60% | 13% | 21% | 45% | 0% | 0% |
+| runs/j-lexicase/seed3/best.json | 10 | 100% | 46% | 22% | 38% | 29% | 0% | 0% |
+| runs/j-lexicase/seed4/best.json | 20 | 100% | 37% | 18% | 26% | 23% | 0% | 0% |
+| runs/j-lexicase/seed5/best.json | 16 | 100% | 74% | 10% | 18% | 68% | 0% | 0% |
+| runs/j-lexicase/seed6/best.json | 24 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| runs/j-lexicase/seed7/best.json | 23 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| runs/j-lexicase/seed8/best.json | 15 | 100% | 32% | 19% | 35% | 30% | 0% | 0% |
+| runs/j-lexicase/seed9/best.json | 20 | 100% | 46% | 17% | 19% | 47% | 0% | 0% |
+| runs/j-lexicase/seed10/best.json | 13 | 100% | 52% | 20% | 26% | 44% | 0% | 0% |
+| runs/j-lexicase/seed11/best.json | 13 | 100% | 55% | 14% | 23% | 48% | 0% | 0% |
+| runs/j-lexicase/seed12/best.json | 20 | 100% | 50% | 16% | 22% | 30% | 0% | 0% |
+| runs/j-lexicase/seed13/best.json | 14 | 100% | 64% | 20% | 48% | 31% | 0% | 0% |
+| runs/j-lexicase/seed14/best.json | 12 | 100% | 41% | 10% | 26% | 21% | 0% | 1% |
+| runs/j-lexicase/seed15/best.json | 18 | 100% | 43% | 16% | 22% | 33% | 0% | 0% |
+| runs/j-lexicase/seed16/best.json | 21 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| runs/j-lexicase/seed17/best.json | 18 | 100% | 37% | 12% | 23% | 37% | 0% | 0% |
+| runs/j-lexicase/seed18/best.json | 16 | 100% | 34% | 16% | 31% | 20% | 0% | 0% |
+| runs/j-lexicase/seed19/best.json | 20 | 100% | 64% | 30% | 37% | 34% | 1% | 2% |
+| runs/j-lexicase/seed20/best.json | 12 | 100% | 51% | 19% | 30% | 38% | 0% | 1% |
+| runs/j-lexicase/seed21/best.json | 20 | 100% | 42% | 21% | 27% | 29% | 0% | 1% |
+| runs/j-lexicase/seed22/best.json | 15 | 100% | 40% | 23% | 34% | 34% | 0% | 0% |
+| runs/j-lexicase/seed23/best.json | 17 | 100% | 56% | 11% | 12% | 49% | 0% | 1% |
+| runs/j-lexicase/seed24/best.json | 17 | 100% | 56% | 11% | 16% | 51% | 0% | 0% |
+| runs/j-lexicase/seed25/best.json | 20 | 100% | 52% | 21% | 37% | 33% | 0% | 1% |
+| runs/j-lexicase/seed26/best.json | 13 | 100% | 40% | 21% | 34% | 29% | 2% | 7% |
+| runs/j-lexicase/seed27/best.json | 19 | 100% | 31% | 27% | 35% | 46% | 0% | 0% |
+| runs/j-lexicase/seed28/best.json | 15 | 100% | 35% | 20% | 30% | 27% | 0% | 0% |
+| runs/j-lexicase/seed29/best.json | 15 | 100% | 48% | 22% | 32% | 26% | 0% | 0% |
+| runs/j-lexicase/seed30/best.json | 17 | 100% | 75% | 18% | 30% | 51% | 0% | 1% |
+| runs/j-lexicase/seed31/best.json | 15 | 100% | 42% | 17% | 25% | 34% | 0% | 0% |
+| runs/j-lexicase/seed32/best.json | 15 | 100% | 51% | 17% | 23% | 42% | 0% | 1% |
