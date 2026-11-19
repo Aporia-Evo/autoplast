@@ -2112,7 +2112,8 @@ Arms: `B2` (with taps) on task seeds 1 to 8, then `A2` (without taps) on the sam
 Fixed before the run:
 - An effect against the evolutionary search is shown if `B2` reaches ≥ 0.85 (with rule 2's
   other conditions and the epsilon check) in 3 or more of 8 task seeds. The evolutionary rate
-  is 1 of 32 per seed (`d-kalman`); one-sided Fisher p = 0.023 for 3/8, 0.0034 for 4/8.
+  is 1 of 32 per seed (`d-kalman`); one-sided Fisher p = 0.020 for 3/8, 0.0035 for 4/8 (corrected
+  from 0.023 the same day, before any result).
 - The method is reliable enough to freeze and take to testbed 2 if `B2` does so in 5 or more
   of 8.
 - A seed at ≥ 0.90 is reported as reaching the level of Kalman delta on that task seed; one

@@ -41,7 +41,11 @@ def arg(name, default):
 ARM = arg("--arm", "A")
 TASK_SEED = arg("--task-seed", 1)
 ROUNDS = arg("--rounds", 20)
-OUT = pathlib.Path(arg("--out", str(ROOT / "runs/grow" / f"arm{ARM}_task{TASK_SEED}")))
+BEAM = arg("--beam", 1)
+COMPACT = "--compact" in sys.argv
+V2 = BEAM > 1 or COMPACT
+OUT = pathlib.Path(arg("--out", str(ROOT / ("runs/grow2" if V2 else "runs/grow") / f"arm{ARM}{'2' if V2 else ''}_task{TASK_SEED}")))
+N_GRAD = 0  # forward-backward passes: one per adjoint computation, one per polish step
 FLAGS = ["--regime", "collision3", "--recip", "--persist-m", "3", "--persist-init", "identity", "--task-seed", str(TASK_SEED)]
 N_RUST = 0
 
@@ -178,6 +182,8 @@ def group_loss(step, task, H, n_total):
 
 def adjoints(prog, tasks):
     """Loss, and per group: adjoints at every site and register snapshots at every position."""
+    global N_GRAD
+    N_GRAD += 1
     L = len(prog)
     n = sum(int(t[4].sum()) for t in tasks)
     step = make_step(prog)
@@ -212,6 +218,8 @@ def polish(prog, tasks, steps=60, lr=0.05):
             tot = tot + group_loss(step, t, H, n)[0]
         return tot
 
+    global N_GRAD
+    N_GRAD += steps
     vg = jax.jit(jax.value_and_grad(loss))
     th, mo, ve = jnp.zeros_like(c0), jnp.zeros_like(c0), jnp.zeros_like(c0)
     for it in range(1, steps + 1):
@@ -494,11 +502,236 @@ def describe(c):
     return f"tap V{x} <- M{P} V{x} at {p}; M{P} += eps * {name(tree)} at end"
 
 
+# ---------------- version 2: diverse beam and compaction ----------------
+
+def effective(prog):
+    lives, _ = live_sets(prog)
+    return [i for p, i in enumerate(prog) if i["out"] in dict(zip("MVS", lives[p + 1]))[sig(i["op"])[0]]]
+
+
+def skeleton(prog):
+    return tuple((i["op"], i["out"], i["a"], i["b"]) for i in effective(prog))
+
+
+def signature(c):
+    if c[0] == "res":
+        return ("res", c[2], c[3], c[4][0])
+    return ("tap", c[2], c[3], c[4][0])
+
+
+def expand(prog, tasks):
+    """Children of one program: for each of the best 60 candidates, its best eps."""
+    _, found = candidates(prog, tasks)
+    trials = []
+    for k, (sc, c) in enumerate(found[:60]):
+        for e in EPS:
+            try:
+                q = build(prog, c, e)
+            except RuntimeError:
+                break
+            if len(q) <= MAX_LEN:
+                trials.append((k, q, c, e))
+    if not trials:
+        return []
+    fits = rust_fit([q for _, q, _, _ in trials])
+    best = {}
+    for (k, q, c, e), f in zip(trials, fits):
+        if k not in best or f[0] > best[k][0][0]:
+            best[k] = (f, q, c, e)
+    return list(best.values())
+
+
+def reads(i, ty, r):
+    _, ins_t = sig(i["op"])
+    return any(it == ty and i[slot] == r for slot, it in zip("ab", ins_t))
+
+
+def writes(i, ty, r):
+    return sig(i["op"])[0] == ty and i["out"] == r
+
+
+def readers(prog, ty, r, start):
+    """Positions reading (ty, r) from start on until it is written; and whether the value
+    survives to the end of the step and is needed there (M0, or a persistent register the next
+    step reads)."""
+    out = []
+    for j in range(start, len(prog)):
+        if reads(prog[j], ty, r):
+            out.append(j)
+        if writes(prog[j], ty, r):
+            return out, False
+    lm, lv, ls = live_sets(prog)[0][len(prog)]
+    return out, r in {"M": lm, "V": lv, "S": ls}[ty]
+
+
+def unit_folds(prog):
+    for i, a in enumerate(prog):
+        if a["op"] not in ("MatScale", "VecScale", "SMul"):
+            continue
+        ty = sig(a["op"])[0]
+        u, t = a["out"], a["b"]
+        users, out = readers(prog, ty, u, i + 1)
+        if len(users) != 1 or out:
+            continue
+        j = users[0]
+        b = prog[j]
+        if b["op"] != {"M": "MatAdd", "V": "VecAdd", "S": "SAdd"}[ty] or b["a"] == b["b"]:
+            continue
+        if any(writes(prog[k], ty, t) for k in range(i + 1, j)):
+            continue
+        other = b["b"] if b["a"] == u else b["a"]
+        q = [dict(x) for x in prog]
+        q[j] = ins(b["op"], b["out"], other, t)
+        del q[i]
+        yield q
+        if ty in "MV":
+            q = [dict(x) for x in prog]
+            q[j] = ins({"M": "MatSub", "V": "VecSub"}[ty], b["out"], other, t)
+            del q[i]
+            yield q
+
+
+def self_folds(prog):
+    for i, a in enumerate(prog):
+        if a["op"] not in ("MatScale", "VecScale", "SMul"):
+            continue
+        ty = sig(a["op"])[0]
+        sreg, r, u = a["a"], a["b"], a["out"]
+        if u == r:
+            continue
+        users, out = readers(prog, ty, u, i + 1)
+        if len(users) != 1 or out:
+            continue
+        j = users[0]
+        b = prog[j]
+        if b["op"] != {"M": "MatAdd", "V": "VecAdd", "S": "SAdd"}[ty] or b["out"] != r or {b["a"], b["b"]} != {r, u}:
+            continue
+        if any(writes(prog[k], ty, r) for k in range(i + 1, j)):
+            continue
+        k = max((k for k in range(i) if writes(prog[k], "S", sreg)), default=None)
+        if k is None or prog[k]["op"] != "Const":
+            continue
+        su, _ = readers(prog, "S", sreg, k + 1)
+        if su != [i]:
+            continue
+        q = [dict(x) for x in prog]
+        q[k]["c"] = 1.0 + prog[k]["c"]
+        q[i] = ins(a["op"], r, sreg, r)
+        del q[j]
+        yield q
+
+
+def cse(prog):
+    for j, b in enumerate(prog):
+        for i in range(j):
+            a = prog[i]
+            if (a["op"], a["a"], a["b"]) != (b["op"], b["a"], b["b"]) or (a["op"] == "Const" and a["c"] != b["c"]):
+                continue
+            ty, ins_t = sig(a["op"])
+            srcs = [(it, a[slot]) for slot, it in zip("ab", ins_t)]
+            if any(writes(prog[k], t2, r2) for k in range(i, j) for t2, r2 in srcs):
+                continue
+            if any(writes(prog[k], ty, a["out"]) for k in range(i + 1, j)):
+                continue
+            q = [dict(x) for x in prog]
+            if a["out"] != b["out"]:
+                users, out = readers(prog, ty, b["out"], j + 1)
+                end = next((k for k in range(j + 1, len(prog)) if writes(prog[k], ty, b["out"])), len(prog))
+                if out or any(writes(prog[k], ty, a["out"]) for k in range(j + 1, end)):
+                    continue
+                for k in users:
+                    for slot, it in zip("ab", sig(q[k]["op"])[1]):
+                        if it == ty and q[k][slot] == b["out"]:
+                            q[k][slot] = a["out"]
+            del q[j]
+            yield q
+            break
+
+
+def compact(prog, fit):
+    for _ in range(40):
+        vs = [prog[:i] + prog[i + 1:] for i in range(len(prog))]
+        vs += list(unit_folds(prog)) + list(self_folds(prog)) + list(cse(prog))
+        if not vs:
+            break
+        fs = rust_fit(vs)
+        b = max(range(len(vs)), key=lambda k: (fs[k][0], -len(vs[k])))
+        if fs[b][0] > fit[0] + 1e-9 or (fs[b][0] >= fit[0] - 1e-9 and len(vs[b]) < len(prog)):
+            prog, fit = vs[b], fs[b]
+        else:
+            break
+    return prog, fit
+
+
+def main2(tasks):
+    t0 = time.time()
+    empty = []
+    beam = [(rust_fit([empty])[0], empty, "start")]
+    log = open(OUT / "log.md", "w")
+    log.write(f"# grow v2, arm {ARM}, task seed {TASK_SEED}, beam {BEAM}, compaction {COMPACT}\n\n"
+              "| round | best train fit | best train acc | best test acc | len | beam (train acc, len, last step) | Rust evals | grad passes | seconds |\n"
+              "|---|---|---|---|---|---|---|---|---|\n")
+    for rnd in range(1, ROUNDS + 1):
+        children = []
+        for f, prog, _ in beam:
+            children += expand(prog, tasks)
+        pool = [(f, q, None, None) for f, q, _ in beam] + [(f, q, c, e) for f, q, c, e in children]
+        pool.sort(key=lambda x: (-x[0][0], len(x[1])))
+        new, skels, sigs = [], set(), set()
+        for f, q, c, e in pool:
+            sk = skeleton(q)
+            if sk in skels:
+                continue
+            if c is not None:
+                sg = signature(c)
+                if sg in sigs:
+                    continue
+                sigs.add(sg)
+            skels.add(sk)
+            new.append((f, q, c, e))
+            if len(new) == BEAM:
+                break
+        if all(c is None for _, _, c, _ in new):
+            log.write(f"| {rnd} | stop: beam unchanged | | | | | {N_RUST} | {N_GRAD} | {time.time() - t0:.0f} |\n")
+            break
+        nb = []
+        for f, q, c, e in new:
+            if c is None:
+                nb.append(next(b for b in beam if b[1] is q))
+                continue
+            txt = f"{describe(c)}, eps {e:+g}"
+            pol = polish(q, tasks)
+            pf = rust_fit([pol])[0]
+            if pf[0] > f[0]:
+                q, f = pol, pf
+                txt += "; polished"
+            if COMPACT:
+                n0 = len(q)
+                q, f = compact(q, f)
+                if len(q) < n0:
+                    txt += f"; compacted {n0}->{len(q)}"
+            nb.append((f, q, txt))
+        beam = sorted(nb, key=lambda b: -b[0][0])
+        f, q, _ = beam[0]
+        test = rust_fit([q], split="test")[0]
+        desc = "; ".join(f"{b[0][1]:.3f}, {len(b[1])}, {b[2]}" for b in beam)
+        log.write(f"| {rnd} | {f[0]:.4f} | {f[1]:.3f} | {test[1]:.3f} | {len(q)} | {desc} | {N_RUST} | {N_GRAD} | {time.time() - t0:.0f} |\n")
+        log.flush()
+        json.dump({"persist_m": PM, "persist_v": 0, "persist_identity": 1, "instrs": q}, open(OUT / "best.json", "w"))
+    log.write("\n```\n" + rust_report(beam[0][1]) + "\n```\n")
+    log.close()
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     dump = OUT / "_train.json"
     subprocess.run([EXE, "dump", "--split", "train", "--out", str(dump)] + FLAGS, check=True)
     tasks = V.load_task_json(str(dump))
+    if V2:
+        main2(tasks)
+        for f in ("_batch.jsonl", "_one.json", "_train.json"):
+            (OUT / f).unlink(missing_ok=True)
+        return
     prog = []
     cur = rust_fit([prog])[0]
     log = open(OUT / "log.md", "w")
