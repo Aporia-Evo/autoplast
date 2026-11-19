@@ -1,0 +1,47 @@
+tau = 30.0
+
+## T1 empty -> linear attention
+register M0; start: train acc 0.000, loss 4.1589; 30 distinct candidates
+target Outer(V1,V0): class rank 1, raw rank 1, |cos| 0.099 (best 0.099)
+   0.099  sign -  Outer(V1,V0)   (|cos| with target 1.00)
+   0.079  sign -  Outer(VecAdd(V0,V1),V0)   (|cos| with target 0.71)
+   0.070  sign -  Outer(V1,VecSub(V0,V1))   (|cos| with target 0.70)
+   0.070  sign -  Outer(V1,VecAdd(V0,V1))   (|cos| with target 0.71)
+   0.061  sign +  Outer(VecSub(V0,V1),V0)   (|cos| with target 0.70)
+
+## T2 linear attention -> delta (erase along k)
+register M0; start: train acc 0.362, loss 5.8524; 91 distinct candidates
+target Outer(MatVec(M0,V0),V0): class rank 10, raw rank 10, |cos| 0.070 (best 0.099)
+   0.099  sign +  MatSub(M0,M3)   (|cos| with target 0.49)
+   0.097  sign +  MatMul(M0,M1)   (|cos| with target 0.55)
+   0.095  sign +  MatMul(MatSub(M1,M3),M0)   (|cos| with target 0.52)
+   0.094  sign +  MatMul(M0,MatAdd(M1,M3))   (|cos| with target 0.54)
+   0.093  sign +  MatMul(M0,MatSub(M1,M3))   (|cos| with target 0.52)
+
+## T3 delta with key Pk, P fixed -> D' (P - c (Pk)(Pk)^T)
+register M1; start: train acc 0.617, loss 4.0232; 564 distinct candidates
+target Outer(V2,V2): class rank 1, raw rank 1, |cos| 0.251 (best 0.251)
+   0.251  sign +  Outer(V0,V0)   (|cos| with target 1.00)
+   0.249  sign +  MatScale(Norm(V5),Outer(V0,V0))   (|cos| with target 0.99)
+   0.249  sign +  MatMul(Outer(V0,V1),M3)   (|cos| with target 0.99)
+   0.244  sign +  MatMul(Outer(V0,V5),M3)   (|cos| with target 0.97)
+   0.236  sign +  MatScale(Norm(V4),Outer(V0,V0))   (|cos| with target 0.94)
+
+## T4 normalised gain, P fixed -> D (P - c g (Pk)^T)
+register M1; start: train acc 0.578, loss 6.9186; 631 distinct candidates
+target Outer(V3,V2): class rank 1, raw rank 1, |cos| 0.114 (best 0.114)
+   0.114  sign +  Outer(V0,V0)   (|cos| with target 1.00)
+   0.111  sign +  MatScale(Norm(V5),Outer(V0,V0))   (|cos| with target 0.98)
+   0.110  sign +  MatMul(Outer(V0,V1),M3)   (|cos| with target 0.97)
+   0.106  sign +  MatScale(Norm(V4),Outer(V0,V0))   (|cos| with target 0.95)
+   0.106  sign +  MatMul(Outer(V0,V5),M3)   (|cos| with target 0.95)
+
+## T5 D at c = 1, no q -> E (+ q I)
+register M1; start: train acc 0.607, loss 2.9746; 2439 distinct candidates
+target M2: class rank 31, raw rank 36, |cos| 0.160 (best 0.287)
+   0.287  sign +  MatScale(s0,MatSub(M1,M2))   (|cos| with target 0.57)
+   0.256  sign +  MatScale(Sigmoid(s0),MatSub(M1,M2))   (|cos| with target 0.64)
+   0.252  sign +  MatSub(M1,M2)   (|cos| with target 0.65)
+   0.246  sign +  MatScale(Dot(V1,V5),MatSub(M1,M2))   (|cos| with target 0.63)
+   0.238  sign -  Outer(VecScale(s0,V0),V0)   (|cos| with target 0.21)
+

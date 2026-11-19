@@ -1927,3 +1927,44 @@ probes, rule 6); the test asks only whether the ranking points to the next step.
   the target with the best ε of ±{0.001, …, 1}.
 - Prediction of the research agent: T1 and T2 in the top 5 with 0.8 each; T3 and T4 with 0.5
   each; T5 with 0.35. Criterion of 4 of 5 met with 0.35.
+
+### Feasibility test: result and reading (19 Nov 2026)
+
+`python verify/adjoint_probe.py TRAIN_DUMP.json [--tau T]`, collision3 train task (task seed 1),
+all outputs in `runs/adjoint-probe/`. Candidates of one or two ops at the end of the step;
+"rank" is among classes of the same direction (|cos| > 0.999, sign ignored, as for the target).
+
+| transition | candidates | rank of the target, τ = 3 / 10 / 30 | best-ranked candidate (τ = 10) | train acc: start → best-ranked inserted → target inserted |
+|---|---|---|---|---|
+| T1 empty → `v kᵀ` | 30 | 1 / 1 / 1 | the target | 0.000 → 0.362 → 0.362 |
+| T2 linear attention → erase `(S k) kᵀ` | 91 | 9 / 10 / 10 | `S_old` (decay of the old memory) | 0.362 → 0.500 → 0.598 |
+| T3 key `P k`, P fixed → `−(P k)(P k)ᵀ` on P | 564 | 1 / 1 / 1 | the target, sign right | 0.617 → 0.623 → 0.626 |
+| T4 normalised gain → `−g (P k)ᵀ` on P | 631 | 1 / 1 / 1 | the target, sign right | 0.578 → 0.618 → 0.767 |
+| T5 D at c = 1 → `+q I` on P | 2439 | 30 / 31 / 31 | `P − ε s (P − I)`, a pull of P back to I | 0.607 → **0.898** → 0.932 |
+
+(In T3 and T4 P is still the identity, so `P k = k` and the target is the direction `k kᵀ`.)
+
+Against what was fixed before the run: the target is in the top 5 in 3 of 5 transitions (T1,
+T3, T4), not 4; it is outside the top 20 in 1 of 5 (T5), not 3. Neither the criterion for
+building nor the one against it is met. The prediction (top 5 in T1 and T2 with 0.8, T3 and
+T4 with 0.5, T5 with 0.35) missed T2 and hit T3 and T4. The result is the same at τ = 3, 10
+and 30.
+
+Reading:
+- One forward and one backward pass rank the next step of the path first in three of five
+  transitions, among up to 631 candidates, including the steps on the second state that the
+  search never takes (T3, T4).
+- Where the target is not first, the first candidate is a different step that also helps.
+  In T2 it is decay, the step every stuck seed takes; inserting the erase is better (0.598
+  against 0.500). In T5 it is a pull of P back to the identity, a known form of forgetting in
+  the covariance, which gets 0.898 of the 0.932 of `q I`. Inserting the best-ranked candidate
+  raised train accuracy in all five transitions.
+- A loop that ranks by the adjoint and then checks the best 10 candidates by real fitness
+  would have taken the target step in 4 of 5; with the best 31, in all 5.
+- What the test does not show: every start program here already reads P where it matters.
+  Reading P while P is still the identity is a neutral step. Its first-order effect is zero
+  and so is that of updating an unread P. That pair cannot be found by first-order ranking
+  alone. It needs neutral drift (as in the evolutionary search) or a second-order term.
+- Next test, not yet fixed: a closed loop in JAX that grows a program from the empty one by
+  rank-then-verify. It would show whether the method walks the path on its own and where it
+  stops.

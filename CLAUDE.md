@@ -167,6 +167,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    collision3, scores 0.860 on clustered8 fresh draws against 0.672 for tuned Kalman delta
    (12/12 draws); one rule of 128. An obvious hand-made fix (key centring + delta rule, one extra
    vector) reaches 0.805, so the regime's headroom is mostly a single key mean. No package yet.
+   Owner decision 19 Nov: the method may be gradient-guided (no LLM, no prior rule). Adjoint
+   feasibility test done (README, "Feasibility test: result and reading"): next step of the
+   measured path ranked first in 3/5 transitions (T2 rank 10, T5 rank 31, whose top candidate
+   reaches 0.898 of 0.932). Neither pre-set criterion met; promising, with a known gap (neutral
+   pairs such as reading an unchanged P). Next: closed-loop growth test in JAX, to be fixed.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
