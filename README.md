@@ -1885,3 +1885,45 @@ Reading:
 - Not released as a package. Searching here could still show whether the search finds rules
   above the centred delta rule at the same budget. That depends on the owner's choice of
   direction.
+
+## Direction 2, fourth component considered: adjoint-guided growth (19 Nov 2026, feasibility test fixed before running)
+
+Decided by the owner on 19 Nov 2026, on a proposal from the second outside review: the search
+may use gradients to choose structure, as long as no LLM and no prior rule enters. The found
+rules stay symbolic programs; the gradient only steers where the search adds code. Idea: run
+the current program on the train episodes, backpropagate a smooth loss through all steps, and
+read off for a register R the adjoint field G_t = ∂L/∂R_t at every step. A candidate
+sub-expression e built from the registers then has a first-order effect proportional to
+⟨G, e⟩ summed over steps and episodes. Candidates can be ranked from one forward and one
+backward pass, without re-running episodes, and the best one is inserted as `R = R + ε·e`.
+This addresses the measured barrier directly: a step of 3 to 5 instructions is scored as one
+candidate before any of it is in the program. In a first search no direct precedent was
+found; neighbours are semantic backpropagation in GP, gradient-based program repair (arXiv
+2505.17703) and gradient-guided growth of neural networks.
+
+Before anything is built into the search, a feasibility test (`verify/adjoint_probe.py`, JAX,
+no search runs). The starting programs are hand-written points of the measured path (reference
+probes, rule 6); the test asks only whether the ranking points to the next step.
+
+| transition | start program | register | next step (target) |
+|---|---|---|---|
+| T1 | empty program | S | `v kᵀ` (linear attention write) |
+| T2 | linear attention | S | `(S k) kᵀ` (erase along k; the delta family) |
+| T3 | delta rule with write key `P k`, P fixed at I | P | `(P k)(P k)ᵀ` (step D') |
+| T4 | normalised gain `g = P k/(δ + kᵀP k)`, P fixed | P | `g (P k)ᵀ` (step D) |
+| T5 | D with c = 1, no `q·I` (train 0.62) | P | `I` (step E, train 0.93) |
+
+- Candidates: every expression of one or two ops of the alphabet over the registers at the end
+  of the step, of the register's type; zero and duplicate expressions (same values on the
+  trace) removed. Score: |cos| between G and e over all steps and episodes. A candidate counts
+  as the target when its values agree with the target's to |cos| > 0.999.
+- Loss: cross-entropy over the 64 values with logits τ·cos(S q, v_j), τ = 10; scale-invariant
+  in S, so candidates that only rescale S score zero. τ = 3 and 30 reported as sensitivity.
+- Data: the collision3 train task (task seed 1), as the search sees it.
+- Fixed before the run: the test supports building the component if the target is in the top
+  5 of its register's candidates in at least 4 of 5 transitions. It speaks against it for this
+  barrier if the target is outside the top 20 in 3 or more. Reported as well: the rank of the
+  target, the five best candidates, and train accuracy after inserting the best candidate and
+  the target with the best ε of ±{0.001, …, 1}.
+- Prediction of the research agent: T1 and T2 in the top 5 with 0.8 each; T3 and T4 with 0.5
+  each; T5 with 0.35. Criterion of 4 of 5 met with 0.35.
