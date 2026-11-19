@@ -1805,3 +1805,46 @@ effect if it reaches the accuracy level of delta β = 0.5 in 20/32 or more (agai
 predictions of package K are unchanged. `k-plain2m` is not affected (flag off). If `k-ri-lex`
 shows nothing, two explanations are open before the mutation is given up: the length penalty
 above, and the length limit (4 of 32 final rules of `j-lexicase` are too long for a block).
+
+## Package L: result and reading (19 Nov 2026)
+
+Run: `runs/l-downsample`, commit 6c2f60a, workstation (Windows), seeds 1 to 32, 1.5M candidates,
+base task, `--select downsample --val-log` (rate 0.1), 1.9 h. The executing agent's report is
+`runs/l-downsample/l_report.md`. Counts recomputed from the summaries.
+
+| base task, 1.5M candidates | `h-base` | `l-downsample` | `h-share` | `h-lexicase` |
+|---|---|---|---|---|
+| accuracy level of delta β = 0.5 reached | 12/32 | **19/32** | 32/32 | 32/32 |
+| ends at linear attention level (train < 0.84) | 19/32 | 13/32 | 0/32 | 0/32 |
+| delta family by the structural test | 12/32 | 13/32 | 20/32 | 10/32 |
+| median test ow0.3 | 0.799 | 0.953 | 0.950 | 0.969 |
+| delta-family rules with growth factor within 0.02 of 1 | 0 of 12 | 1 of 13 | 4 of 20 | 0 of 10 |
+| final rules with T128 K8 ≥ 0.80 | 0 | 2 | 10 | 1 |
+
+Against what was fixed before the run:
+- Down-sampling alone gives an effect at 20/32 or more. It reached 19/32 (p = 0.066 against
+  `h-base`): not shown, by one seed.
+- Lexicase does more than down-sampling at 27/32 or fewer for `l-downsample`. Met: 19/32
+  against 32/32 for both behaviour-based arms (p = 2.6e-5).
+
+Reading:
+- Selection on a random tenth of the episodes per batch frees some seeds from linear attention
+  (19 against 12, not significant). It is far from what lexicase and fitness sharing do (32/32).
+  The effect of package H is therefore not explained by selection on random subsets of
+  episodes. It goes with selection that looks at the per-episode behaviour of each candidate.
+  This is the reviewer's first question, answered on the base task. It is not answered on
+  collision3 (not run there).
+- Limits: one rate (0.1, not tuned), and the rival is our variant of lexicase (inside a
+  tournament of 10, at most 32 episodes). Platform differs from H (workstation against epyc;
+  rule 7), which does not bias rates. Minutes are not comparable across machines.
+- The structural count does not move (13/32). Most delta-family rules of the arm grow by 1.09
+  to 1.12 per step and fail on long episodes, as in `h-base` (rule 3). `h-share` stays the only
+  arm with many rules at growth factor 1.
+- Predictions of the research agent: 20 or more with 0.6 (no), 27 or fewer with 0.5 (yes).
+
+### Package K, status 19 Nov
+
+`k-ri-lex` stopped on epyc when the hub server there was restarted. The runner skips seeds with a
+summary. A seed that was running restarts from the beginning. Seeds are deterministic for a given
+binary, flags and machine, so a restarted seed gives the result it would have given anyway and
+the restart does not bias the arm. Resumed with the same command (RUNBOOK, package K).

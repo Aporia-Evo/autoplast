@@ -559,6 +559,14 @@ python local_runner.py --seeds 1-32 --budget 1500000 --tag k-ri-lex --parallel 2
 python local_runner.py --seeds 1-32 --budget 2100000 --tag k-plain2m --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --val-log --level-acc 0.651 --level-long 0.838"
 ```
 
+Note of 19 Nov 2026: `k-ri-lex` stopped when the hub server on epyc restarted. Resume it with the
+same command. Before that, delete the folders of seeds without `summary.md` (copy their
+`log.csv` to `runs/k-ri-lex/aborted/seed<N>_log.csv` first). The runner restarts those seeds
+from the beginning; seeds are deterministic, so this is safe. To survive a restart of the
+notebook kernel, start the runner from a terminal of the hub, detached
+(`nohup setsid python local_runner.py ... > runs/k-ri-lex/runner_log_epyc.txt 2>&1 &`). A restart
+of the whole server still stops it; then resume the same way and record each stop in `WHERE.md`.
+
 Per arm, as in J: dump, JAX check on the dump for all 32 seeds, the epsilon check of 18 Nov
 (`verify.py --x64 --norm-eps 1e-9`, then `verify/eps_scale.py` for every seed that moves by more
 than 0.02), delete the dump. A seed that aborts is reported with its `stderr.txt` and partial
@@ -578,6 +586,8 @@ Report in `runs/<tag>/k_report.md`:
   `d-kalman`, where 11 of 32 seeds were below 0.53 at that point); minutes per seed.
 
 ### L. Down-sampling control, base task (released 19 Nov 2026) — on the workstation, before `k-plain2m`
+
+Status 19 Nov 2026: done and checked (README, "Package L: result and reading").
 
 Read README, "The down-sampling control". Same build as K (corrected). Base task as in H (no
 `--task`, no `--regime`), seeds 1 to 32, 1.5M candidates. Baseline: the committed `h-base`,

@@ -28,6 +28,7 @@ tuning show no effect; parent selection by behaviour (`--select share`, `--selec
 removes the seeds that stop at linear attention on the base task (package H, 15 Nov), and
 the plain search does not catch up with more wall time (package I, 17 Nov). Package J (19 Nov)
 shows the same on collision3 in the space of D and E, wall-time control pending (package K).
+Down-sampled tournaments do not explain it (package L, 19 Nov, base task).
 Constant tuning is closed as a negative result (packages F and G).
 
 Stages:
@@ -154,6 +155,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    any K run (1.9%). Length penalty works against neutral blocks; left as is, noted. Lexicase
    here is lexicase inside a tournament of 10 (a limit of H and J). Down-sampling control built
    (`--select downsample`), released as package L on the base task, before `k-plain2m`.
+   Package L done 19 Nov (README, "Package L: result and reading"): down-sampling reaches the
+   delta level in 19/32 (h-base 12/32, p = 0.066; lexicase and share 32/32, p = 2.6e-5). The
+   effect of H belongs to behaviour-based selection, not to random episode subsets (base task
+   only). `k-ri-lex` was stopped by a restart of the hub on epyc; resumed (safe: seeds are
+   deterministic).
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
