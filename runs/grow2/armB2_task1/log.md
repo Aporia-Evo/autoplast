@@ -1,0 +1,9 @@
+# grow v2, arm B, task seed 1, beam 4, compaction True
+
+| round | best train fit | best train acc | best test acc | len | beam (train acc, len, last step) | Rust evals | grad passes | seconds |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 0.3556 | 0.362 | 0.385 | 2 | 0.362, 2, at 0: M0 += eps * Outer(V1,V0), eps +0.001; compacted 4->2; 0.000, 0, start | 62 | 61 | 5 |
+| 2 | 0.6061 | 0.605 | 0.625 | 6 | 0.605, 6, at 0: V1 += eps * MatVec(M0,V0), eps -0.3; polished; 0.605, 7, at 0: M0 += eps * Outer(MatVec(M0,V0),V0), eps -0.3; polished; 0.605, 7, at 1: M1 += eps * Outer(MatVec(M0,V0),V0), eps -0.3; polished; 0.505, 7, tap V1 <- M2 V1 at 0; M2 += eps * MatSub(M1,M2) at end, eps -0.1 | 582 | 303 | 21 |
+| 3 | 0.7156 | 0.712 | 0.727 | 12 | 0.712, 12, tap V0 <- M2 V0 at 2; M2 += eps * Outer(V0,Tanh(V0)) at end, eps -0.3; polished; compacted 13->12; 0.624, 12, tap V2 <- M2 V2 at 1; M2 += eps * MatScale(Norm(V2),M2) at end, eps +0.03; 0.620, 12, tap V1 <- M2 V1 at 4; M2 += eps * MatScale(Dot(V2,V2),M2) at end, eps +0.03; 0.606, 11, tap V1 <- M2 V1 at 0; M2 += eps * Outer(Normalize(V1),V1) at end, eps -0.01; compacted 12->11 | 4215 | 547 | 192 |
+| 4 | 0.7631 | 0.758 | 0.770 | 14 | 0.758, 14, at 8: M0 += eps * M0, eps -0.03; compacted 15->14; 0.758, 16, at 11: M0 += eps * MatSub(M0,M1), eps -0.03; 0.758, 17, at 0: M0 += eps * MatScale(Norm(V0),M0), eps -0.03; 0.754, 17, at 7: M1 += eps * MatScale(Sigmoid(S0),M0), eps -0.1 | 7446 | 791 | 473 |
+| 5 | 0.7959 | 0.790 | 0.802 | 20 | 0.790, 20, at 14: M0 += eps * MatScale(Dot(V0,V1),MatMul(M0,M2)), eps +0.1; polished; 0.776, 21, at 5: M1 += eps * MatScale(Dot(V0,V0),M0), eps +0.1; polished; 0.758, 22, at 3: M2 += eps * Outer(VecScale(S1,V0),V0), eps -0.001; 0.758, 14, at 8: M0 += eps * M0, eps -0.03; compacted 15->14 | 8973 | 975 | 834 |
