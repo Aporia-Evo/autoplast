@@ -26,7 +26,8 @@ re-centred on the search method the same day at the owner's direction. Branches 
 same day (README, "Merge"). State of the method claim: the add-node mutation and constant
 tuning show no effect; parent selection by behaviour (`--select share`, `--select lexicase`)
 removes the seeds that stop at linear attention on the base task (package H, 15 Nov), and
-the plain search does not catch up with more wall time (package I, 17 Nov). That is one task.
+the plain search does not catch up with more wall time (package I, 17 Nov). Package J (19 Nov)
+shows the same on collision3 in the space of D and E, wall-time control pending (package K).
 Constant tuning is closed as a negative result (packages F and G).
 
 Stages:
@@ -140,7 +141,14 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    against 12/32 (criterion met, p = 7e-5, not yet wall-time matched), rule 2 11/32, nothing
    counted above 0.85. Seed 6 (0.893) writes only through the 1e-6 in Normalize, a scale trick
    (rule 3), not counted; its epsilon-free rewrite reaches 0.898. Every arm in this space now
-   gets `verify.py --x64 --norm-eps 1e-9` and `verify/eps_scale.py`. `j-share` running.
+   gets `verify.py --x64 --norm-eps 1e-9` and `verify/eps_scale.py`. `j-share` done 19 Nov
+   (README, "Package J, arm j-share"): stuck 0/32, rule 2 11/32, best seed 0.694, below
+   lexicase on the median (p = 0.0007). Package J: behaviour selection removes the stuck seeds
+   in this space too, raises nothing above 0.85; 0/128 seeds above 0.90 in this space.
+   Released 19 Nov as package K (README, "Package K"): `k-ri-lex` (residual insertion with
+   lexicase, against `j-lexicase`; main count 2/32 above 0.90) on epyc, and `k-plain2m` (plain
+   search at 2.1M, the wall-time control of J; J's stuck effect stands if 5/32 or more stuck)
+   on the workstation. A success of `k-ri-lex` needs testbed 2 as held-out target, method frozen.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.

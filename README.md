@@ -1625,4 +1625,83 @@ make new arms incomparable with `d-kalman`, `g-tune8` and J. That is left to the
   for the plain search removed part of the stuck seeds, not all of them (24/32 against 32/32).
 - For Direction 2 the arm adds one hint: a rule at about 0.90 exists in this space at 24
   instructions, and the search assembled it once, in a form that writes through the epsilon.
-- `j-share` is running. It is read with the same counts and the same epsilon check.
+
+## Package J, arm j-share, and package J as a whole: result and reading (19 Nov 2026)
+
+Run: `runs/j-share`, commit 50c2d10, seeds 1 to 32, 1,500,000 candidates, epyc, 13.4 h, no seed
+aborted. The executing agent's report is `runs/j-share/j_report.md`. The epsilon check of 18 Nov
+was run by the research agent on the same dump (identical to the executing agent's, byte for
+byte): no seed moves (`runs/eps-check/j-share.*.txt`).
+
+| | j-share | j-lexicase (seed 6 excluded) | d-kalman | fixed threshold |
+|---|---|---|---|---|
+| stuck below 0.53 | **0/32** | **0/32** | 12/32 | ≤ 5/32: met by both, p = 6.9e-5 each |
+| rule 2 | 11/32 | 11/32 | 6/32 | ≥ 13/32: met by neither |
+| test > 0.85 with rule 2's other conditions | 0/32 | 0/32 | 1/32 | ≥ 7/32: met by neither |
+| above 0.695 under those conditions | 0/32 | 4/32 | 2/32 | reported |
+| above 0.90 | 0/32 | 0/32 | 0/32 | reported |
+| test range | 0.617 to 0.694 | 0.564 to 0.721 | | |
+| median test | 0.653 | 0.682 | 0.630 | MW: share vs d-kalman p = 0.0021, share vs lexicase p = 0.0007 (share lower) |
+| final rule classified as delta rule | 5/32 (four at exactly 0.640, the tuned DeltaNet level) | 0/32 | | |
+| mean real evaluations per seed | 962,443 | 806,780 | 784,926 | |
+| mean minutes per seed | 49.4 | 59.5 | 42.2 | |
+| mean pop_mean_acc of the last row | 0.349 | 0.446 | 0.418 | |
+
+Reading of package J:
+- Selection by behaviour removes the seeds that stop at decayed linear attention in this space,
+  with both variants (0/64 against 12/32). With package H this is the same effect on a second
+  task. Not yet at matched wall time: the selection arms take 1.17 (share) and 1.41 (lexicase)
+  times as long per seed. In the plain arms the number of seeds with train accuracy below 0.53
+  falls from 19 to 13 to 11 (`d-kalman`) and 20 to 14 to 11 (`g-tune8`) at 0.5M, 1.0M and 1.5M
+  candidates, so more budget helps the plain search and the control is needed (package K).
+- Neither variant raises the top. Rule 2 stays at 11/32, nothing counted is above 0.85 and
+  nothing is above 0.90. 0 of 128 seeds in this space are above 0.90 now (`d-kalman`, `g-tune8`,
+  `j-lexicase`, `j-share`).
+- The two variants differ above the floor. Share keeps a diverse, weaker population (mean
+  population accuracy 0.35) and parks five seeds on the plain delta rule; its best seed is 0.694.
+  Lexicase reaches the 0.70 to 0.72 band in 5 seeds and gave the one strong (if degenerate) rule.
+  On the base task (package I) share was the better variant on the structural count. Which is
+  better depends on the task and the measure; neither is a general improvement.
+- Predictions: the stuck criterion, the likeliest case in both arms, came out; nothing else did.
+
+## Package K: residual insertion on collision3, and the wall-time control of J (released 19 Nov 2026, before any result)
+
+Two arms, collision3, the space of D and E (`--persist-m 3 --persist-init identity --recip`),
+seeds 1 to 32, batch 128, built at the commit that releases this package (it contains
+`--residual-insert`, README "Search method, third change"). With the flag off the new binary
+reproduces the committed runs: `d-kalman` seed 9 gives the same 50,036-candidate log row with and
+without `--val-log` and with 4 or 8 threads.
+
+| tag | flags added to the setting of D and E | budget | baseline | machine |
+|---|---|---|---|---|
+| `k-ri-lex` | `--select lexicase --residual-insert --val-log --level-acc 0.651 --level-long 0.838` | 1.5M | `j-lexicase` (only the new mutation differs) | epyc |
+| `k-plain2m` | `--val-log --level-acc 0.651 --level-long 0.838` | 2.1M | `d-kalman`; wall-time control for both arms of J | workstation |
+
+Lexicase rather than share is chosen for the residual arm because in this space it reached the
+higher band and share did not (J above); the choice is made on J's data, so the comparison that
+isolates the mutation is `k-ri-lex` against `j-lexicase`, same selection, seeds and budget.
+2.1M candidates is 1.5M times the larger wall-time factor of J (1.41).
+
+Fixed before the run:
+- `k-ri-lex`, main count (Direction 2): seeds with collision3 test > 0.90 that meet rule 2's
+  other conditions (T128 K8 ≥ 0.838, train − test ≤ 0.03) and pass the epsilon check. An effect
+  is shown by 2/32 or more against 0/128 in this space (Fisher one-sided p = 0.039). One seed is
+  reported as one seed. Secondary: test > 0.85 under the same conditions in 3/32 or more against
+  1/128 (p = 0.026). Also reported against `j-lexicase`: rule 2, stuck, above 0.695, median with
+  Mann-Whitney, real evaluations and minutes per seed.
+- Any rule above 0.85 is checked on fresh task draws and with `--query-gap` before anything is
+  said about it, as for `d-kalman` seed 9, and its formula is compared with Kalman delta.
+- `k-plain2m`: the stuck effect of J stands at matched wall time if `k-plain2m` has 5/32 or more
+  seeds below 0.53 on test (0/32 against 5/32: p = 0.027). With 4 or fewer the effect of J is
+  a budget effect in this space. Its other counts are reported as for J.
+- The fitness is unchanged (the epsilon channel of 18 Nov stays open; the epsilon check is
+  applied to every arm alike).
+- A success of `k-ri-lex` on the main count is not a claim on its own: the mutation was designed
+  after measuring the path to this target. It must be followed by a held-out target with the
+  method frozen first. The held-out target is testbed 2 (CLAUDE.md, item 5: reaching the level of
+  RMSProp or Adam from `w' = w`), where the same kind of multi-instruction step is needed and the
+  mutation was not designed. Its path is not measured before the method is frozen.
+- Predictions of the research agent. `k-ri-lex`: main count met (2 or more above 0.90) with
+  probability 0.12, at least one seed above 0.90 with 0.22, secondary count met with 0.20, median
+  below that of `j-lexicase` with 0.35, stuck at most 5/32 with 0.85. `k-plain2m`: 5 or more stuck
+  with 0.80, above 0.90 with 0.03. The pilot of 18 Nov gave no sign either way.

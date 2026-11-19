@@ -447,6 +447,10 @@ affected, no rebuild is needed. After fetching the rerun of seed 16, write the t
 
 ### J. Selection by behaviour in the space of D and E (released 16 Nov 2026) — after I
 
+Status 19 Nov 2026: both arms done and checked (README, "Package J, arm j-lexicase" and
+"Package J, arm j-share"). The epsilon check of `j-share` was run by the research agent
+(`runs/eps-check/`). Package K below is released.
+
 Read README, "Package J". Same build as package I (the commit with the cache fix or later;
 `git diff 2f49b69 HEAD -- src` must be empty, otherwise rebuild and repeat the self-check).
 collision3, same space and machine as D and E; baseline is the committed `runs/d-kalman`
@@ -508,6 +512,62 @@ Report in `runs/<tag>/j_report.md`, with the 32 seeds of `runs/d-kalman` next to
   of seed 9 (an address taken from a persistent register and a write along it) or contains
   a gain of the form `P k / (c + kᵀP k)`; say only what the formula shows;
 - real evaluations at the `validation level` row per seed (column 2 of that log row).
+
+### K. Residual insertion on collision3, and the wall-time control of J (released 19 Nov 2026)
+
+Read README, "Package K". The search code changed since 50c2d10 (`--residual-insert`, off by
+default): build at the commit that contains this section, on both machines.
+
+Self-checks after the build, on each machine:
+
+1. The self-check of package F (last log row of seed 2 at 120,000 candidates).
+2. The flag-off reproduction of `d-kalman` seed 9. On Linux the row must read
+   `50036,19778,<seconds>,0.50570,0.5094,12,0.3803`; on Windows report what you get (rule 7):
+
+```bash
+./target/release/autoplast search --seed 9 --budget 50000 --batch 128 --threads 8 --regime collision3 --recip --persist-m 3 --persist-init identity --out /tmp/chk9 > /dev/null && grep '^50036' /tmp/chk9/log.csv
+```
+
+Predictions into `runs/k-ri-lex/K_VORHERSAGE.md`, committed before the first run of K.
+
+Timing, 2 seeds each, not committed; `k-ri-lex` on epyc, `k-plain2m` on the workstation:
+
+```bash
+python local_runner.py --seeds 1-2 --budget 150000 --tag time-k-ri-lex --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select lexicase --residual-insert --val-log --level-acc 0.651 --level-long 0.838"
+```
+
+```bash
+python local_runner.py --seeds 1-2 --budget 150000 --tag time-k-plain2m --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --val-log --level-acc 0.651 --level-long 0.838"
+```
+
+If the projection for an arm is above 30 hours of wall time, stop and ask before starting it.
+The two arms run at the same time, one per machine:
+
+```bash
+python local_runner.py --seeds 1-32 --budget 1500000 --tag k-ri-lex --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select lexicase --residual-insert --val-log --level-acc 0.651 --level-long 0.838"
+```
+
+```bash
+python local_runner.py --seeds 1-32 --budget 2100000 --tag k-plain2m --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --val-log --level-acc 0.651 --level-long 0.838"
+```
+
+Per arm, as in J: dump, JAX check on the dump for all 32 seeds, the epsilon check of 18 Nov
+(`verify.py --x64 --norm-eps 1e-9`, then `verify/eps_scale.py` for every seed that moves by more
+than 0.02), delete the dump. A seed that aborts is reported with its `stderr.txt` and partial
+log and is not restarted without word from the research agent. If one arm finishes first,
+report it without waiting for the other.
+
+Report in `runs/<tag>/k_report.md`:
+- `k-ri-lex`, with `j-lexicase` and `d-kalman` next to it: the counts of J (rule 2; stuck below
+  0.53; test > 0.85 with rule 2's other conditions; above 0.695 under those conditions; above
+  0.90 under those conditions), median test, Mann-Whitney against `j-lexicase`, the seeds the
+  epsilon check moved with their ratio, and the per-seed table of J. The full formula of every
+  seed with test above 0.72; for each, say only what the formula shows: whether `S'` reads `P1`
+  or `P2`, whether a persistent register is updated by subtracting an outer product, whether a
+  gain of the form `P k / (c + kᵀP k)` appears.
+- `k-plain2m`, with `d-kalman`, `j-lexicase` and `j-share` next to it: the same counts; per seed
+  also the train accuracy of the last log row at or below 1,500,100 candidates (to compare with
+  `d-kalman`, where 11 of 32 seeds were below 0.53 at that point); minutes per seed.
 
 ## Handing back
 
