@@ -442,7 +442,7 @@ def candidates(prog, tasks):
         sites += [("V", r) for r in range(NV) if p < L and r in lv]
         sites += [("S", r) for r in range(NS) if p < L and r in ls]
         for ty, r in sites:
-            g = {"M": G[0][:, :, p, r], "V": G[1][:, :, p, r], "S": G[2][:, :, p, r]}[ty]
+            g = G["MVS".index(ty)][:, :, p, r]  # index lazily: V has 6 registers, M and S 4
             gn = float((g * g).sum()) ** 0.5
             if gn < 1e-12:
                 continue

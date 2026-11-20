@@ -2125,3 +2125,12 @@ Fixed before the run:
 Neighbours for the growth principle: GradMax (Evci et al., ICLR 2022, arXiv 2201.05125),
 splitting steepest descent (Wu, Wang and Liu, NeurIPS 2019, arXiv 1910.02366; splitting
 neurons to escape saddle points, a second-order criterion), Net2Net, network morphism.
+
+Amendment of 20 Nov, before any result of the run: a crash, not a method change. The site
+gradient was read with a dict literal that evaluated all three register types at once, so a
+live `V4` or `V5` indexed the four-wide matrix array and stopped the run (`IndexError`). It hit
+`B2` on task seeds 2, 3, 5, 7 and `A2` on 2, 4, 6, 8, after 2 to 6 rounds. Fixed in
+`verify/grow.py` (the gradient of the site's own type is read). Every program that ran before
+the fix gives the same scores after it, and the loop is deterministic, so the crashed seeds are
+rerun from the start; the rerun has to repeat the rounds before the crash (checked, see the
+result). Wall time is on a shared 4-core container with two runs in parallel.

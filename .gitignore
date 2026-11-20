@@ -2,7 +2,7 @@ target/
 __pycache__/
 # growth-loop runs: console output and temporary batch files (results are in log.md and best.json)
 runs/grow*/*.stdout
-runs/grow*/run_all.log
+runs/grow*/run_all*.log
 runs/grow*/*/_batch.jsonl
 runs/grow*/*/_one.json
 runs/grow*/*/_train.json
