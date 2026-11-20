@@ -1849,6 +1849,56 @@ summary. A seed that was running restarts from the beginning. Seeds are determin
 binary, flags and machine, so a restarted seed gives the result it would have given anyway and
 the restart does not bias the arm. Resumed with the same command (RUNBOOK, package K).
 
+### Package K, arm k-ri-lex: result and reading (20 Nov 2026)
+
+Run: `runs/k-ri-lex`, commit 6c2f60a, epyc, seeds 1 to 32, 1.5M candidates, collision3 in the space
+of D and E, `--select lexicase --residual-insert --val-log --level-acc 0.651 --level-long 0.838`,
+`--parallel 2 --threads 8`, 17.6 h for the arm. The executing agent's report is
+`runs/k-ri-lex/k_report.md`, the run record `WHERE.md` (two starts killed by the hub after ten
+minutes, kept in `aborted1/` and `aborted2/`; their log rows equal those of the complete run).
+Counts recomputed from the summaries; they agree with the report.
+
+| collision3, space of D and E | `d-kalman` | `j-share` | `j-lexicase` | `k-ri-lex` |
+|---|---|---|---|---|
+| rule 2 | 6/32 | 11/32 | 12/32 | 11/32 |
+| stuck (test < 0.53) | 12/32 | 0/32 | 0/32 | 0/32 |
+| above 0.695 under rule 2's other conditions | 2/32 | 0/32 | 5/32 | 7/32 |
+| above 0.85 under the conditions | 1/32 | 0/32 | 1/32 (seed 6, scale trick, not counted) | **0/32** |
+| above 0.90 under the conditions | 0/32 | 0/32 | 0/32 | **0/32** |
+| median test | 0.630 | 0.653 | 0.682 | 0.677 |
+| best test | 0.855 | 0.694 | 0.893 (trick) / 0.721 | 0.726 |
+| real evaluations per seed, mean | 785k | | 807k | 939k |
+| minutes per seed, mean | 42 | | 60 | 64 |
+
+Against what was fixed before the run:
+- Main count (2/32 or more above 0.90 under the conditions, ε check passed): **not met**, 0/32.
+- Secondary count (3/32 or more above 0.85): not met, 0/32.
+- Against `j-lexicase`: median 0.677 against 0.682, Mann-Whitney p = 0.75; rule 2 11 against 12;
+  above 0.695 7 against 5 (Fisher p = 0.75). No difference.
+- Checks: JAX on the dump within 0.0005 of Rust for all 32 seeds; the ε check (`--x64 --norm-eps
+  1e-9`) moves no seed (on `j-lexicase` seed 6 the same command gives 0.0000, so it detects the
+  known case).
+- Predictions of the research agent: main count (0.12) no, a seed above 0.90 (0.22) no, secondary
+  (0.20) no, median below `j-lexicase` (0.35) yes, stuck at most 5 (0.85) yes.
+
+Reading:
+- The mutation is active: 73% of the insertion attempts insert a block (31% to 84% per seed), about
+  357k attempts per seed. It does not move the arm. The seven seeds above 0.695 sit at 0.72 to
+  0.73; their rules (formulas in the report, collected forms checked numerically) are delta-type
+  writes with a large erase (c/a 0.85 to 0.90) in which a persistent register is used as an
+  offset or copy of S, not as a key preconditioner. No best rule contains a reciprocal, so none
+  has a gain of the form P k / (c + kᵀP k).
+- Of the two explanations noted before the run (length penalty, length limit), the length limit
+  is consistent with the data: 26 of 32 final rules have 21 to 24 instructions. It was not tested.
+- Residual insertion inside the evolutionary search is closed as a negative result in this space,
+  as constant tuning was (packages F, G). The gradient-guided loop (growth loop, third version)
+  reaches 0.77 to 0.80 in 7 of 8 task seeds with about 8k Rust evaluations each; that comparison
+  is post hoc and on other task seeds (README, "Growth loop, third version: result of B3").
+- `k-plain2m` (the wall-time control of J) runs on epyc, not on the workstation as RUNBOOK said:
+  agreed with the research agent on 20 Nov, because J and `d-kalman` ran on epyc, so platform and
+  minutes match the arms it controls. Command, budget (2.1M) and binary (6c2f60a) unchanged;
+  timing projection 24.1 h.
+
 ## clustered8: a found rule against the tuned families and against an obvious fix (19 Nov 2026)
 
 Prompted by the second outside review (owner, 19 Nov): `clustered8` (T48, 8 keys around one

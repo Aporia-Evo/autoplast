@@ -567,6 +567,11 @@ notebook kernel, start the runner from a terminal of the hub, detached
 (`nohup setsid python local_runner.py ... > runs/k-ri-lex/runner_log_epyc.txt 2>&1 &`). A restart
 of the whole server still stops it; then resume the same way and record each stop in `WHERE.md`.
 
+Note of 20 Nov 2026: `k-ri-lex` is done and checked (README, "Package K, arm k-ri-lex: result and
+reading"). `k-plain2m` runs on epyc instead of the workstation, agreed with the research agent:
+J and `d-kalman` ran on epyc, so platform and minutes match the arms it controls. Same command,
+budget and binary (6c2f60a) as above; record the machine in `runs/k-plain2m/WHERE.md`.
+
 Per arm, as in J: dump, JAX check on the dump for all 32 seeds, the epsilon check of 18 Nov
 (`verify.py --x64 --norm-eps 1e-9`, then `verify/eps_scale.py` for every seed that moves by more
 than 0.02), delete the dump. A seed that aborts is reported with its `stderr.txt` and partial

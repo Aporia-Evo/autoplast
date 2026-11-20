@@ -161,8 +161,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    Package L done 19 Nov (README, "Package L: result and reading"): down-sampling reaches the
    delta level in 19/32 (h-base 12/32, p = 0.066; lexicase and share 32/32, p = 2.6e-5). The
    effect of H belongs to behaviour-based selection, not to random episode subsets (base task
-   only). `k-ri-lex` was stopped by a restart of the hub on epyc; resumed (safe: seeds are
-   deterministic).
+   only). `k-ri-lex` done 20 Nov (README, "Package K, arm k-ri-lex: result and reading"): main
+   count 0/32 above 0.90 (needed 2), 0/32 above 0.85, rule 2 11/32, median as `j-lexicase`
+   (p = 0.75); the mutation inserts in 73% of attempts but no rule gains a normalised
+   preconditioner. Residual insertion in the evolutionary search is closed as negative.
+   `k-plain2m` runs on epyc (same platform as J), projection 24.1 h.
    clustered8 check 19 Nov (README, "clustered8: a found rule..."): d-kalman seed 9, found on
    collision3, scores 0.860 on clustered8 fresh draws against 0.672 for tuned Kalman delta
    (12/12 draws); one rule of 128. An obvious hand-made fix (key centring + delta rule, one extra
