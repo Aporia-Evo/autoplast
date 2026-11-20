@@ -16,3 +16,52 @@
 | 12 | 0.8348 | 0.827 | 0.811 | 21 | 0.827, 21, at 1: V0 += eps * MatVec(M2,Normalize(V0)), eps +0.1; polished; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.801, 21, at 5: M0 += eps * MatScale(Recip(S1),M0), eps +0.001; polished | 12393 | 1483 | 5608 |
 | 13 | 0.8348 | 0.827 | 0.811 | 21 | 0.827, 21, at 1: V0 += eps * MatVec(M2,Normalize(V0)), eps +0.1; polished; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.801, 21, at 5: M0 += eps * MatScale(Recip(S1),M0), eps +0.001; polished | 12493 | 1547 | 6319 |
 | 14 | 0.8348 | 0.827 | 0.811 | 21 | 0.827, 21, at 1: V0 += eps * MatVec(M2,Normalize(V0)), eps +0.1; polished; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.801, 21, at 5: M0 += eps * MatScale(Recip(S1),M0), eps +0.001; polished | 12593 | 1611 | 7044 |
+| 15 | 0.8348 | 0.827 | 0.811 | 21 | 0.827, 21, at 1: V0 += eps * MatVec(M2,Normalize(V0)), eps +0.1; polished; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.801, 21, at 5: M0 += eps * MatScale(Recip(S1),M0), eps +0.001; polished | 12693 | 1675 | 7760 |
+| 16 | 0.8348 | 0.827 | 0.811 | 21 | 0.827, 21, at 1: V0 += eps * MatVec(M2,Normalize(V0)), eps +0.1; polished; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.801, 21, at 5: M0 += eps * MatScale(Recip(S1),M0), eps +0.001; polished | 12793 | 1739 | 8452 |
+| 17 | 0.8348 | 0.827 | 0.811 | 21 | 0.827, 21, at 1: V0 += eps * MatVec(M2,Normalize(V0)), eps +0.1; polished; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.801, 21, at 5: M0 += eps * MatScale(Recip(S1),M0), eps +0.001; polished | 12893 | 1803 | 9139 |
+| 18 | 0.8348 | 0.827 | 0.811 | 21 | 0.827, 21, at 1: V0 += eps * MatVec(M2,Normalize(V0)), eps +0.1; polished; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.801, 21, at 5: M0 += eps * MatScale(Recip(S1),M0), eps +0.001; polished | 12993 | 1867 | 9878 |
+| 19 | 0.8348 | 0.827 | 0.811 | 21 | 0.827, 21, at 1: V0 += eps * MatVec(M2,Normalize(V0)), eps +0.1; polished; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.801, 21, at 5: M0 += eps * MatScale(Recip(S1),M0), eps +0.001; polished | 13093 | 1931 | 10593 |
+| 20 | 0.8348 | 0.827 | 0.811 | 21 | 0.827, 21, at 1: V0 += eps * MatVec(M2,Normalize(V0)), eps +0.1; polished; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.802, 23, at 0: V0 += eps * V0, eps +0.003; compacted 24->23; 0.801, 21, at 5: M0 += eps * MatScale(Recip(S1),M0), eps +0.001; polished | 13193 | 1995 | 11286 |
+
+```
+S' = (S + ((v + -1.149·S·k))⊗((P2 + 0.037·|S·k|·P2)·(k + 0.363·P2·norm(k))))
+P1' = -0.286·((P2 + 0.037·|S·k|·P2)·(k + 0.363·P2·norm(k)))⊗((P2 + 0.037·|S·k|·P2)·(k + 0.363·P2·norm(k)))
+P2' = ((P2 + 0.037·|S·k|·P2) + -0.286·((P2 + 0.037·|S·k|·P2)·(k + 0.363·P2·norm(k)))⊗((P2 + 0.037·|S·k|·P2)·(k + 0.363·P2·norm(k))))
+
+Effective program (21 instructions):
+  V2 = MatVec(M0, V0)
+  V3 = Normalize(V0)
+  V4 = MatVec(M2, V3)
+  s0 = 0.3635
+  V4 = VecScale(s0, V4)
+  V0 = VecAdd(V0, V4)
+  s0 = Norm(V2)
+  M1 = MatScale(s0, M2)
+  s1 = 0.0367
+  M1 = MatScale(s1, M1)
+  M2 = MatAdd(M2, M1)
+  V0 = MatVec(M2, V0)
+  s0 = -1.1491
+  V2 = VecScale(s0, V2)
+  V1 = VecAdd(V1, V2)
+  M1 = Outer(V1, V0)
+  M0 = MatAdd(M0, M1)
+  M1 = Outer(V0, V0)
+  s0 = -0.2861
+  M1 = MatScale(s0, M1)
+  M2 = MatAdd(M2, M1)
+
+structure: unclassified  [a=0.994 b=0.686 c=-0.771 g=0.016, erase c/a=0.776, R²=0.6307, 1408 steps]
+
+train acc 0.827 ±0.011
+test regime collision3: acc 0.811  margin 0.186  ±0.005
+test d16 T12 ow0.3: acc 0.914  margin 0.285  ±0.004
+test d16 T12 ow0.0: acc 0.907  margin 0.261  ±0.004
+test d16 T12 ow0.6: acc 0.856  margin 0.228  ±0.007
+test d32 T24 ow0.3: acc 0.831  margin 0.230  ±0.006
+test d8 T6 ow0.3: acc 0.846  margin 0.151  ±0.008
+test d16 T64 K8 ow0.3: acc 0.955  margin 0.263  ±0.005
+test d16 T128 K8 ow0.3: acc 0.000  margin 0.000  ±0.000
+
+
+```
