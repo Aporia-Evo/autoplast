@@ -266,3 +266,68 @@ test d16 T64 K8 ow0.3: acc 0.902  margin 0.179  ±0.007
 test d16 T128 K8 ow0.3: acc 0.845  margin 0.133  ±0.011
 ```
 fresh draws: 0.788 (+0.145 ± 0.002, 12/12) against DeltaNet; 0.788 (-0.146 ± 0.002, 0/12) against Kalman delta
+JAX float32 eps 1e-6:
+  reference: linear attention: acc 0.3852 (2505/6503)
+  reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+  runs/grow3/armB3_task14/best.json: acc 0.7824 (5088/6503)
+JAX float64 eps 1e-9:
+  reference: linear attention: acc 0.3852 (2505/6503)
+  reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+  runs/grow3/armB3_task14/best.json: acc 0.7824 (5088/6503)
+eps scale: runs/grow3/armB3_task14/best.json: median max|S|  eps 1e-6: 0.26  eps 1e-3: 0.26  ratio 1 
+
+## runs/grow3/armB3_task15/best.json
+
+```
+S' = (((S + -0.056·(S)(P1)) + -0.628·((S + -0.056·(S)(P1))·P2·k)⊗(P2·k)) + (v)⊗(P1·P2·k))
+P1' = (P1 + -0.628·(tanh(P1·P2·k))⊗(P1·P2·k))
+P2' = (P2 + 0.016·|(S + -0.056·(S)(P1))·P2·k|·((P1 + -0.628·(tanh(P1·P2·k))⊗(P1·P2·k)) - P2))
+
+Effective program (23 instructions):
+  V0 = MatVec(M2, V0)
+  M3 = MatMul(M0, M1)
+  s0 = -0.0562
+  M3 = MatScale(s0, M3)
+  M0 = MatAdd(M0, M3)
+  V2 = MatVec(M0, V0)
+  M3 = Outer(V2, V0)
+  V0 = MatVec(M1, V0)
+  s0 = -0.6275
+  M3 = MatScale(s0, M3)
+  M0 = MatAdd(M0, M3)
+  M3 = Outer(V1, V0)
+  M0 = MatAdd(M0, M3)
+  V1 = Tanh(V0)
+  M3 = Outer(V1, V0)
+  M3 = MatScale(s0, M3)
+  M1 = MatAdd(M1, M3)
+  s0 = Norm(V2)
+  M3 = MatSub(M1, M2)
+  M3 = MatScale(s0, M3)
+  s0 = 0.0156
+  M3 = MatScale(s0, M3)
+  M2 = MatAdd(M2, M3)
+
+structure: unclassified  [a=0.972 b=0.361 c=-0.575 g=-0.034, erase c/a=0.592, R²=0.6218, 1408 steps]
+
+train acc 0.797 ±0.012
+test regime collision3: acc 0.778  margin 0.152  ±0.005
+test d16 T12 ow0.3: acc 0.935  margin 0.305  ±0.004
+test d16 T12 ow0.0: acc 0.979  margin 0.323  ±0.002
+test d16 T12 ow0.6: acc 0.911  margin 0.252  ±0.005
+test d32 T24 ow0.3: acc 0.963  margin 0.373  ±0.003
+test d8 T6 ow0.3: acc 0.855  margin 0.154  ±0.007
+test d16 T64 K8 ow0.3: acc 0.882  margin 0.168  ±0.007
+test d16 T128 K8 ow0.3: acc 0.808  margin 0.115  ±0.012
+```
+fresh draws: 0.783 (+0.140 ± 0.002, 12/12) against DeltaNet; 0.783 (-0.151 ± 0.002, 0/12) against Kalman delta
+JAX float32 eps 1e-6:
+  reference: linear attention: acc 0.3852 (2505/6503)
+  reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+  runs/grow3/armB3_task15/best.json: acc 0.7776 (5057/6503)
+JAX float64 eps 1e-9:
+  reference: linear attention: acc 0.3852 (2505/6503)
+  reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+  runs/grow3/armB3_task15/best.json: acc 0.7776 (5057/6503)
+eps scale: runs/grow3/armB3_task15/best.json: median max|S|  eps 1e-6: 0.285  eps 1e-3: 0.285  ratio 1 
+
