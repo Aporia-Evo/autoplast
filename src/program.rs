@@ -943,6 +943,23 @@ impl Regs {
         self.s = [0.0; NS];
     }
 
+    /// Largest absolute entry over the persistent registers beyond M0 (infinity if not finite).
+    pub fn max_persistent_abs(&self) -> f32 {
+        let mx = |x: &[f32]| x.iter().fold(0.0f32, |a, x| if x.is_finite() { a.max(x.abs()) } else { f32::INFINITY });
+        let mut w = 0.0f32;
+        for i in 1..NM {
+            if persist_m(i) {
+                w = w.max(mx(&self.m[i]));
+            }
+        }
+        for i in 2..NV {
+            if persist_v(i) {
+                w = w.max(mx(&self.v[i]));
+            }
+        }
+        w
+    }
+
     /// True if every persistent register beyond M0 is finite and bounded (M0 is checked by
     /// the caller).
     pub fn persistent_ok(&self) -> bool {

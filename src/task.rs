@@ -272,6 +272,30 @@ pub const MARGIN_WEIGHT: f32 = 0.05;
 pub const LEN_PENALTY: f32 = 1e-4;
 
 /// Evaluate a rule. `prog` should already be the effective (dead-code-free) program.
+/// (20 Nov 2026, growth loop v3) Largest absolute entry of S and of every persistent register
+/// over all write steps of all episodes; infinity if anything is not finite. Used as a
+/// stability gate on long episodes (README, "Growth loop, third version"). Queries are not run.
+pub fn max_state(prog: &Program, task: &Task, regs: &mut Regs) -> f32 {
+    let d = task.cfg.d;
+    let mut s_mem = vec![0.0f32; d * d];
+    let mut worst = 0.0f32;
+    for ep in task.episodes.iter() {
+        s_mem.fill(0.0);
+        regs.reset();
+        for &(k, v) in &ep.writes {
+            regs.load(&s_mem, task.key(k), task.val(v));
+            regs.run(prog);
+            let m = regs.max_persistent_abs().max(regs.m[0].iter().fold(0.0f32, |a, x| if x.is_finite() { a.max(x.abs()) } else { f32::INFINITY }));
+            if !m.is_finite() {
+                return f32::INFINITY;
+            }
+            worst = worst.max(m);
+            s_mem.copy_from_slice(&regs.m[0]);
+        }
+    }
+    worst
+}
+
 pub fn evaluate(prog: &Program, task: &Task, regs: &mut Regs) -> Score {
     evaluate_beh(prog, task, regs, None)
 }

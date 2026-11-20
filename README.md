@@ -2141,3 +2141,102 @@ continues from that state when restarted. Test (B2, task seed 3, 3 rounds): a ru
 round 2 and resumed gives the same rows, Rust evaluation and gradient-pass counts, final report
 and `best.json` as an uninterrupted run. The rerun of B2 task seed 2 repeated the 5 rounds before
 its crash exactly, Rust evaluation count included.
+
+### Growth loop, second version: result of B2 and reading (20 Nov 2026; task seed 7 still running)
+
+`python verify/grow.py --arm B --beam 4 --compact --task-seed N`, logs in
+`runs/grow2/armB2_taskN/`. Test is the fixed collision3 test suite.
+
+| task seed | collision3 test | T64 K8 | T128 K8 | length | rounds | Rust evaluations | grad passes | hours |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 0.814 | 0.902 | **0.000** | 24 | 7 | 9,698 | 1,167 | 0.6 |
+| 2 | 0.623 | 0.795 | 0.834 | 24 | 10 | 16,672 | 1,719 | 1.6 |
+| 3 | 0.650 | 0.853 | 0.703 | 14 | 20 | 54,491 | 2,715 | 2.5 |
+| 4 | 0.647 | 0.813 | 0.854 | 20 | 20 | 20,310 | 1,935 | 2.2 |
+| 5 | 0.811 | 0.955 | **0.000** | 21 | 20 | 13,193 | 1,995 | 3.1 |
+| 6 | 0.752 | **0.000** | **0.000** | 21 | 5 | 9,269 | 919 | 0.4 |
+| 8 | 0.647 | 0.841 | **0.000** | 17 | 4 | 9,844 | 795 | 0.3 |
+
+Against what was fixed before the run:
+- Effect against the evolutionary search (≥ 0.85 in 3 or more of 8): **not met**. No seed
+  reaches 0.85; with seed 7 open the count is at most 1 of 8.
+- Freeze (5 or more of 8): not met. No seed at 0.90.
+- Prediction (3 or more of 8 with probability 0.5): wrong.
+
+What fails: the loop exploits the short train episodes. The three best rules (seeds 1, 5, 6)
+put a growth term into the key preconditioner P2: `P2 + 0.013·P2·P2`, `P2·(1 + 0.037·|S k|)`, a
+cubic term. Under them sits the family of the first version's rule (a delta write at the
+preconditioned key P2·k with an anti-Hebbian P2), but the growth makes it blow up on long
+episodes. This is the mechanism of RLS with forgetting ρ > 1 in "A known target" (0.933 test,
+T128 K8 0.000) and the degenerate win of CLAUDE.md rule 3. A probe on 64 episodes of 256 writes
+(below, third version) is infinite for 6 of the 7 rules, including seeds 2 and 4, which pass
+T128 K8 (0.834, 0.854) and diverge only later. Of the 32 best rules of `d-kalman`, 31 stay below
+40 on the same probe; the one that diverges (seed 22, T128 K8 0.561) is in no count. This does
+not show that evolution is more stable as a search: it reaches a working P update far less often
+(1 of 32 above 0.85), so it rarely meets the choice.
+
+Beam and compaction did not raise the level against the first version (task seeds 1 to 4: 0.814,
+0.623, 0.650, 0.647 against 0.860, 0.527, 0.645, 0.771). The length limit still binds (21 to 24 in
+five of seven). Cost per seed: 9k to 54k Rust evaluations, against about 0.8M per evolutionary seed.
+
+#### Two checks asked by the owner (20 Nov, in the B2 logs and code)
+
+1. *Was the identity available to the P update?* Yes while M1 was unwritten: M1 then holds I at
+   every step, and candidates with it were taken, `M2 += ε·(M1 − M2)` with ε = −0.1 three times
+   (P2' = 1.1·P2 − 0.1·I, growth away from I) and `M2 += ε·|V3|·M1` with ε = −0.003. On short
+   episodes the gradient chose the growing sign. Later the loop used M1 as a temporary in every
+   seed (all seven final programs write M1), and from then on I was not available. Under a gate
+   that refuses growth, the bounded alternatives (+q·I, ε·(I − P)) need I, so this is fixed in
+   the third version.
+2. *Why did seeds 2, 3, 4 stay near 0.64: taps pushed out of the top 60, or two-state programs
+   pushed out of the beam?* Neither. In all eight seeds a tap entered the beam in round 2 or 3,
+   and from round 3 on every beam member descended from a tap program. In seeds 2, 4 and 8 the P
+   branch is a scalar self-growth, P2' = P2·(1 + 0.01·|…|): P2 stays a multiple of I and acts as a
+   growing step size, not as a preconditioner. In seed 3 it is a weak rank-one update (−0.01).
+   A separate quota for taps or a niche per number of states would not have changed these seeds;
+   they are not taken over.
+
+### Growth loop, third version (fixed 20 Nov 2026, before running)
+
+Owner's go of 20 Nov: a third version on unseen task seeds, with a stability gate and the fixes
+the two checks call for. `python verify/grow.py --v3 --arm B --beam 4 --task-seed N`, logs in
+`runs/grow3/armB3_taskN/`. All changes are generic and name no op pattern of a known rule.
+
+1. **Stability gate.** A program enters the beam (a selected child, a polished version, each
+   compaction step) only if every entry of S and of the persistent registers stays finite and
+   below 100 in absolute value over 64 episodes of 256 writes on at most 8 keys, with the keys of
+   the train distribution and its own draws (task seed + 1000). New Rust command:
+   `autoplast evalmany --split long` (`task::max_state`); the train fitness is unchanged, the gate
+   only refuses. Calibration on existing rules: stable rules give 0.3 to 40 (v1 seed 1: 1.0;
+   `d-kalman` seeds 9 and 2: 4.9 and 4.7; Kalman delta written in the space: 2.1), the unstable
+   B2 rules give infinity. The bound is not tuned; any value from 50 to 1e4 separates these.
+   Gate evaluations and refusals are reported.
+2. **Identity kept.** Persistent matrix registers the program never writes hold I at every step;
+   they are not used as temporaries. Temporaries are written in place (a node writes into its
+   child's temporary), so one matrix temporary (M3) is enough for every candidate expression.
+3. **Compaction.** A unit fold that misses the acceptance by less than 0.01 in fitness gets 15
+   polish steps on the remaining constants and is scored again (outside review).
+4. **Stop rule.** Stop when the best program has not improved for 3 rounds, when the beam does not
+   change, or after 20 rounds. In the second version the best never improved again after 3 rounds
+   without improvement (0 of 7 seeds), so on that evidence the rule loses nothing; it saves the
+   idle rounds of seeds 3, 4 and 5 (up to 2 hours each).
+5. **Unseen task seeds 10 to 17.** Seeds 1 to 8 have been looked at through two versions. Seed 9 is
+   excluded: it is the seed of the collision3 test suite (`regime_cfg(r, 9, 512)`), so a train
+   task with seed 9 would share the key and value tables and its first episodes with the test.
+
+Fixed before the run (as for the second version):
+- An effect against the evolutionary search is shown if `B3` reaches ≥ 0.85 with rule 2's other
+  conditions and the epsilon check in 3 or more of 8 task seeds (one-sided Fisher against 1 of 32,
+  p = 0.020). Every such rule also gets 12 fresh draws and JAX (`verify/grow2_checks.py`).
+- The method is frozen and taken to testbed 2 if `B3` does so in 5 or more of 8.
+- A seed at ≥ 0.90 is reported as reaching the level of Kalman delta on that seed.
+- Limit stated now: the evolutionary rate comes from 32 search seeds on task seed 1; the loop is
+  measured over task seeds. This assumes that train draws of the same regime are of similar
+  difficulty. The gate is applied to the loop only; on the evolutionary arm it would have refused
+  one rule of 32, counted nowhere.
+- Prediction of the research agent: `B3` at ≥ 0.85 in 3 or more of 8 with probability 0.3, in
+  5 or more with 0.1; some seed ≥ 0.90 with 0.15; the gate refuses at least one child in every
+  seed with 0.8.
+
+Order of runs: `B3` on seeds 10 to 17 first, in two lanes; the remaining `A2` seeds of the second
+version afterwards (they resume from their saved state).

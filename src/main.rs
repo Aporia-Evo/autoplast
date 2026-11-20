@@ -445,9 +445,21 @@ fn main() {
             let progs: Vec<Program> = text.lines().filter(|l| !l.trim().is_empty()).map(|l| Program::from_json(l).expect("parse prog")).collect();
             let cfg = if split == "train" {
                 train_cfg()
+            } else if split == "long" {
+                // (20 Nov 2026) stability probe of growth loop v3: train-distribution keys
+                // (the regime's), own draws (task seed + 1000), 64 episodes of 256 writes on at
+                // most 8 keys. Prints "max_state 0 0" per program, see task::max_state.
+                let mut c = train_cfg();
+                c.seed = task_seed() + 1000;
+                c.n_episodes = 0;
+                c.long_episodes = 64;
+                c.long_t = 256;
+                c.long_max_keys = 8;
+                c
             } else {
                 test_suites().into_iter().find(|(n, _)| n.starts_with("test regime")).expect("--regime needed").1
             };
+            let long = split == "long";
             let task = Task::new(cfg);
             let mut out = vec![(0f32, 0f32, 0f32); progs.len()];
             let chunk = (progs.len() + threads - 1) / threads.max(1);
@@ -457,6 +469,10 @@ fn main() {
                     sc.spawn(move || {
                         let mut regs = Regs::new(task.cfg.d);
                         for (p, o) in ps.iter().zip(os.iter_mut()) {
+                            if long {
+                                *o = (task::max_state(&p.effective(), task, &mut regs), 0.0, 0.0);
+                                continue;
+                            }
                             let sc = evaluate(&p.effective(), task, &mut regs);
                             *o = (sc.fitness, sc.acc, sc.margin);
                         }

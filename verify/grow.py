@@ -43,9 +43,13 @@ TASK_SEED = arg("--task-seed", 1)
 ROUNDS = arg("--rounds", 20)
 BEAM = arg("--beam", 1)
 COMPACT = "--compact" in sys.argv
-V2 = BEAM > 1 or COMPACT
-OUT = pathlib.Path(arg("--out", str(ROOT / ("runs/grow2" if V2 else "runs/grow") / f"arm{ARM}{'2' if V2 else ''}_task{TASK_SEED}")))
+V3 = "--v3" in sys.argv  # third version (README, "Growth loop, third version"); implies beam and compaction
+V2 = BEAM > 1 or COMPACT or V3
+VER = "3" if V3 else "2" if V2 else ""
+OUT = pathlib.Path(arg("--out", str(ROOT / f"runs/grow{VER}" / f"arm{ARM}{VER}_task{TASK_SEED}")))
 N_GRAD = 0  # forward-backward passes: one per adjoint computation, one per polish step
+N_GATE = 0  # v3: programs scored by the stability gate
+GATE_BOUND = 100.0
 FLAGS = ["--regime", "collision3", "--recip", "--persist-m", "3", "--persist-init", "identity", "--task-seed", str(TASK_SEED)]
 N_RUST = 0
 
@@ -73,6 +77,21 @@ def rust_fit(progs, split="train"):
                          capture_output=True, text=True, check=True).stdout.split("\n")
     N_RUST += len(progs)
     return [tuple(map(float, l.split())) for l in out if l.strip()]
+
+
+def gate(progs):
+    """v3 stability gate: largest |entry| of S and of the persistent registers over 64 episodes of
+    256 writes on at most 8 keys, train-distribution keys, own draws (`evalmany --split long`).
+    A program passes below GATE_BOUND; anything not finite fails."""
+    global N_GATE
+    if not progs:
+        return []
+    f = OUT / "_gate.jsonl"
+    f.write_text("\n".join(json.dumps({"persist_m": PM, "persist_v": 0, "persist_identity": 1, "instrs": p}) for p in progs) + "\n")
+    out = subprocess.run([EXE, "evalmany", "--in", str(f), "--threads", str(os.cpu_count()), "--split", "long"] + FLAGS,
+                         capture_output=True, text=True, check=True).stdout.split("\n")
+    N_GATE += len(progs)
+    return [float(l.split()[0]) < GATE_BOUND for l in out if l.strip()]
 
 
 def rust_report(prog):
@@ -366,6 +385,35 @@ def emit(tree, free, block):
     return o
 
 
+def emit3(tree, free, block):
+    """v3: as emit, but a node writes into the register of a child temporary of its own type,
+    and the other child temporaries are released once read (one matrix temporary suffices)."""
+    def go(tr):
+        if tr[0] in ("M", "V", "S"):
+            return tr[1], False
+        res = [go(c) for c in tr[1:]]
+        ty = node_type(tr)
+        own = [r for (r, tmp), c in zip(res, tr[1:]) if tmp and node_type(c) == ty]
+        if own:
+            o = own[0]
+        else:
+            if not free[ty]:
+                raise RuntimeError("no free register")
+            o = free[ty].pop(0)
+        block.append(ins(tr[0], o, *([r for r, _ in res] + [0, 0])[:2]))
+        for (r, tmp), c in zip(res, tr[1:]):
+            if tmp and not (node_type(c) == ty and r == o):
+                free[node_type(c)].insert(0, r)
+        return o, True
+    return go(tree)[0]
+
+
+def constant_regs(prog):
+    """Persistent matrix registers the program never writes: they hold their initial value (the
+    identity) at every step. v3 keeps them out of the temporaries."""
+    return {("M", r) for r in range(1, PM) if not any(sig(i["op"])[0] == "M" and i["out"] == r for i in prog)}
+
+
 def leaves(tree, acc=None):
     acc = set() if acc is None else acc
     if tree[0] in ("M", "V", "S"):
@@ -382,11 +430,11 @@ def materialise(prog, p, reg_ty, r, tree, eps):
     lives, _ = live_sets(prog)
     lm, lv, ls = lives[p]
     live = {"M": lm, "V": lv, "S": ls}
-    used = leaves(tree)
+    used = leaves(tree) | (constant_regs(prog) if V3 else set())
     free = {t: [x for x in range({"M": NM, "V": NV, "S": NS}[t])
                 if x not in live[t] and (t, x) not in used and not (t == reg_ty and x == r)] for t in "MVS"}
     block = []
-    t = emit(tree, free, block)
+    t = (emit3 if V3 else emit)(tree, free, block)
     if block and block[-1]["out"] == t:
         u = t
     else:
@@ -648,31 +696,55 @@ def cse(prog):
             break
 
 
-def compact(prog, fit):
+def compact(prog, fit, tasks=None):
     for _ in range(40):
         vs = [prog[:i] + prog[i + 1:] for i in range(len(prog))]
-        vs += list(unit_folds(prog)) + list(self_folds(prog)) + list(cse(prog))
+        units = list(unit_folds(prog))
+        vs += units + list(self_folds(prog)) + list(cse(prog))
         if not vs:
             break
         fs = rust_fit(vs)
-        b = max(range(len(vs)), key=lambda k: (fs[k][0], -len(vs[k])))
-        if fs[b][0] > fit[0] + 1e-9 or (fs[b][0] >= fit[0] - 1e-9 and len(vs[b]) < len(prog)):
-            prog, fit = vs[b], fs[b]
-        else:
+        better = lambda k: fs[k][0] > fit[0] + 1e-9 or (fs[k][0] >= fit[0] - 1e-9 and len(vs[k]) < len(prog))
+        if not V3:
+            b = max(range(len(vs)), key=lambda k: (fs[k][0], -len(vs[k])))
+            if better(b):
+                prog, fit = vs[b], fs[b]
+            else:
+                break
+            continue
+        # v3: a unit fold that misses by less than 0.01 gets 15 polish steps on its constants
+        # and is scored again; the best acceptable variant that passes the stability gate is taken
+        u0 = len(prog)
+        for k in range(u0, u0 + len(units)):
+            if not better(k) and fs[k][0] >= fit[0] - 0.01:
+                q = polish(vs[k], tasks, steps=15)
+                if q is not vs[k]:
+                    vs[k], fs[k] = q, rust_fit([q])[0]
+        ok = [k for k in sorted(range(len(vs)), key=lambda k: (-fs[k][0], len(vs[k]))) if better(k)]
+        take = None
+        for k0 in range(0, len(ok), 8):
+            hit = [k for k, g in zip(ok[k0:k0 + 8], gate([vs[k] for k in ok[k0:k0 + 8]])) if g]
+            if hit:
+                take = hit[0]
+                break
+        if take is None:
             break
+        prog, fit = vs[take], fs[take]
     return prog, fit
 
 
 def main2(tasks):
     """The beam loop. State is saved after every round (`state.json`), and a run that finds it
     continues from there: the loop is deterministic, so a resumed run is the same run."""
-    global N_RUST, N_GRAD
+    global N_RUST, N_GRAD, N_GATE
     t0 = time.time()
     ck = OUT / "state.json"
+    rejected, stall = 0, 0  # v3: children refused by the gate; rounds without a better best
     if ck.exists():
         st = json.load(open(ck))
         beam = [(tuple(f), q, txt) for f, q, txt in st["beam"]]
         N_RUST, N_GRAD, start = st["n_rust"], st["n_grad"], st["round"] + 1
+        N_GATE, rejected, stall = st.get("n_gate", 0), st.get("rejected", 0), st.get("stall", 0)
         t0 -= st["seconds"]
         rows = open(OUT / "log.md").read().split("\n")
         keep = [r for r in rows if not r.startswith("| ") or not r[2:].split(" ")[0].isdigit()
@@ -684,10 +756,19 @@ def main2(tasks):
         beam = [(rust_fit([empty])[0], empty, "start")]
         start = 1
         log = open(OUT / "log.md", "w")
-        log.write(f"# grow v2, arm {ARM}, task seed {TASK_SEED}, beam {BEAM}, compaction {COMPACT}\n\n"
-                  "| round | best train fit | best train acc | best test acc | len | beam (train acc, len, last step) | Rust evals | grad passes | seconds |\n"
-                  "|---|---|---|---|---|---|---|---|---|\n")
+        if V3:
+            log.write(f"# grow v3, arm {ARM}, task seed {TASK_SEED}, beam {BEAM}, compaction, stability gate {GATE_BOUND:g}\n\n"
+                      "| round | best train fit | best train acc | best test acc | len | beam (train acc, len, last step) | Rust evals | grad passes | gate evals | refused by gate | seconds |\n"
+                      "|---|---|---|---|---|---|---|---|---|---|---|\n")
+        else:
+            log.write(f"# grow v2, arm {ARM}, task seed {TASK_SEED}, beam {BEAM}, compaction {COMPACT}\n\n"
+                      "| round | best train fit | best train acc | best test acc | len | beam (train acc, len, last step) | Rust evals | grad passes | seconds |\n"
+                      "|---|---|---|---|---|---|---|---|---|\n")
+    cols = (lambda: f"{N_RUST} | {N_GRAD} | {N_GATE} | {rejected}") if V3 else (lambda: f"{N_RUST} | {N_GRAD}")
     for rnd in range(start, ROUNDS + 1):
+        if V3 and stall >= 3:
+            log.write(f"| {rnd} | stop: best not improved for 3 rounds | | | | | {cols()} | {time.time() - t0:.0f} |\n")
+            break
         children = []
         for f, prog, _ in beam:
             children += expand(prog, tasks)
@@ -702,13 +783,16 @@ def main2(tasks):
                 sg = signature(c)
                 if sg in sigs:
                     continue
+                if V3 and not gate([q])[0]:
+                    rejected += 1
+                    continue
                 sigs.add(sg)
             skels.add(sk)
             new.append((f, q, c, e))
             if len(new) == BEAM:
                 break
         if all(c is None for _, _, c, _ in new):
-            log.write(f"| {rnd} | stop: beam unchanged | | | | | {N_RUST} | {N_GRAD} | {time.time() - t0:.0f} |\n")
+            log.write(f"| {rnd} | stop: beam unchanged | | | | | {cols()} | {time.time() - t0:.0f} |\n")
             break
         nb = []
         for f, q, c, e in new:
@@ -718,25 +802,29 @@ def main2(tasks):
             txt = f"{describe(c)}, eps {e:+g}"
             pol = polish(q, tasks)
             pf = rust_fit([pol])[0]
-            if pf[0] > f[0]:
+            if pf[0] > f[0] and (not V3 or gate([pol])[0]):
                 q, f = pol, pf
                 txt += "; polished"
-            if COMPACT:
+            if COMPACT or V3:
                 n0 = len(q)
-                q, f = compact(q, f)
+                q, f = compact(q, f, tasks)
                 if len(q) < n0:
                     txt += f"; compacted {n0}->{len(q)}"
             nb.append((f, q, txt))
+        prev_best = max(b[0][0] for b in beam)
         beam = sorted(nb, key=lambda b: -b[0][0])
         f, q, _ = beam[0]
+        stall = 0 if f[0] > prev_best + 1e-9 else stall + 1
         test = rust_fit([q], split="test")[0]
         desc = "; ".join(f"{b[0][1]:.3f}, {len(b[1])}, {b[2]}" for b in beam)
-        log.write(f"| {rnd} | {f[0]:.4f} | {f[1]:.3f} | {test[1]:.3f} | {len(q)} | {desc} | {N_RUST} | {N_GRAD} | {time.time() - t0:.0f} |\n")
+        log.write(f"| {rnd} | {f[0]:.4f} | {f[1]:.3f} | {test[1]:.3f} | {len(q)} | {desc} | {cols()} | {time.time() - t0:.0f} |\n")
         log.flush()
         json.dump({"persist_m": PM, "persist_v": 0, "persist_identity": 1, "instrs": q}, open(OUT / "best.json", "w"))
         tmp = OUT / "state.tmp"
-        json.dump({"round": rnd, "beam": beam, "n_rust": N_RUST, "n_grad": N_GRAD, "seconds": time.time() - t0}, open(tmp, "w"))
+        json.dump({"round": rnd, "beam": beam, "n_rust": N_RUST, "n_grad": N_GRAD, "n_gate": N_GATE, "rejected": rejected,
+                   "stall": stall, "seconds": time.time() - t0}, open(tmp, "w"))
         tmp.replace(ck)
+
     log.write("\n```\n" + rust_report(beam[0][1]) + "\n```\n")
     log.close()
 
@@ -748,7 +836,7 @@ def main():
     tasks = V.load_task_json(str(dump))
     if V2:
         main2(tasks)
-        for f in ("_batch.jsonl", "_one.json", "_train.json", "state.json"):
+        for f in ("_batch.jsonl", "_one.json", "_train.json", "_gate.jsonl", "state.json"):
             (OUT / f).unlink(missing_ok=True)
         return
     prog = []
