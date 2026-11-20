@@ -7,3 +7,5 @@ runs/grow*/*/_batch.jsonl
 runs/grow*/*/_one.json
 runs/grow*/*/_train.json
 runs/grow2/checks/test_dump.json
+runs/grow*/*/state.json
+runs/grow*/*/state.tmp

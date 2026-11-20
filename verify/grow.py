@@ -664,14 +664,30 @@ def compact(prog, fit):
 
 
 def main2(tasks):
+    """The beam loop. State is saved after every round (`state.json`), and a run that finds it
+    continues from there: the loop is deterministic, so a resumed run is the same run."""
+    global N_RUST, N_GRAD
     t0 = time.time()
-    empty = []
-    beam = [(rust_fit([empty])[0], empty, "start")]
-    log = open(OUT / "log.md", "w")
-    log.write(f"# grow v2, arm {ARM}, task seed {TASK_SEED}, beam {BEAM}, compaction {COMPACT}\n\n"
-              "| round | best train fit | best train acc | best test acc | len | beam (train acc, len, last step) | Rust evals | grad passes | seconds |\n"
-              "|---|---|---|---|---|---|---|---|---|\n")
-    for rnd in range(1, ROUNDS + 1):
+    ck = OUT / "state.json"
+    if ck.exists():
+        st = json.load(open(ck))
+        beam = [(tuple(f), q, txt) for f, q, txt in st["beam"]]
+        N_RUST, N_GRAD, start = st["n_rust"], st["n_grad"], st["round"] + 1
+        t0 -= st["seconds"]
+        rows = open(OUT / "log.md").read().split("\n")
+        keep = [r for r in rows if not r.startswith("| ") or not r[2:].split(" ")[0].isdigit()
+                or int(r[2:].split(" ")[0]) <= st["round"]]
+        open(OUT / "log.md", "w").write("\n".join(keep).rstrip("\n") + "\n")
+        log = open(OUT / "log.md", "a")
+    else:
+        empty = []
+        beam = [(rust_fit([empty])[0], empty, "start")]
+        start = 1
+        log = open(OUT / "log.md", "w")
+        log.write(f"# grow v2, arm {ARM}, task seed {TASK_SEED}, beam {BEAM}, compaction {COMPACT}\n\n"
+                  "| round | best train fit | best train acc | best test acc | len | beam (train acc, len, last step) | Rust evals | grad passes | seconds |\n"
+                  "|---|---|---|---|---|---|---|---|---|\n")
+    for rnd in range(start, ROUNDS + 1):
         children = []
         for f, prog, _ in beam:
             children += expand(prog, tasks)
@@ -718,6 +734,9 @@ def main2(tasks):
         log.write(f"| {rnd} | {f[0]:.4f} | {f[1]:.3f} | {test[1]:.3f} | {len(q)} | {desc} | {N_RUST} | {N_GRAD} | {time.time() - t0:.0f} |\n")
         log.flush()
         json.dump({"persist_m": PM, "persist_v": 0, "persist_identity": 1, "instrs": q}, open(OUT / "best.json", "w"))
+        tmp = OUT / "state.tmp"
+        json.dump({"round": rnd, "beam": beam, "n_rust": N_RUST, "n_grad": N_GRAD, "seconds": time.time() - t0}, open(tmp, "w"))
+        tmp.replace(ck)
     log.write("\n```\n" + rust_report(beam[0][1]) + "\n```\n")
     log.close()
 
@@ -729,7 +748,7 @@ def main():
     tasks = V.load_task_json(str(dump))
     if V2:
         main2(tasks)
-        for f in ("_batch.jsonl", "_one.json", "_train.json"):
+        for f in ("_batch.jsonl", "_one.json", "_train.json", "state.json"):
             (OUT / f).unlink(missing_ok=True)
         return
     prog = []
