@@ -6,3 +6,4 @@ runs/grow*/run_all*.log
 runs/grow*/*/_batch.jsonl
 runs/grow*/*/_one.json
 runs/grow*/*/_train.json
+runs/grow2/checks/test_dump.json
