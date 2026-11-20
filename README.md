@@ -2134,3 +2134,10 @@ live `V4` or `V5` indexed the four-wide matrix array and stopped the run (`Index
 the fix gives the same scores after it, and the loop is deterministic, so the crashed seeds are
 rerun from the start; the rerun has to repeat the rounds before the crash (checked, see the
 result). Wall time is on a shared 4-core container with two runs in parallel.
+
+Second amendment of 20 Nov, also before any result: a container restart stopped all runs.
+`verify/grow.py` now saves the beam, the counters and the elapsed time after every round and
+continues from that state when restarted. Test (B2, task seed 3, 3 rounds): a run killed after
+round 2 and resumed gives the same rows, Rust evaluation and gradient-pass counts, final report
+and `best.json` as an uninterrupted run. The rerun of B2 task seed 2 repeated the 5 rounds before
+its crash exactly, Rust evaluation count included.
