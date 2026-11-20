@@ -2240,3 +2240,77 @@ Fixed before the run (as for the second version):
 
 Order of runs: `B3` on seeds 10 to 17 first, in two lanes; the remaining `A2` seeds of the second
 version afterwards (they resume from their saved state).
+
+### Growth loop, third version: result of B3 and reading (20 Nov 2026)
+
+`python verify/grow.py --v3 --arm B --beam 4 --task-seed N`, task seeds 10 to 17, logs in
+`runs/grow3/armB3_taskN/`, checks in `runs/grow3/checks_b3.md` and `checks_b3_16_17.md`. Test is
+the fixed collision3 test suite; "fresh" is the mean over the 12 fresh draws of
+`verify/grow2_checks.py` (tuned DeltaNet 0.643, hand-written Kalman delta 0.934 on the same draws);
+"long" is the gate probe of the final rule (largest |entry| over 64 episodes of 256 writes).
+
+| task seed | train | test | fresh | T64 K8 | T128 K8 | long | length | rounds | Rust evaluations | grad passes | gate evaluations | refused | minutes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 10 | 0.825 | 0.804 | 0.811 | 0.924 | 0.897 | 1.0 | 24 | 7 | 8,331 | 1,223 | 49 | 11 | 35 |
+| 11 | 0.800 | 0.800 | 0.805 | 0.928 | 0.899 | 1.0 | 24 | 7 | 7,648 | 1,043 | 62 | 28 | 34 |
+| 12 | 0.802 | 0.799 | 0.805 | 0.931 | 0.901 | 1.0 | 23 | 7 | 8,307 | 1,043 | 72 | 32 | 34 |
+| 13 | 0.800 | 0.773 | 0.776 | 0.899 | 0.907 | 1.0 | 23 | 7 | 8,530 | 1,178 | 47 | 16 | 33 |
+| 14 | 0.794 | 0.782 | 0.788 | 0.902 | 0.845 | 1.0 | 23 | 8 | 8,724 | 1,122 | 82 | 42 | 43 |
+| 15 | 0.797 | 0.778 | 0.783 | 0.882 | 0.808 | 1.0 | 23 | 7 | 8,628 | 998 | 62 | 28 | 34 |
+| 16 | 0.669 | 0.645 | 0.650 | 0.851 | 0.858 | 3.6 | 15 | 9 | 17,794 | 1,182 | 123 | 58 | 33 |
+| 17 | 0.805 | 0.790 | 0.797 | 0.971 | 0.989 | 10.4 | 21 | 6 | 8,443 | 1,039 | 38 | 5 | 25 |
+
+Every rule beats tuned DeltaNet on 12 of 12 fresh draws and loses to Kalman delta on 12 of 12.
+JAX reproduces each test accuracy exactly in float32 at ε 1e-6 and in float64 at ε 1e-9; no rule
+uses Normalize and the ε-scale ratio is 1 for all eight. Train − test is at most 0.027.
+
+Against what was fixed before the run:
+- Effect against the evolutionary search (≥ 0.85 in 3 or more of 8): **not met**, 0 of 8. The
+  best rule reaches 0.804 test, 0.811 fresh.
+- Freeze and testbed 2 (5 or more of 8): not met. No seed at 0.90.
+- Predictions: 3 or more of 8 (probability 0.3) wrong; a seed ≥ 0.90 (0.15) no; the gate refuses
+  at least one child in every seed (0.8) right, 5 to 58 children per seed.
+
+What the gate changed. The failure of the second version is gone: all eight final rules stay
+bounded on 256-write episodes (largest entry 1.0 to 10.4, against infinity for 7 of 8 B2 rules),
+and T128 K8 is 0.81 to 0.99 (B2: 0.000 in 5 of 8). Seven of eight seeds reach 0.77 to 0.80 test
+with a working two-state rule; the one B2 rule that stayed bounded (seed 3) was at 0.650. The
+seeds are different, so this is no paired comparison of the versions.
+
+What the loop finds. Five of the seven (seeds 10, 11, 12, 14, 15) assemble the same family,
+with x = P2·k:
+
+    S'  = (1 − c)·(S − η·(S k)⊗x) + v⊗(P1 x)            η ≈ 0.61 to 0.65, c ≈ 0.05
+    P1' = P1 − η·(P1 x)⊗tanh(P1 x)
+    P2' = P2 + α·|S k|·(P1' − P2)                      α ≈ 0.016 to 0.10
+
+(seeds 14 and 15 decay S by S − c·S·P1 instead of a scalar; seed 14 writes tanh(v)). The
+rule erases along a preconditioned key and writes along a doubly preconditioned key: decoupled
+erase/write rather than the delta form (v − S k); P1 is updated anti-Hebbian, P − η·(P x)(P x)ᵀ,
+the form of the RLS/Kalman covariance update with a fixed step in place of 1/(r + kᵀPk); P2 is a
+lagged copy of P1 that moves at a rate set by the read |S k|. Seed 17 is a variant without the
+lag (P2' = P2 − 0.036·(P2 k)⊗(P2 k) + 0.039·P1'ᵀ) and has the best long-episode accuracy (T128 K8
+0.989). Seed 13 uses one preconditioner. None of these is new as a mechanism (anti-Hebbian
+decorrelation, novelty filter, Preconditioned DeltaNet, Kalman delta, Erase-then-Delta are
+neighbours), and all score below Kalman delta, so no discovery claim follows. Seed 16 is the
+failure of B2 seeds 2, 4 and 8 again: P2' = P2 + 0.010·|e|·P1ᵀ with P1 = I unwritten, a step size
+that grows linearly and stays below the gate bound; the rule is a delta rule at 0.645.
+
+Why it stops at 0.80. The length limit binds: the best program has 23 or 24 instructions in six
+seeds and 21 in seed 17, and every seed stops by "beam unchanged" (or, seed 16, three rounds
+without improvement) one or two rounds after reaching it. What the family lacks against Kalman
+delta is the normalisation 1/(r + kᵀPk) and the q·I term; with no free instructions left, no
+residual block that could add them fits.
+
+Cost: 7.6k to 8.7k Rust evaluations and 1.0k to 1.2k gradient passes per seed (seed 16: 17.8k),
+25 to 43 minutes on one container core per seed. An evolutionary seed in this space evaluates about
+0.98M candidates in about one hour.
+
+Not fixed before the run, reported as observation only. Below the 0.85 bar the gap to the
+evolutionary arms is large. Test ≥ 0.75: loop 7 of 8; evolutionary arms in this space (`d-kalman`,
+`j-lexicase`, `j-share`, 96 seeds on task seed 1) 1 of 96 counted (`d-kalman` 9, 0.855;
+`j-lexicase` 6 at 0.893 is the scale trick and not counted; the next best is 0.721). One-sided
+Fisher p = 3e-9, but the threshold was chosen after seeing the data and the loop runs on other task
+seeds than the evolutionary arms. Rule 2: loop 6 of 8 (seed 15 fails T128 K8, seed 16 the test
+bar), evolutionary arms 28 of 96 (p = 0.014, same caveats). A claim needs both arms on the same
+task seeds with the threshold fixed first.

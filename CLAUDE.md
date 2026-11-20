@@ -175,7 +175,15 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    "Closed-loop growth test: result and reading"): with neutral taps (arm B) the loop reaches
    0.860 test on task seed 1 (partial success, all checks pass) in 2.8k Rust evaluations; without
    (arm A) 0.511. Replicates: B 0.527 / 0.645 / 0.771, A 0.64 to 0.65. Works, not yet reliable:
-   greedy, length-bound. Next: beam + deletion step, 8+ task seeds, fixed in README first.
+   greedy, length-bound. Second version (beam 4, compaction; README, "Growth loop, second
+   version: result of B2"), task seeds 1 to 8: 0 of 8 at 0.85; the best rules grow P and diverge
+   on long episodes (rule 3), 7 of 8. Third version (stability gate, identity kept, stop rule;
+   README, "Growth loop, third version: result of B3"), unseen task seeds 10 to 17, done 20 Nov:
+   0 of 8 at 0.85 (criterion 3 of 8 not met, not frozen); all eight bounded on long episodes,
+   7 of 8 at 0.77 to 0.80 test with a two-state preconditioned erase/write rule (fresh draws 0.78
+   to 0.81, DeltaNet 0.643, Kalman delta 0.934), about 8k Rust evaluations per seed. The length
+   limit binds (21 to 24 of 24). Post hoc only: test ≥ 0.75 in 7/8 against 1/96 evolutionary
+   seeds, on other task seeds. Remaining `A2` seeds run after B3. Next step open with the owner.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
