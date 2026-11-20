@@ -2142,7 +2142,7 @@ round 2 and resumed gives the same rows, Rust evaluation and gradient-pass count
 and `best.json` as an uninterrupted run. The rerun of B2 task seed 2 repeated the 5 rounds before
 its crash exactly, Rust evaluation count included.
 
-### Growth loop, second version: result of B2 and reading (20 Nov 2026; task seed 7 still running)
+### Growth loop, second version: result of B2 and reading (20 Nov 2026)
 
 `python verify/grow.py --arm B --beam 4 --compact --task-seed N`, logs in
 `runs/grow2/armB2_taskN/`. Test is the fixed collision3 test suite.
@@ -2155,11 +2155,11 @@ its crash exactly, Rust evaluation count included.
 | 4 | 0.647 | 0.813 | 0.854 | 20 | 20 | 20,310 | 1,935 | 2.2 |
 | 5 | 0.811 | 0.955 | **0.000** | 21 | 20 | 13,193 | 1,995 | 3.1 |
 | 6 | 0.752 | **0.000** | **0.000** | 21 | 5 | 9,269 | 919 | 0.4 |
+| 7 | 0.651 | 0.832 | **0.000** | 22 | 6 | 12,266 | 863 | 0.7 |
 | 8 | 0.647 | 0.841 | **0.000** | 17 | 4 | 9,844 | 795 | 0.3 |
 
 Against what was fixed before the run:
-- Effect against the evolutionary search (≥ 0.85 in 3 or more of 8): **not met**. No seed
-  reaches 0.85; with seed 7 open the count is at most 1 of 8.
+- Effect against the evolutionary search (≥ 0.85 in 3 or more of 8): **not met**, 0 of 8.
 - Freeze (5 or more of 8): not met. No seed at 0.90.
 - Prediction (3 or more of 8 with probability 0.5): wrong.
 
@@ -2169,15 +2169,15 @@ cubic term. Under them sits the family of the first version's rule (a delta writ
 preconditioned key P2·k with an anti-Hebbian P2), but the growth makes it blow up on long
 episodes. This is the mechanism of RLS with forgetting ρ > 1 in "A known target" (0.933 test,
 T128 K8 0.000) and the degenerate win of CLAUDE.md rule 3. A probe on 64 episodes of 256 writes
-(below, third version) is infinite for 6 of the 7 rules, including seeds 2 and 4, which pass
-T128 K8 (0.834, 0.854) and diverge only later. Of the 32 best rules of `d-kalman`, 31 stay below
+(below, third version) is infinite for 7 of the 8 rules (all but seed 3), including seeds 2 and
+4, which pass T128 K8 (0.834, 0.854) and diverge only later. Of the 32 best rules of `d-kalman`, 31 stay below
 40 on the same probe; the one that diverges (seed 22, T128 K8 0.561) is in no count. This does
 not show that evolution is more stable as a search: it reaches a working P update far less often
 (1 of 32 above 0.85), so it rarely meets the choice.
 
 Beam and compaction did not raise the level against the first version (task seeds 1 to 4: 0.814,
 0.623, 0.650, 0.647 against 0.860, 0.527, 0.645, 0.771). The length limit still binds (21 to 24 in
-five of seven). Cost per seed: 9k to 54k Rust evaluations, against about 0.8M per evolutionary seed.
+six of eight). Cost per seed: 9k to 54k Rust evaluations, against about 0.8M per evolutionary seed.
 
 #### Two checks asked by the owner (20 Nov, in the B2 logs and code)
 
@@ -2185,7 +2185,7 @@ five of seven). Cost per seed: 9k to 54k Rust evaluations, against about 0.8M pe
    every step, and candidates with it were taken, `M2 += ε·(M1 − M2)` with ε = −0.1 three times
    (P2' = 1.1·P2 − 0.1·I, growth away from I) and `M2 += ε·|V3|·M1` with ε = −0.003. On short
    episodes the gradient chose the growing sign. Later the loop used M1 as a temporary in every
-   seed (all seven final programs write M1), and from then on I was not available. Under a gate
+   seed (all eight final programs write M1), and from then on I was not available. Under a gate
    that refuses growth, the bounded alternatives (+q·I, ε·(I − P)) need I, so this is fixed in
    the third version.
 2. *Why did seeds 2, 3, 4 stay near 0.64: taps pushed out of the top 60, or two-state programs
@@ -2218,7 +2218,7 @@ the two checks call for. `python verify/grow.py --v3 --arm B --beam 4 --task-see
    polish steps on the remaining constants and is scored again (outside review).
 4. **Stop rule.** Stop when the best program has not improved for 3 rounds, when the beam does not
    change, or after 20 rounds. In the second version the best never improved again after 3 rounds
-   without improvement (0 of 7 seeds), so on that evidence the rule loses nothing; it saves the
+   without improvement (0 of 8 seeds), so on that evidence the rule loses nothing; it saves the
    idle rounds of seeds 3, 4 and 5 (up to 2 hours each).
 5. **Unseen task seeds 10 to 17.** Seeds 1 to 8 have been looked at through two versions. Seed 9 is
    excluded: it is the seed of the collision3 test suite (`regime_cfg(r, 9, 512)`), so a train
