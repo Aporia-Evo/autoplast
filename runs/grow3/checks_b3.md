@@ -211,3 +211,58 @@ test d16 T64 K8 ow0.3: acc 0.899  margin 0.209  ±0.007
 test d16 T128 K8 ow0.3: acc 0.907  margin 0.210  ±0.009
 ```
 fresh draws: 0.776 (+0.133 ± 0.002, 12/12) against DeltaNet; 0.776 (-0.158 ± 0.002, 0/12) against Kalman delta
+JAX float32 eps 1e-6:
+  reference: linear attention: acc 0.3852 (2505/6503)
+  reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+  runs/grow3/armB3_task13/best.json: acc 0.7730 (5027/6503)
+JAX float64 eps 1e-9:
+  reference: linear attention: acc 0.3852 (2505/6503)
+  reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+  runs/grow3/armB3_task13/best.json: acc 0.7730 (5027/6503)
+eps scale: runs/grow3/armB3_task13/best.json: median max|S|  eps 1e-6: 0.294  eps 1e-3: 0.294  ratio 1 
+
+## runs/grow3/armB3_task14/best.json
+
+```
+S' = (((S + -0.064·(S)(P1)) + -0.613·((S + -0.064·(S)(P1))·k)⊗(P2·k)) + (tanh(v))⊗(P1·P2·k))
+P1' = (P1 + -0.613·(P1·P2·k)⊗(P1·P2·k))
+P2' = (P2 + 0.032·|P1·P2·k|·((P1 + -0.613·(P1·P2·k)⊗(P1·P2·k)) - P2))
+
+Effective program (23 instructions):
+  M3 = MatMul(M0, M1)
+  s0 = -0.0640
+  M3 = MatScale(s0, M3)
+  M0 = MatAdd(M0, M3)
+  V2 = MatVec(M0, V0)
+  V0 = MatVec(M2, V0)
+  M3 = Outer(V2, V0)
+  V0 = MatVec(M1, V0)
+  s0 = -0.6134
+  M3 = MatScale(s0, M3)
+  M0 = MatAdd(M0, M3)
+  V2 = Tanh(V1)
+  M3 = Outer(V2, V0)
+  M0 = MatAdd(M0, M3)
+  M3 = Outer(V0, V0)
+  M3 = MatScale(s0, M3)
+  M1 = MatAdd(M1, M3)
+  s0 = Norm(V0)
+  M3 = MatSub(M1, M2)
+  M3 = MatScale(s0, M3)
+  s0 = 0.0324
+  M3 = MatScale(s0, M3)
+  M2 = MatAdd(M2, M3)
+
+structure: unclassified  [a=0.969 b=0.341 c=-0.548 g=-0.016, erase c/a=0.566, R²=0.6110, 1408 steps]
+
+train acc 0.794 ±0.012
+test regime collision3: acc 0.782  margin 0.153  ±0.005
+test d16 T12 ow0.3: acc 0.907  margin 0.295  ±0.004
+test d16 T12 ow0.0: acc 0.982  margin 0.327  ±0.002
+test d16 T12 ow0.6: acc 0.873  margin 0.234  ±0.006
+test d32 T24 ow0.3: acc 0.935  margin 0.359  ±0.004
+test d8 T6 ow0.3: acc 0.828  margin 0.144  ±0.008
+test d16 T64 K8 ow0.3: acc 0.902  margin 0.179  ±0.007
+test d16 T128 K8 ow0.3: acc 0.845  margin 0.133  ±0.011
+```
+fresh draws: 0.788 (+0.145 ± 0.002, 12/12) against DeltaNet; 0.788 (-0.146 ± 0.002, 0/12) against Kalman delta
