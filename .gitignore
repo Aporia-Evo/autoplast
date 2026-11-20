@@ -10,3 +10,4 @@ runs/grow2/checks/test_dump.json
 runs/grow*/*/state.json
 runs/grow*/*/state.tmp
 runs/grow*/*/_gate.jsonl
+runs/grow*/lane*.log
