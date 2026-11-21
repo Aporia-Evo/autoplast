@@ -187,6 +187,14 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    to 0.81, DeltaNet 0.643, Kalman delta 0.934), about 8k Rust evaluations per seed. The length
    limit binds (21 to 24 of 24). Post hoc only: test ≥ 0.75 in 7/8 against 1/96 evolutionary
    seeds, on other task seeds. Remaining `A2` seeds run after B3. Next step open with the owner.
+   Reference of 21 Nov (README, "A classical rule at the ridge ceiling"): RLS covariance with an
+   unregularised write gain (recursive pseudo-inverse memory, 16 instructions, hand-written,
+   `verify/probe_olam.py`) reaches the ridge ceiling on collision3 (1.000, every check passed)
+   and on 8 more of the 11 regimes. Headroom above it is left only in overload (0.077) and
+   overload48 (0.146). It is to be listed next to every number; on solved regimes a search can
+   at most tie (method result, not discovery). The memetic MAP-Elites search on the owner's PC
+   (`v2/memetic`, not yet in the repository) reached 1.000 on validation in development; its
+   counted run (task seeds 1 and 501, 4 seeds each) is read as fixed in that README section.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.

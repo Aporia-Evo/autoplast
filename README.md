@@ -2364,3 +2364,89 @@ Fisher p = 3e-9, but the threshold was chosen after seeing the data and the loop
 seeds than the evolutionary arms. Rule 2: loop 6 of 8 (seed 15 fails T128 K8, seed 16 the test
 bar), evolutionary arms 28 of 96 (p = 0.014, same caveats). A claim needs both arms on the same
 task seeds with the threshold fixed first.
+
+## A classical rule at the ridge ceiling: the measured headroom was mostly not there (21 Nov 2026)
+
+Prompted by a result of 1.000 on the collision3 validation split reported from the owner's PC
+(below), a hand-written reference was added (`verify/probe_olam.py`; CLAUDE.md rule 6: reference
+only, never a candidate, seed or mutation): the RLS covariance update with a separate, smaller
+regulariser in the memory write,
+
+    P' = P − (P k)(P k)ᵀ / (δ_P + kᵀP k)          P₀ = I
+    S' = S + (v − S k)(P k)ᵀ / (ε + kᵀP k)
+
+16 instructions, two states, `--persist-m 2 --persist-init identity --recip`. With ε = δ_P it is the
+plain RLS of `verify/probe_rls.py` (ρ = 1), which averages a rewritten key with its old values
+(collision3 test 0.62). With ε = 0 the write gain is P k / kᵀP k: for a new key the normalised
+novelty vector of Greville's recursive pseudo-inverse (the recursive form of Kohonen's optimal
+linear associative memory, S = V K⁺), and for a rewritten key, through the small δ_P left in P,
+the dual vector of that key, so the old value is replaced and the other keys are kept. The
+regulariser of the write was tied to that of P in both earlier probes; untying it is the whole
+difference. Grid δ_P ∈ {0.01, …, 3}, ε ∈ {0, …, 0.3}, best by train (`runs/sweeps/probe_olam_*.md`).
+
+| regime (test) | tuned Kalman delta | this reference | ridge ceiling | headroom left |
+|---|---|---|---|---|
+| collision3 | 0.935 | **1.000** (δ_P 0.03, ε 0) | 1.000 | 0 |
+| collision | 0.991 | 1.000 | 1.000 | 0 |
+| clustered | 0.958 | 1.000 | 1.000 | 0 |
+| clustered8 | 0.680 | **1.000** | 1.000 | 0 |
+| longgap | 0.956 | 1.000 | 1.000 | 0 |
+| rewrite8 | 0.951 | 1.000 | 1.000 | 0 |
+| rewrite14 | 0.854 | 0.999 | 1.000 | 0.001 |
+| noisyq | 0.967 | 0.984 | 0.990 | 0.006 |
+| full (T24) | 0.944 | 0.983 | 0.995 | 0.012 |
+| overload (T32) | 0.805 | 0.878 | 0.955 | **0.077** |
+| overload48 | 0.591 | 0.603 | 0.749 | **0.146** |
+
+On collision3 the setting δ_P = 0.03, ε = 0 passes every check: train 1.000, test 1.000 (JAX
+float32 and float64 at ε 1e-9: 6500/6503), T64 K8 and T128 K8 1.000, d32 1.000, query gap 4
+0.993, long-episode probe 3.5 (bound 100), 12 fresh draws 0.9997 against 0.934 for Kalman delta
+(12/12). The regimes with at most d distinct keys per episode are solved exactly by a pseudo-inverse
+memory; the ridge ceiling is reachable online there.
+
+What this changes:
+- Kalman delta was the strongest reference so far, and it is not the strongest known rule in
+  this space. Every "headroom" of stage 2 except overload and overload48 was measured against
+  too weak a reference. From now on this reference sits next to every number, with the families
+  of CLAUDE.md rule 2 (adding it to that list is the owner's decision).
+- Earlier readings stand as measured but lose their weight: `d-kalman` seed 9 (collision3 0.864,
+  clustered8 0.860) and the growth-loop rules (0.77 to 0.80) are all below a 16-instruction
+  classical rule. "Reaching Kalman delta" (Direction 2) aimed below the ceiling.
+- No rule can be better than known rules on collision3 or the other solved regimes; at most it
+  ties. A search that finds a ceiling-level rule there is a method result (rediscovery of the best
+  rule of the regime), not a discovery. A discovery claim needs a regime with headroom above this
+  reference: overload (0.077) and overload48 (0.146), where an episode has more distinct keys
+  than dimensions.
+- Literature: the reference belongs to recursive least squares and recursive pseudo-inverse memory
+  (Kohonen and Ruohonen 1973; Greville 1960). Recent neighbours of the same kind: MesaNet, Kernel
+  Ridge Attention (arXiv 2611.23896, 18 Nov 2026), Kalman Delta Networks.
+
+### The memetic MAP-Elites search on the owner's PC (recorded 21 Nov, before any counted result)
+
+Recorded from the log of the agent on the owner's PC; the code (`v2/memetic`, a separate Rust
+binary, the autoplast search unchanged) and its `PROTOCOL.md` are not yet in the repository.
+After three dropped attempts at continuous relaxations (a dense typed supergraph with pruning, a
+relaxed register machine, smooth L0 pruning; none reached the 24-instruction space at a useful
+level), the agent built a search in the exact autoplast space: fitness MSE of S q against v plus
+0.015·mean(state²) and a length tie-break, constants tuned by coordinate search and Nelder–Mead on
+the best candidates, liveness-safe residual, chain and wrap mutations, and a MAP-Elites archive
+over effective length × live states × written states × the 4 most frequent ops. Development used
+only the train dump of task seed 1 and a validation dump (task seed 2001); the test suite was not
+loaded. A development seed reached 1.000 on validation in 296k candidates (23 instructions), the
+level of the reference above. The method was then frozen and a counted run started: 4 search seeds
+on task seed 1 and 4 on the unseen task seed 501, 300k candidates each.
+
+How the research agent will read it (fixed now, before any counted result is seen):
+- A seed counts if its `best.json` (chosen on train and validation only) gives, in the Rust
+  binary of this repository, collision3 test > 0.90, T128 K8 ≥ 0.838, train − test ≤ 0.03, the
+  long-episode probe below 100, and no change above 0.02 under `verify.py --x64 --norm-eps 1e-9`.
+- Task seed 1 is the development task, so its 4 seeds are reported but are not an independent
+  measurement; task seed 501 is. Four seeds per arm is below the 8 of rule 2: a rate needs 8 or
+  more unseen task seeds with the method unchanged.
+- On collision3 the best possible outcome is a tie with the reference (1.000). Against the
+  evolutionary arms in this space (0/160 seeds above 0.90: `d-kalman`, `g-tune8`, `j-lexicase`,
+  `j-share`, `k-ri-lex`) it is a method result only after an ablation at equal cost, counted in
+  episode evaluations: the MSE fitness, the constant tuning, the archive and the new mutations each
+  switched off. Constant tuning alone had no effect under the accuracy fitness (packages F, G).
+- Each counted rule is compared in formula with the reference (is it a recursive pseudo-inverse
+  in substance?) before anything is said about its structure.
