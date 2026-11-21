@@ -165,7 +165,8 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    count 0/32 above 0.90 (needed 2), 0/32 above 0.85, rule 2 11/32, median as `j-lexicase`
    (p = 0.75); the mutation inserts in 73% of attempts but no rule gains a normalised
    preconditioner. Residual insertion in the evolutionary search is closed as negative.
-   `k-plain2m` runs on epyc (same platform as J), projection 24.1 h.
+   `k-plain2m` done 21 Nov (README, "Package K, arm k-plain2m"): 9/32 stuck at 2.1M (criterion
+   5/32 met, p = 0.001 against J): J's stuck effect stands at matched wall time.
    clustered8 check 19 Nov (README, "clustered8: a found rule..."): d-kalman seed 9, found on
    collision3, scores 0.860 on clustered8 fresh draws against 0.672 for tuned Kalman delta
    (12/12 draws); one rule of 128. An obvious hand-made fix (key centring + delta rule, one extra

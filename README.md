@@ -1899,6 +1899,37 @@ Reading:
   minutes match the arms it controls. Command, budget (2.1M) and binary (6c2f60a) unchanged;
   timing projection 24.1 h.
 
+### Package K, arm k-plain2m: result and reading (21 Nov 2026)
+
+Run: `runs/k-plain2m`, commit 6c2f60a, epyc, seeds 1 to 32, 2.1M candidates, plain selection,
+17.3 h for the arm; report `runs/k-plain2m/k_report.md`. Counts recomputed from the summaries;
+they agree with the report. Up to 1.5M candidates every log row of every seed equals the row of
+`d-kalman` (same binary and machine), so the arm is `d-kalman` continued by 600k candidates: a
+reproduction check passed in passing.
+
+| collision3, space of D and E | `d-kalman` (1.5M) | `k-plain2m` (2.1M) | `j-share` (1.5M) | `j-lexicase` (1.5M) |
+|---|---|---|---|---|
+| stuck (test < 0.53) | 12/32 | **9/32** | 0/32 | 0/32 |
+| rule 2 | 6/32 | 8/32 | 11/32 | 12/32 |
+| above 0.85 under the conditions | 1/32 | 1/32 (seed 9) | 0/32 | 1/32 (trick) |
+| median test | 0.630 | 0.635 | 0.653 | 0.682 |
+| minutes per seed, mean | 42 | 64 | 49 | 60 |
+
+Against what was fixed before the run: the stuck effect of J stands at matched wall time if
+`k-plain2m` has 5/32 or more stuck. **Met**: 9/32 (against 0/32 for both arms of J, Fisher
+one-sided p = 0.001). Three of the 12 stuck seeds of `d-kalman` leave with the extra budget (18, 21,
+23); the 11 seeds below 0.53 at 1.5M are the same 11 as in `d-kalman`. Median against `j-lexicase`:
+Mann-Whitney p = 1.2e-4. Predictions of the research agent: 5 or more stuck (0.80) yes, a seed above
+0.90 (0.03) no. Checks: JAX within 0.0005 on 31 seeds (seed 22 diverges in Rust's guard, as in
+`d-kalman`); the ε check moves seed 9 by −0.0215 (0.855 to 0.834), with an ε-scale ratio of 0.94, so
+not a scale trick, the same rule as `d-kalman` seed 9.
+
+Reading: behaviour-based selection (J) removes the stuck seeds in the space of D and E, and the
+plain search does not catch up with 40% more candidates and more wall time. With packages H, I and
+L this is the one component with a supported effect, on two tasks. It does not raise the level:
+no arm of this space reaches 0.90, and since 21 Nov the level that matters is the ridge ceiling,
+which a classical reference reaches on collision3 (below, "A classical rule at the ridge ceiling").
+
 ## clustered8: a found rule against the tuned families and against an obvious fix (19 Nov 2026)
 
 Prompted by the second outside review (owner, 19 Nov): `clustered8` (T48, 8 keys around one
