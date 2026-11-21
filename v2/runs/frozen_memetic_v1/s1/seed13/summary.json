@@ -1,0 +1,14 @@
+{
+  "seed": 13,
+  "wall_seconds": 331.79,
+  "total_cands": 300544,
+  "n_instrs": 24,
+  "persist_m": 2,
+  "train_obj": 0.28652,
+  "train_mse": 0.27377,
+  "train_acc": 0.9419,
+  "val_obj": 0.27215,
+  "val_mse": 0.25943,
+  "val_acc": 0.9576,
+  "max_abs_state_val": 1.542
+}
