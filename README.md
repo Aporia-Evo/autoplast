@@ -2671,3 +2671,16 @@ Reading:
   memetic constant tuning in GP (e.g. Topchy and Punch 2001; Kommenda et al. 2020); MAP-Elites
   (Mouret and Clune 2015). The contribution is their combination and its measured effect here,
   not any of them alone.
+
+Reproducibility of v3.1, checked here: the same seed twice on one machine, and with 16 against 4
+threads, gives an identical `best.json` (30k candidates). Across platforms it does not: seed 601
+rerun on Linux, with dumps made by this repository's binary (equal to the PC's up to the last float32
+bit), ends at validation 0.699 against 0.994 on the PC, after 30.1M against 21.7M episode
+evaluations. The search is chaotic in last-bit differences (input dumps or `tanh`/`exp`), so a
+single seed's outcome is a draw and only rates carry meaning; a committed seed reproduces on its own
+platform, as CLAUDE.md allows, once its dumps are committed (the per-seed dumps of 601 to 616 and
+701 to 708 are not in the repository yet).
+
+The growth loop's remaining `A2` runs (second version, without taps) were stopped on the owner's
+decision of 21 Nov; finished: task seed 1 only, the others partial (logs in `runs/grow2/`). The
+comparison "taps matter" of the second version stays unmeasured; the line is closed.

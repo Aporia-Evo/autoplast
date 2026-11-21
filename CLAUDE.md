@@ -203,6 +203,9 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    carry the effect and constant tuning makes rules unstable. Evolution: 0/160 above 0.90, on task
    seed 1 only, at about 5 times the episode evaluations. Package M (RUNBOOK; plain and lexicase
    on task seeds 601 to 608) makes the comparison matched; awaiting the owner's go.
+   v3.1 is deterministic on one machine and across thread counts, not across platforms (seed 601
+   on Linux: 0.70 against 0.99): rates carry meaning, single seeds do not. Growth-loop A2 runs
+   stopped 21 Nov (owner); the growth-loop line is closed.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
