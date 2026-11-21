@@ -2534,7 +2534,7 @@ is stored separately and labelled as such). Checked here in Rust and JAX:
 | s501 seed 101 | 0.839 | 0.842 | 0.965 | 1.3 to 1.6 | | | |
 | s501 seed 102 | 0.840 | 0.850 | | infinite | | | |
 | s501 seed 103 | 0.729 | 0.736 | 0.958 | 0.8 to 1.0 | | | |
-| s1 seed 13 | 0.945 | 0.942 | 0.980 | 1.5 to 1.7 | 6148 / 6148 | 1.00 | 0.946 |
+| s1 seed 13 | 0.945 | 0.942 | 0.980 | 1.5 to 1.7 | 6148 / 6148 of 6503 | 1.00 | 0.946 |
 
 The reported numbers are confirmed. One slip in the PC audit: the train accuracies of the task-501
 rules were computed on task seed 1 (0.999, 0.834, 0.839, 0.721); on their own task they are those
