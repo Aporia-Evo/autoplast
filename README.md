@@ -2524,3 +2524,31 @@ above), and the write runs along the normalised P k with the unseen component am
 45-fold over the seen one through c₂·P'³, an approximate dual vector without a reciprocal. Not
 claimed to be the same function. Post hoc, untuned on the regime: full 0.985 (reference tuned on
 full 0.983), overload 0.864 (0.878), overload48 0.478 (0.603), noisyq 0.970 (0.984).
+
+Five of the eight rules were then uploaded by the owner (`runs/memetic-pc/`; the rebuilt seed 12
+is stored separately and labelled as such). Checked here in Rust and JAX:
+
+| rule | collision3 test | train (own task seed) | T128 K8 | long probe, 9 draws | JAX f32 / f64 at ε 1e-9 | ε-scale ratio | 12 fresh draws |
+|---|---|---|---|---|---|---|---|
+| s501 seed 100 | 1.000 | 1.000 | 1.000 | 3.5 to 5.6, two draws 48 and 56 | 6500 / 6503 of 6503 | 1.00 | 1.000 (reference 0.9997) |
+| s501 seed 101 | 0.839 | 0.842 | 0.965 | 1.3 to 1.6 | | | |
+| s501 seed 102 | 0.840 | 0.850 | | infinite | | | |
+| s501 seed 103 | 0.729 | 0.736 | 0.958 | 0.8 to 1.0 | | | |
+| s1 seed 13 | 0.945 | 0.942 | 0.980 | 1.5 to 1.7 | 6148 / 6148 | 1.00 | 0.946 |
+
+The reported numbers are confirmed. One slip in the PC audit: the train accuracies of the task-501
+rules were computed on task seed 1 (0.999, 0.834, 0.839, 0.721); on their own task they are those
+above, and train − test stays within 0.03. The long probe of seed 100 is heavy-tailed (48 and 56 in
+two of nine draws, bound 100), so its stability margin is thinner than the PC's 4.0 suggests.
+
+Post hoc, not fixed before (`verify/long_probe_jax.py`, episodes of 1024 writes on at most 8
+clustered keys): the reference with its collision3 setting (δ_P = 0.03) falls to 0.043, because
+kᵀP k of a key rewritten about 128 times drops to where the 1e-6 in the Recip op dominates; with
+δ_P = 0.3 to 3 it holds 1.000 at T = 1024 but drops to 0.91 to 0.71 on the collision3 test; a floor
+q·I gives 0.99 on the test and 0.77 at T = 1024. Seed 100 holds 1.000 and the rebuilt seed 12 0.998
+at T = 1024, with 1.000 on the test; neither uses Recip. So the found rules are of equal accuracy
+on the suites and hold across horizons where the reference, in this space, needs a horizon-dependent
+δ_P. This is a lead for "a different rule of equal accuracy", not a result: the 1024-step suite was
+chosen after seeing the rules, and the gap comes from the epsilon of the reciprocal op, which a
+reviewer can remove. Before it is used, a mixed regime with very long episodes is fixed in advance
+and the reference families are tuned on it.
