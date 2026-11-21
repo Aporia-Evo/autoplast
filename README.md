@@ -2602,3 +2602,31 @@ How the research agent will read it (fixed now, before the audited results are s
   about 113M episode evaluations (`d-kalman` 785k, `j-lexicase` 807k real evaluations), 5 times the
   22M of an ablation arm, and reached 0.90 in 0 of 160 seeds, all on task seed 1. The matched
   comparison on task seeds 701 to 708 is package M (RUNBOOK), proposed to the owner.
+
+### Ablation of the memetic search: audited result as reported, read as fixed (21 Nov 2026)
+
+As reported from the PC after its audit (files not yet in the repository; the numbers below are
+recomputed here once they are). Count = audited valid and collision3 test > 0.90.
+
+| arm (task seeds 701 to 708, 22M episode evaluations) | valid | count | test ≥ 0.99 | median candidates |
+|---|---|---|---|---|
+| `full` (v3.1 default) | 3/8 (5 unstable on the long probe) | 2/8 | 2/8 | 396k |
+| `no_const_tune` | 8/8 | **5/8** | 3/8 | 2,295k |
+| `acc_fitness` | 8/8 | 3/8 | 3/8 | 252k |
+| `no_archive` | 4/8 (4 unstable, 1 ε trick) | 1/8 | 0/8 | 492k |
+| `basic_mut` | 8/8 | 0/8 | 0/8 | 1,202k |
+
+Against the reading fixed before (each arm against `full`, one-sided Fisher, a component called
+necessary only at p < 0.05): **no component is shown necessary at 8 seeds.** `no_const_tune` above
+`full` p = 0.16, `basic_mut` below `full` p = 0.23, `no_archive` p = 0.50, `acc_fitness` p = 0.50.
+The reference arm `full` is itself weakened by unstable rules, which is why the planned contrasts
+carry little.
+
+Post hoc, not fixed before and not a result: against `no_const_tune`, `basic_mut` 0/8 (p = 0.013)
+and `no_archive` 1/8 (p = 0.059). The pattern says: constant tuning in the inner loop moves rules
+across the stability bound (rule 3: tuned on 64-step episodes, diverging at 256), and the
+liveness-safe structural mutations carry most of the effect; the archive may help. This choice of
+reference arm was made after seeing the results, so task seeds 701 to 708 are spent for it. A
+claim needs the variant fixed first (`no_const_tune`), its ablations taken from that variant
+(mutations off, archive off), 16 fresh task seeds, and package M on the same seeds.
+Descriptive: every audited rule above 0.90 uses Normalize and none uses Recip (24 of 24, PC count).
