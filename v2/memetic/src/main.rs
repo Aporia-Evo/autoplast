@@ -79,7 +79,55 @@ impl Rng {
     }
 }
 
-// --- Exact 20-op autoplast D/E/K alphabet ---
+// --- Task mode & exact autoplast op alphabets ---
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TaskMode {
+    Mem,
+    Opt,
+}
+
+impl TaskMode {
+    #[inline]
+    fn ops(self) -> &'static [Op] {
+        match self {
+            TaskMode::Mem => &OPS_MEM,
+            TaskMode::Opt => &OPS_OPT,
+        }
+    }
+
+    #[inline]
+    fn is_persist_m(self, r: usize) -> bool {
+        match self {
+            TaskMode::Mem => r < PM_MAX,
+            TaskMode::Opt => r == 0,
+        }
+    }
+
+    #[inline]
+    fn is_persist_v(self, r: usize) -> bool {
+        match self {
+            TaskMode::Mem => false,
+            TaskMode::Opt => r == 2 || r == 3,
+        }
+    }
+
+    #[inline]
+    fn init_persist_live(self) -> [bool; PM_MAX] {
+        match self {
+            TaskMode::Mem => [true, false, false],
+            TaskMode::Opt => [false, false, false],
+        }
+    }
+
+    #[inline]
+    fn output_reg(self) -> (Ty, u8) {
+        match self {
+            TaskMode::Mem => (Ty::M, 0),
+            TaskMode::Opt => (Ty::V, 0),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Ty {
@@ -111,9 +159,12 @@ enum Op {
     Sigmoid,
     Norm,
     Recip,
+    // Testbed 2 (--task opt) element-wise vector ops, exact semantics of src/opt.rs:
+    VecRecip,
+    VecSqrt,
 }
 
-const OPS: [Op; 20] = [
+const OPS_MEM: [Op; 20] = [
     Op::Outer,
     Op::MatAdd,
     Op::MatSub,
@@ -136,6 +187,31 @@ const OPS: [Op; 20] = [
     Op::Recip,
 ];
 
+const OPS_OPT: [Op; 22] = [
+    Op::Outer,
+    Op::MatAdd,
+    Op::MatSub,
+    Op::MatScale,
+    Op::Transpose,
+    Op::MatMul,
+    Op::MatVec,
+    Op::VecAdd,
+    Op::VecSub,
+    Op::VecScale,
+    Op::Hadamard,
+    Op::Normalize,
+    Op::Tanh,
+    Op::Dot,
+    Op::Const,
+    Op::SAdd,
+    Op::SMul,
+    Op::Sigmoid,
+    Op::Norm,
+    Op::Recip,
+    Op::VecRecip,
+    Op::VecSqrt,
+];
+
 impl Op {
     #[inline]
     fn sig(self) -> (Ty, &'static [Ty]) {
@@ -148,7 +224,7 @@ impl Op {
             Op::MatVec => (V, &[M, V]),
             Op::VecAdd | Op::VecSub | Op::Hadamard => (V, &[V, V]),
             Op::VecScale => (V, &[S, V]),
-            Op::Normalize | Op::Tanh => (V, &[V]),
+            Op::Normalize | Op::Tanh | Op::VecRecip | Op::VecSqrt => (V, &[V]),
             Op::Dot => (S, &[V, V]),
             Op::Const => (S, &[]),
             Op::SAdd | Op::SMul => (S, &[S, S]),
@@ -179,7 +255,13 @@ impl Op {
             Op::Sigmoid => "Sigmoid",
             Op::Norm => "Norm",
             Op::Recip => "Recip",
+            Op::VecRecip => "VecRecip",
+            Op::VecSqrt => "VecSqrt",
         }
+    }
+
+    fn from_name(s: &str) -> Option<Op> {
+        OPS_OPT.iter().copied().find(|o| o.name() == s)
     }
 }
 
@@ -207,10 +289,13 @@ struct Program {
 }
 
 impl Program {
-    fn compact(&self) -> (Program, [bool; PM_MAX], usize, usize) {
+    /// Backward liveness compaction and state-class classification.
+    /// - Mem mode: output is M0; persistent slots are [M0, M1, M2]; export_state = persist_m (1..=3).
+    /// - Opt mode: output is V0; persistent slots are [M0, V2, V3] (each live only if a later step
+    ///   reads it); export_state = persist_v (0..=2).
+    fn compact(&self, mode: TaskMode) -> (Program, [bool; PM_MAX], usize, usize) {
         let n = self.instrs.len();
-        let mut persist_live = [false; PM_MAX];
-        persist_live[0] = true;
+        let mut persist_live = mode.init_persist_live();
         let mut keep = vec![false; n];
 
         loop {
@@ -218,8 +303,18 @@ impl Program {
             let mut nm = [false; NM];
             let mut nv = [false; NV];
             let mut ns = [false; NS];
-            for p in 0..PM_MAX {
-                nm[p] = persist_live[p];
+            match mode {
+                TaskMode::Mem => {
+                    for p in 0..PM_MAX {
+                        nm[p] = persist_live[p];
+                    }
+                }
+                TaskMode::Opt => {
+                    nv[0] = true;
+                    nm[0] = persist_live[0];
+                    nv[2] = persist_live[1];
+                    nv[3] = persist_live[2];
+                }
             }
             for i in (0..n).rev() {
                 let ins = &self.instrs[i];
@@ -254,10 +349,28 @@ impl Program {
                 }
             }
             let mut changed = false;
-            for p in 1..PM_MAX {
-                if nm[p] && !persist_live[p] {
-                    persist_live[p] = true;
-                    changed = true;
+            match mode {
+                TaskMode::Mem => {
+                    for p in 1..PM_MAX {
+                        if nm[p] && !persist_live[p] {
+                            persist_live[p] = true;
+                            changed = true;
+                        }
+                    }
+                }
+                TaskMode::Opt => {
+                    if nm[0] && !persist_live[0] {
+                        persist_live[0] = true;
+                        changed = true;
+                    }
+                    if nv[2] && !persist_live[1] {
+                        persist_live[1] = true;
+                        changed = true;
+                    }
+                    if nv[3] && !persist_live[2] {
+                        persist_live[2] = true;
+                        changed = true;
+                    }
                 }
             }
             if !changed {
@@ -271,17 +384,55 @@ impl Program {
             .zip(&keep)
             .filter_map(|(ins, &k)| if k { Some(ins.clone()) } else { None })
             .collect();
-        let n_live = persist_live.iter().filter(|&&b| b).count();
-        let mut n_written = 0usize;
-        for p in 0..PM_MAX {
-            if persist_live[p]
-                && instrs
-                    .iter()
-                    .any(|ins| ins.op.sig().0 == Ty::M && ins.out as usize == p)
-            {
-                n_written += 1;
+
+        let (n_written, n_live, export_state) = match mode {
+            TaskMode::Mem => {
+                let n_live = persist_live.iter().filter(|&&b| b).count();
+                let mut n_written = 0usize;
+                for p in 0..PM_MAX {
+                    if persist_live[p]
+                        && instrs
+                            .iter()
+                            .any(|ins| ins.op.sig().0 == Ty::M && ins.out as usize == p)
+                    {
+                        n_written += 1;
+                    }
+                }
+                let export_pm = if persist_live[2] {
+                    3
+                } else if persist_live[1] {
+                    2
+                } else {
+                    1
+                };
+                (n_written, n_live, export_pm)
             }
-        }
+            TaskMode::Opt => {
+                // Output V0 plays the role of M0 (always live-out), while {M0, V2, V3} are the
+                // persistent state slots (live only when read by a later step).
+                let n_live = 1 + persist_live.iter().filter(|&&b| b).count();
+                let v0_w = instrs.iter().any(|ins| ins.op.sig().0 == Ty::V && ins.out == 0) as usize;
+                let m0_w = (persist_live[0]
+                    && instrs.iter().any(|ins| ins.op.sig().0 == Ty::M && ins.out == 0))
+                    as usize;
+                let v2_w = (persist_live[1]
+                    && instrs.iter().any(|ins| ins.op.sig().0 == Ty::V && ins.out == 2))
+                    as usize;
+                let v3_w = (persist_live[2]
+                    && instrs.iter().any(|ins| ins.op.sig().0 == Ty::V && ins.out == 3))
+                    as usize;
+                let n_written = v0_w + m0_w + v2_w + v3_w;
+                let export_pv = if persist_live[2] {
+                    2
+                } else if persist_live[1] {
+                    1
+                } else {
+                    0
+                };
+                (n_written, n_live, export_pv)
+            }
+        };
+
         let state_bucket = match (n_written.clamp(1, 3), n_live.clamp(1, 3)) {
             (1, 1) => 0,
             (1, _) => 1,
@@ -289,14 +440,7 @@ impl Program {
             (2, _) => 3,
             _ => 4,
         };
-        let export_pm = if persist_live[2] {
-            3
-        } else if persist_live[1] {
-            2
-        } else {
-            1
-        };
-        (Program { instrs }, persist_live, state_bucket, export_pm)
+        (Program { instrs }, persist_live, state_bucket, export_state)
     }
 
     fn struct_hash(&self) -> u64 {
@@ -312,13 +456,14 @@ impl Program {
         h
     }
 
-    fn op_multiset_hash(&self) -> u64 {
-        let mut counts = [0u8; 20];
+    fn op_multiset_hash(&self, mode: TaskMode) -> u64 {
+        let mut counts = [0u8; 22];
+        let n_ops = mode.ops().len();
         for ins in &self.instrs {
             counts[ins.op as usize] = counts[ins.op as usize].saturating_add(1);
         }
         let mut h: u64 = 0x517cc1b727220a95;
-        for &c in &counts {
+        for &c in &counts[..n_ops] {
             h ^= c as u64;
             h = h.wrapping_mul(0x100000001b3);
         }
@@ -333,7 +478,7 @@ impl Program {
             .collect()
     }
 
-    fn to_json(&self, export_pm: usize) -> String {
+    fn to_json(&self, mode: TaskMode, export_state: usize) -> String {
         let body: Vec<String> = self
             .instrs
             .iter()
@@ -348,11 +493,40 @@ impl Program {
                 )
             })
             .collect();
-        format!(
-            "{{\"persist_m\":{},\"persist_v\":0,\"persist_identity\":1,\"instrs\":[{}]}}",
-            export_pm,
-            body.join(",")
-        )
+        match mode {
+            TaskMode::Mem => format!(
+                "{{\"persist_m\":{},\"persist_v\":0,\"persist_identity\":1,\"instrs\":[{}]}}",
+                export_state,
+                body.join(",")
+            ),
+            TaskMode::Opt => format!(
+                "{{\"persist_m\":1,\"persist_v\":{},\"persist_identity\":0,\"instrs\":[{}]}}",
+                export_state,
+                body.join(",")
+            ),
+        }
+    }
+
+    fn from_json(s: &str) -> Result<Program, String> {
+        let mut instrs = Vec::new();
+        for chunk in s.split('{').skip(2) {
+            let field = |name: &str| -> Result<String, String> {
+                let key = format!("\"{name}\":");
+                let start = chunk.find(&key).ok_or_else(|| format!("missing {name}"))? + key.len();
+                let rest = &chunk[start..];
+                let end = rest.find([',', '}']).unwrap_or(rest.len());
+                Ok(rest[..end].trim().trim_matches('"').to_string())
+            };
+            let op = Op::from_name(&field("op")?).ok_or_else(|| "bad op".to_string())?;
+            instrs.push(Instr {
+                op,
+                out: field("out")?.parse().map_err(|e| format!("{e}"))?,
+                a: field("a")?.parse().map_err(|e| format!("{e}"))?,
+                b: field("b")?.parse().map_err(|e| format!("{e}"))?,
+                c: field("c")?.parse().map_err(|e| format!("{e}"))?,
+            });
+        }
+        Ok(Program { instrs })
     }
 
     fn format_lines(&self) -> String {
@@ -390,13 +564,23 @@ struct Analysis {
     def_s: Vec<[bool; NS]>,
 }
 
-fn analyze(prog: &Program, persist_live: [bool; PM_MAX]) -> Analysis {
+fn analyze(prog: &Program, persist_live: [bool; PM_MAX], mode: TaskMode) -> Analysis {
     let n = prog.instrs.len();
     let mut live_m = vec![[false; NM]; n + 1];
     let mut live_v = vec![[false; NV]; n + 1];
     let mut live_s = vec![[false; NS]; n + 1];
-    for p in 0..PM_MAX {
-        live_m[n][p] = persist_live[p];
+    match mode {
+        TaskMode::Mem => {
+            for p in 0..PM_MAX {
+                live_m[n][p] = persist_live[p];
+            }
+        }
+        TaskMode::Opt => {
+            live_v[n][0] = true;
+            live_m[n][0] = persist_live[0];
+            live_v[n][2] = persist_live[1];
+            live_v[n][3] = persist_live[2];
+        }
     }
     for i in (0..n).rev() {
         live_m[i] = live_m[i + 1];
@@ -428,11 +612,22 @@ fn analyze(prog: &Program, persist_live: [bool; PM_MAX]) -> Analysis {
     let mut def_m = vec![[false; NM]; n + 1];
     let mut def_v = vec![[false; NV]; n + 1];
     let mut def_s = vec![[false; NS]; n + 1];
-    for p in 0..PM_MAX {
-        def_m[0][p] = true;
+    match mode {
+        TaskMode::Mem => {
+            for p in 0..PM_MAX {
+                def_m[0][p] = true;
+            }
+            def_v[0][0] = true;
+            def_v[0][1] = true;
+        }
+        TaskMode::Opt => {
+            def_m[0][0] = true;
+            def_v[0][0] = true;
+            def_v[0][1] = true;
+            def_v[0][2] = true;
+            def_v[0][3] = true;
+        }
     }
-    def_v[0][0] = true;
-    def_v[0][1] = true;
     for i in 0..n {
         def_m[i + 1] = def_m[i];
         def_v[i + 1] = def_v[i];
@@ -671,6 +866,405 @@ impl Task {
     }
 }
 
+// --- Testbed 2 (--task opt) exact Rust JSON Task Dump Loader ---
+
+enum OptProblem {
+    Quad {
+        a: Vec<f32>,     // d*d row-major
+        noise: Vec<f32>, // t*d
+    },
+    Reg {
+        x: Vec<f32>,     // n_rows*d
+        y: Vec<f32>,     // n_rows
+        batch: Vec<u16>, // t*batch_size
+        n_rows: usize,
+        batch_size: usize,
+    },
+}
+
+struct OptEpisode {
+    t: usize,
+    scale: f32,
+    f0: f64,
+    w0: [f32; D16],
+    wstar: [f32; D16],
+    prob: OptProblem,
+}
+
+impl OptEpisode {
+    #[inline]
+    fn grad(&self, w: &[f32; D16], step: usize, out: &mut [f32; D16]) {
+        match &self.prob {
+            OptProblem::Quad { a, noise } => {
+                let mut diff = [0.0f32; D16];
+                for j in 0..D16 {
+                    diff[j] = w[j] - self.wstar[j];
+                }
+                let nbase = step * D16;
+                for i in 0..D16 {
+                    let row = &a[i * D16..(i + 1) * D16];
+                    let mut ae = 0.0f32;
+                    for j in 0..D16 {
+                        ae += row[j] * diff[j];
+                    }
+                    out[i] = self.scale * (ae + noise[nbase + i]);
+                }
+            }
+            OptProblem::Reg {
+                x,
+                y,
+                batch,
+                batch_size,
+                ..
+            } => {
+                *out = [0.0f32; D16];
+                let bs = *batch_size;
+                let bstart = step * bs;
+                for &r_u16 in &batch[bstart..bstart + bs] {
+                    let r = r_u16 as usize;
+                    let xr = &x[r * D16..(r + 1) * D16];
+                    let mut dot = 0.0f32;
+                    for j in 0..D16 {
+                        dot += xr[j] * w[j];
+                    }
+                    let res = dot - y[r];
+                    for j in 0..D16 {
+                        out[j] += res * xr[j];
+                    }
+                }
+                let fac = self.scale / bs as f32;
+                for j in 0..D16 {
+                    out[j] *= fac;
+                }
+            }
+        }
+    }
+
+    /// Exact loss in f64, identical to src/opt.rs::OptEpisode::loss.
+    #[inline]
+    fn loss(&self, w: &[f32; D16]) -> f64 {
+        match &self.prob {
+            OptProblem::Quad { a, .. } => {
+                let mut e = [0.0f64; D16];
+                for i in 0..D16 {
+                    e[i] = (w[i] - self.wstar[i]) as f64;
+                }
+                let mut f = 0.0f64;
+                for i in 0..D16 {
+                    let row = &a[i * D16..(i + 1) * D16];
+                    let mut ae = 0.0f64;
+                    for j in 0..D16 {
+                        ae += row[j] as f64 * e[j];
+                    }
+                    f += e[i] * ae;
+                }
+                0.5 * f
+            }
+            OptProblem::Reg { x, y, n_rows, .. } => {
+                let mut f = 0.0f64;
+                let nr = *n_rows;
+                for r in 0..nr {
+                    let xr = &x[r * D16..(r + 1) * D16];
+                    let mut p = 0.0f64;
+                    for j in 0..D16 {
+                        p += xr[j] as f64 * w[j] as f64;
+                    }
+                    let diff = p - y[r] as f64;
+                    f += diff * diff;
+                }
+                f / (2.0 * nr as f64)
+            }
+        }
+    }
+}
+
+struct OptTask {
+    d: usize,
+    t: usize,
+    episodes: Vec<OptEpisode>,
+}
+
+impl OptTask {
+    fn load_json(path: &str) -> Self {
+        let s = fs::read_to_string(path).expect("read opt task dump");
+        let b = s.as_bytes();
+        let mut i = 0usize;
+
+        fn skip_ws(b: &[u8], i: &mut usize) {
+            while *i < b.len() && matches!(b[*i], b' ' | b'\n' | b'\r' | b'\t') {
+                *i += 1;
+            }
+        }
+        fn parse_f32(b: &[u8], i: &mut usize) -> f32 {
+            skip_ws(b, i);
+            let st = *i;
+            while *i < b.len()
+                && (b[*i].is_ascii_digit()
+                    || matches!(b[*i], b'-' | b'+' | b'.' | b'e' | b'E'))
+            {
+                *i += 1;
+            }
+            std::str::from_utf8(&b[st..*i]).unwrap().parse().unwrap()
+        }
+        fn parse_f64(b: &[u8], i: &mut usize) -> f64 {
+            skip_ws(b, i);
+            let st = *i;
+            while *i < b.len()
+                && (b[*i].is_ascii_digit()
+                    || matches!(b[*i], b'-' | b'+' | b'.' | b'e' | b'E'))
+            {
+                *i += 1;
+            }
+            std::str::from_utf8(&b[st..*i]).unwrap().parse().unwrap()
+        }
+        fn parse_usize(b: &[u8], i: &mut usize) -> usize {
+            skip_ws(b, i);
+            let st = *i;
+            while *i < b.len() && b[*i].is_ascii_digit() {
+                *i += 1;
+            }
+            std::str::from_utf8(&b[st..*i]).unwrap().parse().unwrap()
+        }
+        fn parse_bool(b: &[u8], i: &mut usize) -> bool {
+            skip_ws(b, i);
+            if b[*i..].starts_with(b"true") {
+                *i += 4;
+                true
+            } else if b[*i..].starts_with(b"false") {
+                *i += 5;
+                false
+            } else {
+                panic!("expected bool");
+            }
+        }
+        fn parse_str<'a>(b: &'a [u8], i: &mut usize) -> &'a str {
+            skip_ws(b, i);
+            assert_eq!(b[*i], b'"');
+            *i += 1;
+            let st = *i;
+            while b[*i] != b'"' {
+                *i += 1;
+            }
+            let res = std::str::from_utf8(&b[st..*i]).unwrap();
+            *i += 1;
+            res
+        }
+        fn parse_f32_arr(b: &[u8], i: &mut usize) -> Vec<f32> {
+            skip_ws(b, i);
+            assert_eq!(b[*i], b'[');
+            *i += 1;
+            let mut out = Vec::new();
+            loop {
+                skip_ws(b, i);
+                if b[*i] == b']' {
+                    *i += 1;
+                    return out;
+                }
+                out.push(parse_f32(b, i));
+                skip_ws(b, i);
+                if b[*i] == b',' {
+                    *i += 1;
+                }
+            }
+        }
+        fn parse_u16_arr(b: &[u8], i: &mut usize) -> Vec<u16> {
+            skip_ws(b, i);
+            assert_eq!(b[*i], b'[');
+            *i += 1;
+            let mut out = Vec::new();
+            loop {
+                skip_ws(b, i);
+                if b[*i] == b']' {
+                    *i += 1;
+                    return out;
+                }
+                out.push(parse_usize(b, i) as u16);
+                skip_ws(b, i);
+                if b[*i] == b',' {
+                    *i += 1;
+                }
+            }
+        }
+
+        let mut d = 0usize;
+        let mut t = 0usize;
+        let mut episodes = Vec::new();
+
+        skip_ws(b, &mut i);
+        assert_eq!(b[i], b'{');
+        i += 1;
+        loop {
+            skip_ws(b, &mut i);
+            if b[i] == b'}' {
+                break;
+            }
+            let key = parse_str(b, &mut i);
+            skip_ws(b, &mut i);
+            assert_eq!(b[i], b':');
+            i += 1;
+            match key {
+                "task" => {
+                    let task_name = parse_str(b, &mut i);
+                    assert_eq!(task_name, "opt", "expected opt task dump, got {task_name}");
+                }
+                "d" => d = parse_usize(b, &mut i),
+                "t" => t = parse_usize(b, &mut i),
+                "seed" => {
+                    let _ = parse_usize(b, &mut i);
+                }
+                "episodes" => {
+                    assert_eq!(d, D16, "Regs16 expects d=16");
+                    skip_ws(b, &mut i);
+                    assert_eq!(b[i], b'[');
+                    i += 1;
+                    loop {
+                        skip_ws(b, &mut i);
+                        if b[i] == b']' {
+                            i += 1;
+                            break;
+                        }
+                        assert_eq!(b[i], b'{');
+                        i += 1;
+                        let mut scale = 1.0f32;
+                        let mut f0 = 1.0f64;
+                        let mut w0_v = Vec::new();
+                        let mut wstar_v = Vec::new();
+                        let mut kind = "";
+                        let mut a = Vec::new();
+                        let mut noise = Vec::new();
+                        let mut x = Vec::new();
+                        let mut y = Vec::new();
+                        let mut batch = Vec::new();
+                        loop {
+                            skip_ws(b, &mut i);
+                            if b[i] == b'}' {
+                                i += 1;
+                                break;
+                            }
+                            let ek = parse_str(b, &mut i);
+                            skip_ws(b, &mut i);
+                            assert_eq!(b[i], b':');
+                            i += 1;
+                            match ek {
+                                "kappa" | "sigma" => {
+                                    let _ = parse_f32(b, &mut i);
+                                }
+                                "rotated" => {
+                                    let _ = parse_bool(b, &mut i);
+                                }
+                                "scale" => scale = parse_f32(b, &mut i),
+                                "f0" => f0 = parse_f64(b, &mut i),
+                                "w0" => w0_v = parse_f32_arr(b, &mut i),
+                                "wstar" => wstar_v = parse_f32_arr(b, &mut i),
+                                "kind" => kind = parse_str(b, &mut i),
+                                "a" => a = parse_f32_arr(b, &mut i),
+                                "noise" => noise = parse_f32_arr(b, &mut i),
+                                "x" => x = parse_f32_arr(b, &mut i),
+                                "y" => y = parse_f32_arr(b, &mut i),
+                                "batch" => batch = parse_u16_arr(b, &mut i),
+                                _ => panic!("unexpected opt episode key {ek}"),
+                            }
+                            skip_ws(b, &mut i);
+                            if b[i] == b',' {
+                                i += 1;
+                            }
+                        }
+                        let mut w0 = [0.0f32; D16];
+                        let mut wstar = [0.0f32; D16];
+                        w0.copy_from_slice(&w0_v);
+                        wstar.copy_from_slice(&wstar_v);
+                        let prob = match kind {
+                            "quad" => {
+                                assert_eq!(a.len(), D16SQ);
+                                assert_eq!(noise.len(), t * D16);
+                                OptProblem::Quad { a, noise }
+                            }
+                            "reg" => {
+                                let n_rows = y.len();
+                                assert_eq!(x.len(), n_rows * D16);
+                                assert!(t > 0 && batch.len() % t == 0);
+                                let batch_size = batch.len() / t;
+                                OptProblem::Reg {
+                                    x,
+                                    y,
+                                    batch,
+                                    n_rows,
+                                    batch_size,
+                                }
+                            }
+                            _ => panic!("unexpected opt kind {kind}"),
+                        };
+                        episodes.push(OptEpisode {
+                            t,
+                            scale,
+                            f0,
+                            w0,
+                            wstar,
+                            prob,
+                        });
+                        skip_ws(b, &mut i);
+                        if b[i] == b',' {
+                            i += 1;
+                        }
+                    }
+                }
+                _ => panic!("unexpected opt top key {key}"),
+            }
+            skip_ws(b, &mut i);
+            if b[i] == b',' {
+                i += 1;
+            }
+        }
+        OptTask { d, t, episodes }
+    }
+
+    fn subset(&self, max_quad: usize, max_reg: usize) -> Vec<usize> {
+        let mut idxs = Vec::new();
+        let (mut nq, mut nr) = (0, 0);
+        for (i, ep) in self.episodes.iter().enumerate() {
+            match ep.prob {
+                OptProblem::Quad { .. } => {
+                    if nq < max_quad {
+                        idxs.push(i);
+                        nq += 1;
+                    }
+                }
+                OptProblem::Reg { .. } => {
+                    if nr < max_reg {
+                        idxs.push(i);
+                        nr += 1;
+                    }
+                }
+            }
+        }
+        if idxs.is_empty() {
+            return (0..self.episodes.len().min(8)).collect();
+        }
+        idxs
+    }
+}
+
+enum TaskData {
+    Mem(Task),
+    Opt(OptTask),
+}
+
+impl TaskData {
+    fn len(&self) -> usize {
+        match self {
+            TaskData::Mem(t) => t.episodes.len(),
+            TaskData::Opt(t) => t.episodes.len(),
+        }
+    }
+
+    fn subset_micro(&self) -> Vec<usize> {
+        match self {
+            TaskData::Mem(t) => t.subset(4, 4),
+            TaskData::Opt(t) => t.subset(4, 4),
+        }
+    }
+}
+
 // --- Ultra-fast stack-allocated fixed-size D=16 register file (LLVM auto-vectorized) ---
 
 const D16: usize = 16;
@@ -709,17 +1303,16 @@ impl Regs16 {
     }
 
     #[inline(always)]
-    fn step(&mut self, prog: &Program, k: &[f32], v: &[f32], pm: usize) -> bool {
-        for r in pm..NM {
-            self.m[r] = [0.0; D16SQ];
+    fn reset_episode_opt(&mut self, uses_mat: bool) {
+        if uses_mat {
+            self.m[0] = [0.0; D16SQ];
         }
-        self.v[0].copy_from_slice(k);
-        self.v[1].copy_from_slice(v);
-        for r in 2..NV {
-            self.v[r] = [0.0; D16];
-        }
-        self.s = [0.0; NS];
+        self.v[2] = [0.0; D16];
+        self.v[3] = [0.0; D16];
+    }
 
+    #[inline(always)]
+    fn exec_instrs(&mut self, prog: &Program) {
         for ins in &prog.instrs {
             let (o, a, b) = (ins.out as usize, ins.a as usize, ins.b as usize);
             match ins.op {
@@ -860,14 +1453,68 @@ impl Regs16 {
                     let x = self.s[a];
                     self.s[o] = x / (x * x + 1e-6);
                 }
+                Op::VecRecip => {
+                    for i in 0..D16 {
+                        let x = self.v[a][i];
+                        self.tv[i] = x / (x * x + 1e-6);
+                    }
+                    self.v[o] = self.tv;
+                }
+                Op::VecSqrt => {
+                    for i in 0..D16 {
+                        self.tv[i] = self.v[a][i].abs().sqrt();
+                    }
+                    self.v[o] = self.tv;
+                }
             }
         }
+    }
+
+    #[inline(always)]
+    fn step(&mut self, prog: &Program, k: &[f32], v: &[f32], pm: usize) -> bool {
+        for r in pm..NM {
+            self.m[r] = [0.0; D16SQ];
+        }
+        self.v[0].copy_from_slice(k);
+        self.v[1].copy_from_slice(v);
+        for r in 2..NV {
+            self.v[r] = [0.0; D16];
+        }
+        self.s = [0.0; NS];
+
+        self.exec_instrs(prog);
 
         for p in 0..pm {
             for &x in &self.m[p] {
                 if !x.is_finite() || x.abs() > 1e3 {
                     return false;
                 }
+            }
+        }
+        true
+    }
+
+    /// Testbed 2 step: V0 = w, V1 = g; M0, V2, V3 persist; all other registers zeroed each step.
+    /// Returns true iff updated w (V0) stays finite and strictly below 1e4 in magnitude.
+    #[inline(always)]
+    fn step_opt(&mut self, prog: &Program, w: &[f32; D16], g: &[f32; D16], uses_mat: bool) -> bool {
+        if uses_mat {
+            for r in 1..NM {
+                self.m[r] = [0.0; D16SQ];
+            }
+        }
+        self.v[0] = *w;
+        self.v[1] = *g;
+        for r in 4..NV {
+            self.v[r] = [0.0; D16];
+        }
+        self.s = [0.0; NS];
+
+        self.exec_instrs(prog);
+
+        for &x in &self.v[0] {
+            if !x.is_finite() || x.abs() >= 1e4 {
+                return false;
             }
         }
         true
@@ -894,8 +1541,8 @@ impl EvalCounter {
 #[derive(Clone, Copy, Debug)]
 struct EvalMetrics {
     obj: f32, // loss + st_l2 * mean(st^2) + LEN_PENALTY * len
-    mse: f32,
-    acc: f32,
+    mse: f32, // Mem: MSE; Opt: raw mean log10(f_T/f_0) objective
+    acc: f32, // Mem: accuracy; Opt: diverged episode fraction
     max_st: f32,
 }
 
@@ -907,6 +1554,160 @@ impl EvalMetrics {
             acc: 0.0,
             max_st: f32::INFINITY,
         }
+    }
+}
+
+fn eval_opt_program(
+    prog: &Program,
+    persist_live: [bool; PM_MAX],
+    task: &OptTask,
+    ep_indices: Option<&[usize]>,
+    regs: &mut Regs16,
+    st_l2: f32,
+    ctr: &mut EvalCounter,
+) -> EvalMetrics {
+    assert_eq!(task.d, D16, "Regs16 expects d=16");
+    let n_eps = ep_indices.map(|s| s.len()).unwrap_or(task.episodes.len());
+    let uses_mat = persist_live[0]
+        || prog.instrs.iter().any(|ins| {
+            let (ot, it) = ins.op.sig();
+            ot == Ty::M || it.contains(&Ty::M)
+        });
+    let n_state_elems: usize = (if persist_live[0] { D16SQ } else { 0 })
+        + (if persist_live[1] { D16 } else { 0 })
+        + (if persist_live[2] { D16 } else { 0 });
+    let inv_state_elems = if n_state_elems > 0 {
+        1.0 / n_state_elems as f32
+    } else {
+        0.0
+    };
+
+    ctr.calls += 1;
+    ctr.ep_evals_nominal += n_eps as u64;
+
+    let mut obj_sum = 0.0f64;
+    let mut div_cnt = 0usize;
+    let mut l2_ep_sum = 0.0f32;
+    let mut max_st = 0.0f32;
+    let mut g = [0.0f32; D16];
+
+    for idx_pos in 0..n_eps {
+        ctr.ep_evals += 1;
+        let ei = ep_indices.map(|s| s[idx_pos]).unwrap_or(idx_pos);
+        let ep = &task.episodes[ei];
+        regs.reset_episode_opt(uses_mat);
+        let mut w = ep.w0;
+        let mut diverged = false;
+        let mut ep_l2 = 0.0f32;
+        let mut steps_done = 0usize;
+
+        for step in 0..ep.t {
+            ctr.write_steps += 1;
+            ep.grad(&w, step, &mut g);
+            if !regs.step_opt(prog, &w, &g, uses_mat) {
+                diverged = true;
+                break;
+            }
+            w = regs.v[0];
+            if n_state_elems > 0 {
+                let mut step_sq = 0.0f32;
+                if persist_live[0] {
+                    for &x in &regs.m[0] {
+                        if !x.is_finite() {
+                            return EvalMetrics::inf();
+                        }
+                        let ax = x.abs();
+                        if ax > max_st {
+                            max_st = ax;
+                        }
+                        step_sq += x * x;
+                    }
+                }
+                if persist_live[1] {
+                    for &x in &regs.v[2] {
+                        if !x.is_finite() {
+                            return EvalMetrics::inf();
+                        }
+                        let ax = x.abs();
+                        if ax > max_st {
+                            max_st = ax;
+                        }
+                        step_sq += x * x;
+                    }
+                }
+                if persist_live[2] {
+                    for &x in &regs.v[3] {
+                        if !x.is_finite() {
+                            return EvalMetrics::inf();
+                        }
+                        let ax = x.abs();
+                        if ax > max_st {
+                            max_st = ax;
+                        }
+                        step_sq += x * x;
+                    }
+                }
+                if !step_sq.is_finite() {
+                    return EvalMetrics::inf();
+                }
+                ep_l2 += step_sq * inv_state_elems;
+            }
+            steps_done += 1;
+        }
+
+        if diverged {
+            div_cnt += 1;
+            obj_sum += 3.0;
+        } else {
+            let ratio = ep.loss(&w) / ep.f0;
+            let ep_obj = ratio.log10().clamp(-10.0, 3.0);
+            obj_sum += if ep_obj.is_finite() { ep_obj } else { 3.0 };
+        }
+        if steps_done > 0 {
+            l2_ep_sum += ep_l2 / steps_done as f32;
+        }
+    }
+
+    let raw_obj = (obj_sum / n_eps.max(1) as f64) as f32;
+    let div_frac = div_cnt as f32 / n_eps.max(1) as f32;
+    let l2_mean = l2_ep_sum / n_eps.max(1) as f32;
+    let obj = raw_obj + st_l2 * l2_mean + LEN_PENALTY * prog.instrs.len() as f32;
+    if !obj.is_finite() {
+        return EvalMetrics::inf();
+    }
+    EvalMetrics {
+        obj,
+        mse: raw_obj,
+        acc: div_frac,
+        max_st,
+    }
+}
+
+fn eval_task(
+    prog: &Program,
+    export_state: usize,
+    persist_live: [bool; PM_MAX],
+    task: &TaskData,
+    ep_indices: Option<&[usize]>,
+    regs: &mut Regs16,
+    st_l2: f32,
+    compute_acc: bool,
+    use_acc_fitness: bool,
+    ctr: &mut EvalCounter,
+) -> EvalMetrics {
+    match task {
+        TaskData::Mem(t) => eval_program(
+            prog,
+            export_state,
+            t,
+            ep_indices,
+            regs,
+            st_l2,
+            compute_acc,
+            use_acc_fitness,
+            ctr,
+        ),
+        TaskData::Opt(t) => eval_opt_program(prog, persist_live, t, ep_indices, regs, st_l2, ctr),
     }
 }
 
@@ -1025,8 +1826,9 @@ fn eval_program(
 /// Tier 0: 1 micro-eval (8 eps), plus 5-point 1D probe ONLY when a constant was added/changed or eval diverged.
 fn quick_screen_1d(
     prog: &mut Program,
-    pm: usize,
-    task: &Task,
+    export_state: usize,
+    persist_live: [bool; PM_MAX],
+    task: &TaskData,
     sub: &[usize],
     regs: &mut Regs16,
     st_l2: f32,
@@ -1034,7 +1836,18 @@ fn quick_screen_1d(
     focus_const: Option<usize>,
     ctr: &mut EvalCounter,
 ) -> EvalMetrics {
-    let mut best = eval_program(prog, pm, task, Some(sub), regs, st_l2, false, use_acc_fitness, ctr);
+    let mut best = eval_task(
+        prog,
+        export_state,
+        persist_live,
+        task,
+        Some(sub),
+        regs,
+        st_l2,
+        false,
+        use_acc_fitness,
+        ctr,
+    );
     let cidx = prog.const_indices();
     if cidx.is_empty() || (focus_const.is_none() && best.obj.is_finite()) {
         return best;
@@ -1045,7 +1858,18 @@ fn quick_screen_1d(
     let mut best_c = prog.instrs[ci].c;
     for &probe in &[0.005f32, 0.05, 0.5, -0.05, -0.5] {
         prog.instrs[ci].c = probe;
-        let m = eval_program(prog, pm, task, Some(sub), regs, st_l2, false, use_acc_fitness, ctr);
+        let m = eval_task(
+            prog,
+            export_state,
+            persist_live,
+            task,
+            Some(sub),
+            regs,
+            st_l2,
+            false,
+            use_acc_fitness,
+            ctr,
+        );
         if m.obj + 1e-6 < best.obj {
             best = m;
             best_c = probe;
@@ -1058,8 +1882,9 @@ fn quick_screen_1d(
 /// Tier 1 (fast=true) & Tier 2 (full_polish=true): Multi-scale coordinate + Nelder-Mead.
 fn tune_constants(
     prog: &mut Program,
-    pm: usize,
-    task: &Task,
+    export_state: usize,
+    persist_live: [bool; PM_MAX],
+    task: &TaskData,
     ep_indices: Option<&[usize]>,
     regs: &mut Regs16,
     st_l2: f32,
@@ -1068,7 +1893,18 @@ fn tune_constants(
     ctr: &mut EvalCounter,
 ) -> EvalMetrics {
     let cidx = prog.const_indices();
-    let mut best = eval_program(prog, pm, task, ep_indices, regs, st_l2, false, use_acc_fitness, ctr);
+    let mut best = eval_task(
+        prog,
+        export_state,
+        persist_live,
+        task,
+        ep_indices,
+        regs,
+        st_l2,
+        false,
+        use_acc_fitness,
+        ctr,
+    );
     if cidx.is_empty() {
         return best;
     }
@@ -1079,7 +1915,18 @@ fn tune_constants(
             for (&ci, &ov) in cidx.iter().zip(&orig) {
                 prog.instrs[ci].c = ov * scale;
             }
-            let m = eval_program(prog, pm, task, ep_indices, regs, st_l2, false, use_acc_fitness, ctr);
+            let m = eval_task(
+                prog,
+                export_state,
+                persist_live,
+                task,
+                ep_indices,
+                regs,
+                st_l2,
+                false,
+                use_acc_fitness,
+                ctr,
+            );
             if m.obj < best.obj {
                 best = m;
             }
@@ -1108,7 +1955,18 @@ fn tune_constants(
                 };
                 for p in probes {
                     prog.instrs[ci].c = p;
-                    let m = eval_program(prog, pm, task, ep_indices, regs, st_l2, false, use_acc_fitness, ctr);
+                    let m = eval_task(
+                        prog,
+                        export_state,
+                        persist_live,
+                        task,
+                        ep_indices,
+                        regs,
+                        st_l2,
+                        false,
+                        use_acc_fitness,
+                        ctr,
+                    );
                     if m.obj + 1e-6 < best.obj {
                         best = m;
                         c0 = p;
@@ -1122,7 +1980,18 @@ fn tune_constants(
                 for &dir in &[1.0f32, -1.0f32] {
                     let cand = c0 + dir * st;
                     prog.instrs[ci].c = cand;
-                    let m = eval_program(prog, pm, task, ep_indices, regs, st_l2, false, use_acc_fitness, ctr);
+                    let m = eval_task(
+                        prog,
+                        export_state,
+                        persist_live,
+                        task,
+                        ep_indices,
+                        regs,
+                        st_l2,
+                        false,
+                        use_acc_fitness,
+                        ctr,
+                    );
                     if m.obj + 1e-6 < best.obj {
                         best = m;
                         c0 = cand;
@@ -1150,7 +2019,18 @@ fn tune_constants(
             for (&ci, &xv) in cidx.iter().zip(xs) {
                 prog.instrs[ci].c = xv;
             }
-            eval_program(prog, pm, task, ep_indices, regs, st_l2, false, use_acc_fitness, ctr)
+            eval_task(
+                prog,
+                export_state,
+                persist_live,
+                task,
+                ep_indices,
+                regs,
+                st_l2,
+                false,
+                use_acc_fitness,
+                ctr,
+            )
         };
 
         let mut simplex: Vec<(Vec<f32>, EvalMetrics)> = Vec::with_capacity(k + 1);
@@ -1306,10 +2186,18 @@ fn random_const(rng: &mut Rng) -> f32 {
     }
 }
 
-fn random_instr_at(rng: &mut Rng, an: &Analysis, pos: usize, force_ty: Option<Ty>, force_out: Option<u8>) -> Instr {
+fn random_instr_at(
+    rng: &mut Rng,
+    an: &Analysis,
+    pos: usize,
+    force_ty: Option<Ty>,
+    force_out: Option<u8>,
+    mode: TaskMode,
+) -> Instr {
+    let active = mode.ops();
     let ops: Vec<Op> = match force_ty {
-        Some(t) => OPS.iter().copied().filter(|o| o.sig().0 == t).collect(),
-        None => OPS.to_vec(),
+        Some(t) => active.iter().copied().filter(|o| o.sig().0 == t).collect(),
+        None => active.to_vec(),
     };
     let op = ops[rng.below(ops.len())];
     let (ot, ins_t) = op.sig();
@@ -1331,22 +2219,27 @@ fn random_instr_at(rng: &mut Rng, an: &Analysis, pos: usize, force_ty: Option<Ty
     }
 }
 
-fn residual_insert_once(prog: &mut Program, rng: &mut Rng, persist_live: [bool; PM_MAX]) -> Option<usize> {
+fn residual_insert_once(
+    prog: &mut Program,
+    rng: &mut Rng,
+    persist_live: [bool; PM_MAX],
+    mode: TaskMode,
+) -> Option<usize> {
     let n = prog.instrs.len();
     if n + 2 > MAX_LEN {
         return None;
     }
-    let an = analyze(prog, persist_live);
+    let an = analyze(prog, persist_live, mode);
     let pos = rng.below(n + 1);
 
     let mut targets: Vec<(Ty, u8)> = Vec::new();
     for r in 0..NM {
-        if an.def_m[pos][r] && (an.live_m[pos][r] || r < PM_MAX) {
+        if an.def_m[pos][r] && (an.live_m[pos][r] || mode.is_persist_m(r)) {
             targets.push((Ty::M, r as u8));
         }
     }
     for r in 0..NV {
-        if an.def_v[pos][r] && an.live_v[pos][r] {
+        if an.def_v[pos][r] && (an.live_v[pos][r] || mode.is_persist_v(r)) {
             targets.push((Ty::V, r as u8));
         }
     }
@@ -1361,7 +2254,7 @@ fn residual_insert_once(prog: &mut Program, rng: &mut Rng, persist_live: [bool; 
     let (ty, target) = targets[rng.below(targets.len())];
     let tmp = pick_dead_reg(rng, &an, pos, ty, Some(target))?;
 
-    let op_ins = random_instr_at(rng, &an, pos, Some(ty), Some(tmp));
+    let op_ins = random_instr_at(rng, &an, pos, Some(ty), Some(tmp), mode);
     let use_scale = n + 4 <= MAX_LEN && rng.uniform() < 0.75;
     let sc_reg = if use_scale {
         pick_dead_reg(rng, &an, pos, Ty::S, if ty == Ty::S { Some(tmp) } else { None })
@@ -1396,26 +2289,31 @@ fn residual_insert_once(prog: &mut Program, rng: &mut Rng, persist_live: [bool; 
     Some(focus.unwrap_or(pos))
 }
 
-fn chain_residual_insert(prog: &mut Program, rng: &mut Rng, persist_live: [bool; PM_MAX]) -> Option<usize> {
+fn chain_residual_insert(
+    prog: &mut Program,
+    rng: &mut Rng,
+    persist_live: [bool; PM_MAX],
+    mode: TaskMode,
+) -> Option<usize> {
     let n = prog.instrs.len();
     if n + 3 > MAX_LEN {
         return None;
     }
-    let an = analyze(prog, persist_live);
+    let an = analyze(prog, persist_live, mode);
     let pos = rng.below(n + 1);
 
     let h_ty = if rng.below(2) == 0 { Ty::V } else { Ty::S };
     let h_reg = pick_dead_reg(rng, &an, pos, h_ty, None)?;
-    let helper_ins = random_instr_at(rng, &an, pos, Some(h_ty), Some(h_reg));
+    let helper_ins = random_instr_at(rng, &an, pos, Some(h_ty), Some(h_reg), mode);
 
     let mut targets: Vec<(Ty, u8)> = Vec::new();
     for r in 0..NM {
-        if an.def_m[pos][r] && (an.live_m[pos][r] || r < PM_MAX) {
+        if an.def_m[pos][r] && (an.live_m[pos][r] || mode.is_persist_m(r)) {
             targets.push((Ty::M, r as u8));
         }
     }
     for r in 0..NV {
-        if an.def_v[pos][r] && an.live_v[pos][r] {
+        if an.def_v[pos][r] && (an.live_v[pos][r] || mode.is_persist_v(r)) {
             targets.push((Ty::V, r as u8));
         }
     }
@@ -1439,7 +2337,8 @@ fn chain_residual_insert(prog: &mut Program, rng: &mut Rng, persist_live: [bool;
         return None;
     }
 
-    let compat_ops: Vec<Op> = OPS
+    let compat_ops: Vec<Op> = mode
+        .ops()
         .iter()
         .copied()
         .filter(|o| {
@@ -1512,12 +2411,17 @@ fn chain_residual_insert(prog: &mut Program, rng: &mut Rng, persist_live: [bool;
     Some(focus.unwrap_or(pos))
 }
 
-fn wrap_input_mutate(prog: &mut Program, rng: &mut Rng, persist_live: [bool; PM_MAX]) -> Option<usize> {
+fn wrap_input_mutate(
+    prog: &mut Program,
+    rng: &mut Rng,
+    persist_live: [bool; PM_MAX],
+    mode: TaskMode,
+) -> Option<usize> {
     let n = prog.instrs.len();
     if n == 0 || n + 1 > MAX_LEN {
         return None;
     }
-    let an = analyze(prog, persist_live);
+    let an = analyze(prog, persist_live, mode);
     let pos = rng.below(n);
     let (_, ins_t) = prog.instrs[pos].op.sig();
     if ins_t.is_empty() {
@@ -1528,7 +2432,8 @@ fn wrap_input_mutate(prog: &mut Program, rng: &mut Rng, persist_live: [bool; PM_
     let old_r = if use_b { prog.instrs[pos].b } else { prog.instrs[pos].a };
 
     let new_r = pick_dead_reg(rng, &an, pos, in_ty, Some(old_r))?;
-    let compat: Vec<Op> = OPS
+    let compat: Vec<Op> = mode
+        .ops()
         .iter()
         .copied()
         .filter(|o| {
@@ -1605,8 +2510,13 @@ fn wrap_input_mutate(prog: &mut Program, rng: &mut Rng, persist_live: [bool; PM_
     Some(focus.unwrap_or(pos))
 }
 
-fn mutate_program(parent: &Program, partner: Option<&Program>, rng: &mut Rng) -> (Program, Option<usize>) {
-    let (mut p, plive, _, _) = parent.compact();
+fn mutate_program(
+    parent: &Program,
+    partner: Option<&Program>,
+    rng: &mut Rng,
+    mode: TaskMode,
+) -> (Program, Option<usize>) {
+    let (mut p, plive, _, _) = parent.compact(mode);
     let n_edits = if rng.uniform() < 0.75 { 1 } else { 2 };
     let mut focus: Option<usize> = None;
 
@@ -1614,42 +2524,43 @@ fn mutate_program(parent: &Program, partner: Option<&Program>, rng: &mut Rng) ->
         let n = p.instrs.len();
         let roll = rng.uniform();
         if n == 0 {
-            let an = analyze(&p, plive);
-            p.instrs.push(random_instr_at(rng, &an, 0, Some(Ty::M), Some(0)));
+            let an = analyze(&p, plive, mode);
+            let (ot, or) = mode.output_reg();
+            p.instrs.push(random_instr_at(rng, &an, 0, Some(ot), Some(or), mode));
         } else if n >= 18 && roll < 0.16 {
             // Active bloat shedding on long programs so room stays open for new blocks.
             let idx = rng.below(n);
             p.instrs.remove(idx);
         } else if roll < 0.24 {
-            if let Some(f) = residual_insert_once(&mut p, rng, plive) {
+            if let Some(f) = residual_insert_once(&mut p, rng, plive, mode) {
                 focus = Some(f);
             } else if n < MAX_LEN {
-                let an = analyze(&p, plive);
+                let an = analyze(&p, plive, mode);
                 let pos = rng.below(n + 1);
-                p.instrs.insert(pos, random_instr_at(rng, &an, pos, None, None));
+                p.instrs.insert(pos, random_instr_at(rng, &an, pos, None, None, mode));
             }
         } else if roll < 0.42 {
-            if let Some(f) = chain_residual_insert(&mut p, rng, plive) {
+            if let Some(f) = chain_residual_insert(&mut p, rng, plive, mode) {
                 focus = Some(f);
-            } else if let Some(f) = residual_insert_once(&mut p, rng, plive) {
+            } else if let Some(f) = residual_insert_once(&mut p, rng, plive, mode) {
                 focus = Some(f);
             }
         } else if roll < 0.62 {
-            if let Some(f) = wrap_input_mutate(&mut p, rng, plive) {
+            if let Some(f) = wrap_input_mutate(&mut p, rng, plive, mode) {
                 focus = Some(f);
             } else {
-                let an = analyze(&p, plive);
+                let an = analyze(&p, plive, mode);
                 let idx = rng.below(n);
-                p.instrs[idx] = random_instr_at(rng, &an, idx, None, None);
+                p.instrs[idx] = random_instr_at(rng, &an, idx, None, None, mode);
             }
         } else if roll < 0.80 {
             let idx = rng.below(n);
-            let an = analyze(&p, plive);
+            let an = analyze(&p, plive, mode);
             match rng.below(4) {
                 0 => {
                     let (ot, _) = p.instrs[idx].op.sig();
                     let out_r = p.instrs[idx].out;
-                    p.instrs[idx] = random_instr_at(rng, &an, idx, Some(ot), Some(out_r));
+                    p.instrs[idx] = random_instr_at(rng, &an, idx, Some(ot), Some(out_r), mode);
                 }
                 1 => {
                     let (_, it) = p.instrs[idx].op.sig();
@@ -1679,7 +2590,7 @@ fn mutate_program(parent: &Program, partner: Option<&Program>, rng: &mut Rng) ->
                         }
                         focus = Some(ci);
                     } else {
-                        p.instrs[idx] = random_instr_at(rng, &an, idx, None, None);
+                        p.instrs[idx] = random_instr_at(rng, &an, idx, None, None, mode);
                     }
                 }
             }
@@ -1687,11 +2598,11 @@ fn mutate_program(parent: &Program, partner: Option<&Program>, rng: &mut Rng) ->
             let idx = rng.below(n);
             p.instrs.remove(idx);
         } else if roll < 0.95 && n < MAX_LEN {
-            let an = analyze(&p, plive);
+            let an = analyze(&p, plive, mode);
             let pos = rng.below(n + 1);
-            p.instrs.insert(pos, random_instr_at(rng, &an, pos, None, None));
+            p.instrs.insert(pos, random_instr_at(rng, &an, pos, None, None, mode));
         } else if let Some(b) = partner {
-            let (bc, _, _, _) = b.compact();
+            let (bc, _, _, _) = b.compact(mode);
             if !bc.instrs.is_empty() {
                 let cut_a = rng.below(n + 1);
                 let cut_b = rng.below(bc.instrs.len() + 1);
@@ -1708,8 +2619,9 @@ fn mutate_program(parent: &Program, partner: Option<&Program>, rng: &mut Rng) ->
     (p, focus)
 }
 
-fn random_instr_unconstrained(rng: &mut Rng) -> Instr {
-    let op = OPS[rng.below(OPS.len())];
+fn random_instr_unconstrained(rng: &mut Rng, mode: TaskMode) -> Instr {
+    let ops = mode.ops();
+    let op = ops[rng.below(ops.len())];
     let (ot, ins_t) = op.sig();
     let out = rng.below(n_regs(ot)) as u8;
     let a = ins_t.first().map(|&t| rng.below(n_regs(t)) as u8).unwrap_or(0);
@@ -1725,7 +2637,12 @@ fn random_instr_unconstrained(rng: &mut Rng) -> Instr {
 
 /// Basic v1-style mutation ablation (--basic-mut): no residual/chain/wrap inserts,
 /// no liveness-aware register selection, no length>=18 bloat shedding.
-fn mutate_program_basic(parent: &Program, partner: Option<&Program>, rng: &mut Rng) -> (Program, Option<usize>) {
+fn mutate_program_basic(
+    parent: &Program,
+    partner: Option<&Program>,
+    rng: &mut Rng,
+    mode: TaskMode,
+) -> (Program, Option<usize>) {
     let mut p = parent.clone();
     let n_edits = if rng.uniform() < 0.75 { 1 } else { 2 };
     let mut focus: Option<usize> = None;
@@ -1734,14 +2651,14 @@ fn mutate_program_basic(parent: &Program, partner: Option<&Program>, rng: &mut R
         let n = p.instrs.len();
         let roll = rng.uniform();
         if n == 0 {
-            let ins = random_instr_unconstrained(rng);
+            let ins = random_instr_unconstrained(rng, mode);
             if ins.op == Op::Const {
                 focus = Some(0);
             }
             p.instrs.push(ins);
         } else if roll < 0.25 {
             let idx = rng.below(n);
-            let ins = random_instr_unconstrained(rng);
+            let ins = random_instr_unconstrained(rng, mode);
             if ins.op == Op::Const {
                 focus = Some(idx);
             }
@@ -1771,7 +2688,7 @@ fn mutate_program_basic(parent: &Program, partner: Option<&Program>, rng: &mut R
                 focus = Some(ci);
             } else {
                 let idx = rng.below(n);
-                let ins = random_instr_unconstrained(rng);
+                let ins = random_instr_unconstrained(rng, mode);
                 if ins.op == Op::Const {
                     focus = Some(idx);
                 }
@@ -1782,7 +2699,7 @@ fn mutate_program_basic(parent: &Program, partner: Option<&Program>, rng: &mut R
             p.instrs.remove(idx);
         } else if roll < 0.90 && n < MAX_LEN {
             let pos = rng.below(n + 1);
-            let ins = random_instr_unconstrained(rng);
+            let ins = random_instr_unconstrained(rng, mode);
             if ins.op == Op::Const {
                 focus = Some(pos);
             }
@@ -1809,7 +2726,8 @@ fn mutate_program_basic(parent: &Program, partner: Option<&Program>, rng: &mut R
 #[derive(Clone)]
 struct Elite {
     prog: Program,
-    export_pm: usize,
+    export_state: usize,
+    persist_live: [bool; PM_MAX],
     n_live_states: usize,
     metrics: EvalMetrics,
     op_sig: u64,
@@ -1912,7 +2830,7 @@ fn run_self_test(train_path: &str, st_l2: f32) {
             Instr { op: Op::MatAdd, out: 1, a: 1, b: 3, c: 0.0 },
         ],
     };
-    let (kc, _, _, pm) = kalman.compact();
+    let (kc, kpl, _, pm) = kalman.compact(TaskMode::Mem);
     let mut ref_ctr = EvalCounter::default();
     let m_ref = eval_program(&kc, pm, &task, None, &mut regs, st_l2, true, false, &mut ref_ctr);
     assert_eq!(ref_ctr.calls, 1);
@@ -1922,25 +2840,26 @@ fn run_self_test(train_path: &str, st_l2: f32) {
         m_ref.acc, m_ref.mse, m_ref.obj, m_ref.max_st, ref_ctr.ep_evals, ref_ctr.write_steps
     );
 
+    let sub = task.subset(8, 4);
+    let task_data = TaskData::Mem(task);
     kalman.instrs[2].c = 1.0;
     kalman.instrs[12].c = 0.5;
     let t0 = Instant::now();
     let mut tune_ctr = EvalCounter::default();
-    let _ = tune_constants(&mut kalman, 3, &task, None, &mut regs, st_l2, false, true, &mut tune_ctr);
+    let _ = tune_constants(&mut kalman, 3, kpl, &task_data, None, &mut regs, st_l2, false, true, &mut tune_ctr);
     let dt = t0.elapsed().as_secs_f64();
-    let m_rec = eval_program(&kalman, 3, &task, None, &mut regs, st_l2, true, false, &mut tune_ctr);
+    let m_rec = eval_task(&kalman, 3, kpl, &task_data, None, &mut regs, st_l2, true, false, &mut tune_ctr);
     println!(
         "2. Scrambled Kalman [1.0, 0.5] -> [{:.5}, {:.5}] acc={:.4} mse={:.4} in {:.3}s (calls={}, ep_evals={})",
         kalman.instrs[2].c, kalman.instrs[12].c, m_rec.acc, m_rec.mse, dt, tune_ctr.calls, tune_ctr.ep_evals
     );
     assert!(m_rec.acc >= 0.92);
 
-    let sub = task.subset(8, 4);
     let t1 = Instant::now();
     let n_it = 5000;
     let mut bench_ctr = EvalCounter::default();
     for _ in 0..n_it {
-        std::hint::black_box(eval_program(&kc, 3, &task, Some(&sub), &mut regs, st_l2, false, false, &mut bench_ctr));
+        std::hint::black_box(eval_task(&kc, 3, kpl, &task_data, Some(&sub), &mut regs, st_l2, false, false, &mut bench_ctr));
     }
     let dt1 = t1.elapsed().as_secs_f64();
     assert_eq!(bench_ctr.ep_evals, (n_it * sub.len()) as u64);
@@ -1951,6 +2870,41 @@ fn run_self_test(train_path: &str, st_l2: f32) {
         1000.0 * dt1 / n_it as f64,
         bench_ctr.ep_evals
     );
+}
+
+/// Evaluate one or more autoplast program JSON files on an `--task opt` dump using the exact
+/// v2/memetic evaluator (used for Stage-Gate verification against `autoplast evalmany`).
+fn run_eval_opt_progs(train_path: &str, prog_paths: &[String], st_l2: f32) {
+    let task = OptTask::load_json(train_path);
+    let mut regs = Regs16::new();
+    println!(
+        "Loaded opt dump: d={} t={} eps={}",
+        task.d,
+        task.t,
+        task.episodes.len()
+    );
+    for path in prog_paths {
+        let text = fs::read_to_string(path).expect("read prog json");
+        let raw = Program::from_json(&text).expect("parse prog json");
+        let (eff, plive, bkt, export_pv) = raw.compact(TaskMode::Opt);
+        let mut ctr = EvalCounter::default();
+        let m = eval_opt_program(&eff, plive, &task, None, &mut regs, st_l2, &mut ctr);
+        println!(
+            "{}: raw_obj={:.6} diverged={:.6} max_st={:.6} pen_obj={:.6} | len={} bkt={} pv={} live=(M0:{},V2:{},V3:{}) ep_evals={}",
+            path,
+            m.mse,
+            m.acc,
+            m.max_st,
+            m.obj,
+            eff.instrs.len(),
+            bkt,
+            export_pv,
+            plive[0] as u8,
+            plive[1] as u8,
+            plive[2] as u8,
+            ctr.ep_evals
+        );
+    }
 }
 
 fn main() {
@@ -1966,12 +2920,37 @@ fn main() {
     let arg_u64 = |flag: &str, def: u64| -> u64 { arg_str(flag, &def.to_string()).parse().unwrap() };
     let arg_f32 = |flag: &str, def: f32| -> f32 { arg_str(flag, &def.to_string()).parse().unwrap() };
 
-    let train_path = arg_str("--train-dump", "v2/data/collision3_train_s1.json");
-    let val_path = arg_str("--val-dump", "v2/data/collision3_val_s2001.json");
+    let task_arg = arg_str("--task", "mem");
+    let mode = match task_arg.as_str() {
+        "mem" | "collision3" => TaskMode::Mem,
+        "opt" => TaskMode::Opt,
+        other => panic!("unknown --task '{other}' (expected 'mem' or 'opt')"),
+    };
+
+    let def_train = match mode {
+        TaskMode::Mem => "v2/data/collision3_train_s1.json",
+        TaskMode::Opt => "v2/data/opt_train_s1.json",
+    };
+    let def_val = match mode {
+        TaskMode::Mem => "v2/data/collision3_val_s2001.json",
+        TaskMode::Opt => "v2/data/opt_val_s2001.json",
+    };
+    let train_path = arg_str("--train-dump", def_train);
+    let val_path = arg_str("--val-dump", def_val);
     let st_l2 = arg_f32("--st-l2", 0.015);
 
     if has_flag("--self-test") {
         run_self_test(&train_path, st_l2);
+        return;
+    }
+
+    if let Some(pos) = args.iter().position(|a| a == "--eval-opt-progs") {
+        let progs: Vec<String> = args[pos + 1..]
+            .iter()
+            .take_while(|a| !a.starts_with("--"))
+            .cloned()
+            .collect();
+        run_eval_opt_progs(&train_path, &progs, st_l2);
         return;
     }
 
@@ -1981,9 +2960,13 @@ fn main() {
     let max_ep_evals = arg_u64("--max-ep-evals", 0);
     let threads = arg_usize("--threads", 16).max(1);
     let batch_size = arg_usize("--batch", 512).max(threads);
-    let fitness_mode = arg_str("--fitness", "mse");
+    let fitness_mode = if mode == TaskMode::Opt {
+        "opt_log10".to_string()
+    } else {
+        arg_str("--fitness", "mse")
+    };
     let use_acc_fitness = match fitness_mode.as_str() {
-        "mse" => false,
+        "mse" | "opt_log10" => false,
         "acc" => true,
         other => panic!("unknown --fitness '{other}' (expected 'mse' or 'acc')"),
     };
@@ -1993,12 +2976,22 @@ fn main() {
     let out_dir = PathBuf::from(arg_str("--out", &format!("v2/runs/memetic_dev/seed{seed}")));
     fs::create_dir_all(&out_dir).expect("mkdir out_dir");
 
-    let train_task = Task::load_json(&train_path);
-    let val_task = Task::load_json(&val_path);
-    let micro_sub = train_task.subset(4, 4); // 8 eps: ultra-fast Tier 0/1 screen
+    let (train_task, val_task) = match mode {
+        TaskMode::Mem => (
+            TaskData::Mem(Task::load_json(&train_path)),
+            TaskData::Mem(Task::load_json(&val_path)),
+        ),
+        TaskMode::Opt => (
+            TaskData::Opt(OptTask::load_json(&train_path)),
+            TaskData::Opt(OptTask::load_json(&val_path)),
+        ),
+    };
+    let micro_sub = train_task.subset_micro(); // 8 eps: ultra-fast Tier 0/1 screen
 
     println!(
-        "Memetic MAP-Elites v3.1 | seed={} max_cands={} max_ep_evals={} seconds={:.0} threads={} batch={} st_l2={} | fitness={} const_tune={} archive={} mut={} | train={} ({} eps) val={} ({} eps)",
+        "Memetic MAP-Elites v3.1 | task={} ops={} seed={} max_cands={} max_ep_evals={} seconds={:.0} threads={} batch={} st_l2={} | fitness={} const_tune={} archive={} mut={} | train_eps={} val_eps={}",
+        if mode == TaskMode::Opt { "opt" } else { "mem" },
+        mode.ops().len(),
         seed,
         max_cands,
         max_ep_evals,
@@ -2010,10 +3003,8 @@ fn main() {
         !no_const_tune,
         if flat_archive { "flat" } else { "map_elites" },
         if basic_mut { "basic" } else { "full" },
-        train_path,
-        train_task.episodes.len(),
-        val_path,
-        val_task.episodes.len()
+        train_task.len(),
+        val_task.len()
     );
 
     let t_start = Instant::now();
@@ -2030,11 +3021,11 @@ fn main() {
         let len = 1 + master_rng.below(6);
         for _ in 0..len {
             if basic_mut {
-                p.instrs.push(random_instr_unconstrained(&mut master_rng));
+                p.instrs.push(random_instr_unconstrained(&mut master_rng, mode));
             } else {
-                let an = analyze(&p, [true, false, false]);
+                let an = analyze(&p, mode.init_persist_live(), mode);
                 let pos = p.instrs.len();
-                p.instrs.push(random_instr_at(&mut master_rng, &an, pos, None, None));
+                p.instrs.push(random_instr_at(&mut master_rng, &an, pos, None, None, mode));
             }
         }
         init_progs.push((p, None));
@@ -2061,7 +3052,7 @@ fn main() {
                     let mut t2_cnt = 0usize;
                     for (offset, (raw, focus)) in slice.iter().enumerate() {
                         let cand_idx = (base_idx + offset) as u64;
-                        let (mut prog, _, bucket, pm) = raw.compact();
+                        let (mut prog, plive, bucket, export_state) = raw.compact(mode);
                         if prog.instrs.is_empty() || prog.instrs.len() > MAX_LEN {
                             continue;
                         }
@@ -2071,9 +3062,10 @@ fn main() {
                         }
                         // Tier 0: 8-ep micro-screen (+ 5-pt 1D probe when const tuning enabled)
                         let m0 = if no_const_tune {
-                            eval_program(
+                            eval_task(
                                 &prog,
-                                pm,
+                                export_state,
+                                plive,
                                 train_ref,
                                 Some(sub_ref),
                                 &mut regs,
@@ -2085,7 +3077,8 @@ fn main() {
                         } else {
                             quick_screen_1d(
                                 &mut prog,
-                                pm,
+                                export_state,
+                                plive,
                                 train_ref,
                                 sub_ref,
                                 &mut regs,
@@ -2119,7 +3112,8 @@ fn main() {
                             t1_cnt += 1;
                             tune_constants(
                                 &mut prog,
-                                pm,
+                                export_state,
+                                plive,
                                 train_ref,
                                 Some(sub_ref),
                                 &mut regs,
@@ -2133,10 +3127,11 @@ fn main() {
                             continue;
                         }
                         t2_cnt += 1;
-                        // Tier 2: exact 144-ep evaluation (fast, NO Nelder-Mead in inner loop).
-                        let full_m = eval_program(
+                        // Tier 2: exact full-train evaluation (fast, NO Nelder-Mead in inner loop).
+                        let full_m = eval_task(
                             &prog,
-                            pm,
+                            export_state,
+                            plive,
                             train_ref,
                             None,
                             &mut regs,
@@ -2146,10 +3141,11 @@ fn main() {
                             &mut ctr,
                         );
                         if full_m.obj.is_finite() && full_m.obj < c_thr + 1e-4 {
-                            let op_sig = prog.op_multiset_hash();
+                            let op_sig = prog.op_multiset_hash(mode);
                             winners.push(Elite {
                                 prog,
-                                export_pm: pm,
+                                export_state,
+                                persist_live: plive,
                                 n_live_states: bucket,
                                 metrics: full_m,
                                 op_sig,
@@ -2239,11 +3235,11 @@ fn main() {
                 let len = 1 + master_rng.below(6);
                 for _ in 0..len {
                     if basic_mut {
-                        p.instrs.push(random_instr_unconstrained(&mut master_rng));
+                        p.instrs.push(random_instr_unconstrained(&mut master_rng, mode));
                     } else {
-                        let an = analyze(&p, [true, false, false]);
+                        let an = analyze(&p, mode.init_persist_live(), mode);
                         let pos = p.instrs.len();
-                        p.instrs.push(random_instr_at(&mut master_rng, &an, pos, None, None));
+                        p.instrs.push(random_instr_at(&mut master_rng, &an, pos, None, None, mode));
                     }
                 }
                 cands.push((p, None));
@@ -2282,9 +3278,9 @@ fn main() {
                 None
             };
             let child = if basic_mut {
-                mutate_program_basic(parent, partner, &mut master_rng)
+                mutate_program_basic(parent, partner, &mut master_rng, mode)
             } else {
-                mutate_program(parent, partner, &mut master_rng)
+                mutate_program(parent, partner, &mut master_rng, mode)
             };
             cands.push(child);
         }
@@ -2300,7 +3296,7 @@ fn main() {
             archive.insert(e);
         }
 
-        // Periodic/on-new-leader full 144-ep Nelder-Mead polish for bucket leaders (or single global leader in flat mode).
+        // Periodic/on-new-leader full Nelder-Mead polish for bucket leaders (or single global leader in flat mode).
         if !no_const_tune {
             let mut to_polish: Vec<Elite> = Vec::new();
             if flat_archive {
@@ -2338,7 +3334,8 @@ fn main() {
                             let mut p_ctr = EvalCounter::default();
                             let _ = tune_constants(
                                 &mut e.prog,
-                                e.export_pm,
+                                e.export_state,
+                                e.persist_live,
                                 train_ref,
                                 None,
                                 &mut regs,
@@ -2347,9 +3344,10 @@ fn main() {
                                 true,
                                 &mut p_ctr,
                             );
-                            e.metrics = eval_program(
+                            e.metrics = eval_task(
                                 &e.prog,
-                                e.export_pm,
+                                e.export_state,
+                                e.persist_live,
                                 train_ref,
                                 None,
                                 &mut regs,
@@ -2375,9 +3373,10 @@ fn main() {
             if let Some(best) = archive.best() {
                 // Diagnostic progress log only: does NOT affect train_ctr or val_ctr.
                 let mut diag_ctr = EvalCounter::default();
-                let vm = eval_program(
+                let vm = eval_task(
                     &best.prog,
-                    best.export_pm,
+                    best.export_state,
+                    best.persist_live,
                     &val_task,
                     None,
                     &mut val_regs,
@@ -2395,29 +3394,58 @@ fn main() {
                             .flat_map(|(_, v)| v.iter())
                             .filter(|e| e.n_live_states == b)
                             .min_by(|a, b| a.metrics.obj.total_cmp(&b.metrics.obj))
-                            .map(|e| format!("{}:{:.3}({:.3},L{})", labels[b], e.metrics.obj, e.metrics.acc, e.prog.instrs.len()))
+                            .map(|e| {
+                                if mode == TaskMode::Opt {
+                                    format!("{}:{:.3}(d{:.2},L{})", labels[b], e.metrics.mse, e.metrics.acc, e.prog.instrs.len())
+                                } else {
+                                    format!("{}:{:.3}({:.3},L{})", labels[b], e.metrics.obj, e.metrics.acc, e.prog.instrs.len())
+                                }
+                            })
                             .unwrap_or_else(|| format!("{}:-", labels[b]))
                     })
                     .collect();
                 let n_elites: usize = archive.cells.values().map(|v| v.len()).sum();
-                println!(
-                    "  [{:5.1}s | cands={:7} ep={:9} t1={:5} t2={:4} cells={:3} el={:3}] best tr={:.4}({:.3},L{},pm{}) val={:.4}({:.3},mx={:.2}) | {}",
-                    t_start.elapsed().as_secs_f64(),
-                    total_cands,
-                    train_ctr.ep_evals,
-                    total_t1,
-                    total_t2,
-                    archive.cells.len(),
-                    n_elites,
-                    best.metrics.obj,
-                    best.metrics.acc,
-                    best.prog.instrs.len(),
-                    best.export_pm,
-                    vm.obj,
-                    vm.acc,
-                    vm.max_st,
-                    best_by_st.join(" ")
-                );
+                if mode == TaskMode::Opt {
+                    println!(
+                        "  [{:5.1}s | cands={:7} ep={:9} t1={:5} t2={:4} cells={:3} el={:3}] best tr={:.4}(raw={:.4},div={:.2},L{},pv{}) val={:.4}(raw={:.4},div={:.2},mx={:.2}) | {}",
+                        t_start.elapsed().as_secs_f64(),
+                        total_cands,
+                        train_ctr.ep_evals,
+                        total_t1,
+                        total_t2,
+                        archive.cells.len(),
+                        n_elites,
+                        best.metrics.obj,
+                        best.metrics.mse,
+                        best.metrics.acc,
+                        best.prog.instrs.len(),
+                        best.export_state,
+                        vm.obj,
+                        vm.mse,
+                        vm.acc,
+                        vm.max_st,
+                        best_by_st.join(" ")
+                    );
+                } else {
+                    println!(
+                        "  [{:5.1}s | cands={:7} ep={:9} t1={:5} t2={:4} cells={:3} el={:3}] best tr={:.4}({:.3},L{},pm{}) val={:.4}({:.3},mx={:.2}) | {}",
+                        t_start.elapsed().as_secs_f64(),
+                        total_cands,
+                        train_ctr.ep_evals,
+                        total_t1,
+                        total_t2,
+                        archive.cells.len(),
+                        n_elites,
+                        best.metrics.obj,
+                        best.metrics.acc,
+                        best.prog.instrs.len(),
+                        best.export_state,
+                        vm.obj,
+                        vm.acc,
+                        vm.max_st,
+                        best_by_st.join(" ")
+                    );
+                }
             }
         }
     }
@@ -2426,9 +3454,10 @@ fn main() {
     let elites = archive.all_elites();
     let mut best_val_elite: Option<(Elite, EvalMetrics)> = None;
     for e in elites {
-        let vm = eval_program(
+        let vm = eval_task(
             &e.prog,
-            e.export_pm,
+            e.export_state,
+            e.persist_live,
             &val_task,
             None,
             &mut val_regs,
@@ -2447,58 +3476,121 @@ fn main() {
     let (win, vm) = best_val_elite.expect("no valid elite found");
     let wall = t_start.elapsed().as_secs_f64();
     let total_ep_evals = train_ctr.ep_evals + val_ctr.ep_evals;
-    fs::write(out_dir.join("best.json"), win.prog.to_json(win.export_pm)).expect("write best.json");
-    let summary = format!(
-        "{{\n  \"seed\": {},\n  \"wall_seconds\": {:.2},\n  \"total_cands\": {},\n  \"total_t1\": {},\n  \"total_t2\": {},\n  \"train_eval_calls\": {},\n  \"train_ep_evals\": {},\n  \"train_ep_evals_nominal\": {},\n  \"train_write_steps\": {},\n  \"val_eval_calls\": {},\n  \"val_ep_evals\": {},\n  \"val_write_steps\": {},\n  \"total_ep_evals\": {},\n  \"fitness\": \"{}\",\n  \"const_tune\": {},\n  \"archive\": \"{}\",\n  \"mutations\": \"{}\",\n  \"n_instrs\": {},\n  \"persist_m\": {},\n  \"train_obj\": {:.5},\n  \"train_mse\": {:.5},\n  \"train_acc\": {:.4},\n  \"val_obj\": {:.5},\n  \"val_mse\": {:.5},\n  \"val_acc\": {:.4},\n  \"max_abs_state_val\": {:.3}\n}}\n",
-        seed,
-        wall,
-        total_cands,
-        total_t1,
-        total_t2,
-        train_ctr.calls,
-        train_ctr.ep_evals,
-        train_ctr.ep_evals_nominal,
-        train_ctr.write_steps,
-        val_ctr.calls,
-        val_ctr.ep_evals,
-        val_ctr.write_steps,
-        total_ep_evals,
-        fitness_mode,
-        !no_const_tune,
-        if flat_archive { "flat" } else { "map_elites" },
-        if basic_mut { "basic" } else { "full" },
-        win.prog.instrs.len(),
-        win.export_pm,
-        win.metrics.obj,
-        win.metrics.mse,
-        win.metrics.acc,
-        vm.obj,
-        vm.mse,
-        vm.acc,
-        vm.max_st
-    );
+    fs::write(out_dir.join("best.json"), win.prog.to_json(mode, win.export_state)).expect("write best.json");
+    let summary = match mode {
+        TaskMode::Mem => format!(
+            "{{\n  \"seed\": {},\n  \"wall_seconds\": {:.2},\n  \"total_cands\": {},\n  \"total_t1\": {},\n  \"total_t2\": {},\n  \"train_eval_calls\": {},\n  \"train_ep_evals\": {},\n  \"train_ep_evals_nominal\": {},\n  \"train_write_steps\": {},\n  \"val_eval_calls\": {},\n  \"val_ep_evals\": {},\n  \"val_write_steps\": {},\n  \"total_ep_evals\": {},\n  \"fitness\": \"{}\",\n  \"const_tune\": {},\n  \"archive\": \"{}\",\n  \"mutations\": \"{}\",\n  \"n_instrs\": {},\n  \"persist_m\": {},\n  \"train_obj\": {:.5},\n  \"train_mse\": {:.5},\n  \"train_acc\": {:.4},\n  \"val_obj\": {:.5},\n  \"val_mse\": {:.5},\n  \"val_acc\": {:.4},\n  \"max_abs_state_val\": {:.3}\n}}\n",
+            seed,
+            wall,
+            total_cands,
+            total_t1,
+            total_t2,
+            train_ctr.calls,
+            train_ctr.ep_evals,
+            train_ctr.ep_evals_nominal,
+            train_ctr.write_steps,
+            val_ctr.calls,
+            val_ctr.ep_evals,
+            val_ctr.write_steps,
+            total_ep_evals,
+            fitness_mode,
+            !no_const_tune,
+            if flat_archive { "flat" } else { "map_elites" },
+            if basic_mut { "basic" } else { "full" },
+            win.prog.instrs.len(),
+            win.export_state,
+            win.metrics.obj,
+            win.metrics.mse,
+            win.metrics.acc,
+            vm.obj,
+            vm.mse,
+            vm.acc,
+            vm.max_st
+        ),
+        TaskMode::Opt => format!(
+            "{{\n  \"task\": \"opt\",\n  \"seed\": {},\n  \"wall_seconds\": {:.2},\n  \"total_cands\": {},\n  \"total_t1\": {},\n  \"total_t2\": {},\n  \"train_eval_calls\": {},\n  \"train_ep_evals\": {},\n  \"train_ep_evals_nominal\": {},\n  \"train_write_steps\": {},\n  \"val_eval_calls\": {},\n  \"val_ep_evals\": {},\n  \"val_write_steps\": {},\n  \"total_ep_evals\": {},\n  \"fitness\": \"{}\",\n  \"const_tune\": {},\n  \"archive\": \"{}\",\n  \"mutations\": \"{}\",\n  \"n_instrs\": {},\n  \"persist_m\": 1,\n  \"persist_v\": {},\n  \"persist_identity\": 0,\n  \"live_m0\": {},\n  \"live_v2\": {},\n  \"live_v3\": {},\n  \"state_bucket\": {},\n  \"train_obj\": {:.5},\n  \"train_raw_obj\": {:.5},\n  \"train_diverged\": {:.4},\n  \"val_obj\": {:.5},\n  \"val_raw_obj\": {:.5},\n  \"val_diverged\": {:.4},\n  \"max_abs_state_val\": {:.3}\n}}\n",
+            seed,
+            wall,
+            total_cands,
+            total_t1,
+            total_t2,
+            train_ctr.calls,
+            train_ctr.ep_evals,
+            train_ctr.ep_evals_nominal,
+            train_ctr.write_steps,
+            val_ctr.calls,
+            val_ctr.ep_evals,
+            val_ctr.write_steps,
+            total_ep_evals,
+            fitness_mode,
+            !no_const_tune,
+            if flat_archive { "flat" } else { "map_elites" },
+            if basic_mut { "basic" } else { "full" },
+            win.prog.instrs.len(),
+            win.export_state,
+            win.persist_live[0],
+            win.persist_live[1],
+            win.persist_live[2],
+            win.n_live_states,
+            win.metrics.obj,
+            win.metrics.mse,
+            win.metrics.acc,
+            vm.obj,
+            vm.mse,
+            vm.acc,
+            vm.max_st
+        ),
+    };
     fs::write(out_dir.join("summary.json"), summary).expect("write summary.json");
 
-    println!(
-        "\n[FINAL seed {}] time={:.1}s cands={} ep_evals={} (train={}, nominal={}, val={}, steps={}) (t1={}, t2={}) | len={} pm={} | tr_acc={:.4} (mse={:.4}) | val_acc={:.4} (mse={:.4}, obj={:.4}, max={:.2})",
-        seed,
-        wall,
-        total_cands,
-        total_ep_evals,
-        train_ctr.ep_evals,
-        train_ctr.ep_evals_nominal,
-        val_ctr.ep_evals,
-        train_ctr.write_steps,
-        total_t1,
-        total_t2,
-        win.prog.instrs.len(),
-        win.export_pm,
-        win.metrics.acc,
-        win.metrics.mse,
-        vm.acc,
-        vm.mse,
-        vm.obj,
-        vm.max_st
-    );
+    if mode == TaskMode::Opt {
+        println!(
+            "\n[FINAL opt seed {}] time={:.1}s cands={} ep_evals={} (train={}, nominal={}, val={}, steps={}) (t1={}, t2={}) | len={} pv={} live=({},{},{}) | tr_raw={:.4} (obj={:.4}, div={:.3}) | val_raw={:.4} (obj={:.4}, div={:.3}, max={:.2})",
+            seed,
+            wall,
+            total_cands,
+            total_ep_evals,
+            train_ctr.ep_evals,
+            train_ctr.ep_evals_nominal,
+            val_ctr.ep_evals,
+            train_ctr.write_steps,
+            total_t1,
+            total_t2,
+            win.prog.instrs.len(),
+            win.export_state,
+            win.persist_live[0] as u8,
+            win.persist_live[1] as u8,
+            win.persist_live[2] as u8,
+            win.metrics.mse,
+            win.metrics.obj,
+            win.metrics.acc,
+            vm.mse,
+            vm.obj,
+            vm.acc,
+            vm.max_st
+        );
+    } else {
+        println!(
+            "\n[FINAL seed {}] time={:.1}s cands={} ep_evals={} (train={}, nominal={}, val={}, steps={}) (t1={}, t2={}) | len={} pm={} | tr_acc={:.4} (mse={:.4}) | val_acc={:.4} (mse={:.4}, obj={:.4}, max={:.2})",
+            seed,
+            wall,
+            total_cands,
+            total_ep_evals,
+            train_ctr.ep_evals,
+            train_ctr.ep_evals_nominal,
+            val_ctr.ep_evals,
+            train_ctr.write_steps,
+            total_t1,
+            total_t2,
+            win.prog.instrs.len(),
+            win.export_state,
+            win.metrics.acc,
+            win.metrics.mse,
+            vm.acc,
+            vm.mse,
+            vm.obj,
+            vm.max_st
+        );
+    }
     print!("Program:\n{}", win.prog.format_lines());
 }

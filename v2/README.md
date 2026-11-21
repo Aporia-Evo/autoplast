@@ -158,9 +158,26 @@ Pre-registered in `v2/runs/confirm_801_816/PROTOCOL.md` **before** running any s
 - **Untouched `verify/verify.py --x64 --norm-eps 1e-9`:** `frozen/seed802` achieves **`1.000 ± 0.000`** on **10 of 11** suites (including `collision T12`, `collision T64`, `rewrite8`, `clustered`) and `0.964 ± 0.006` on `full d16 T24`; `seed812` and `seed813` achieve `0.996–1.000` on `collision`/`clustered` and `0.959–0.965` on `full d16 T24`.
 - **Descriptive note:** Among the 8 counted `frozen` rules, 8/8 use `Normalize` and 7/8 are `Recip`-free (1 uses `Recip`). All 8 beat every stable BPTT baseline (`0.960–0.999` vs. `0.952`).
 
+## Testbed 2 Adapter (`--task opt`, Frozen Method Unchanged)
+
+Logged before any Testbed 2 evaluation or run. The frozen search method (`Memetic MAP-Elites v3.1`, commit `71d7948`, flags `--no-const-tune --max-ep-evals 22000000 --batch 1024 --st-l2 0.015`) is **unchanged**: mutations, mutation probabilities, MAP-Elites archive dimensions (`24 × 5 × top-4`), Tier 0→2 screening gates, parent selection weights, episode-evaluation budget, state-L2 weight (`0.015`), and length tie-break (`5e-4`) are identical to Phase 5 (`collision3` mode remains bit-identical when `--task opt` is not passed).
+
+Only the five Testbed 2 interface adaptations are added under `--task opt` in `v2/memetic/src/main.rs`:
+
+1. **(a) Dump loader (`OptTask::load_json`):** Loads exact Rust `autoplast dump --task opt` JSON files (`task="opt"`, `d`, `t`, `seed`, `episodes[{kind, kappa, sigma, rotated, scale, f0, w0, wstar, a, noise | x, y, batch}]`). The 8-episode Tier 0 micro-subset (`subset(4, 4)`) takes the first 4 quadratic and first 4 regression episodes (`0..8`), mirroring the 4-short + 4-long 8-episode micro-subset of `collision3`.
+2. **(b) Register convention (`Regs16::reset_episode_opt`, `Regs16::step_opt`):** On step entry `V0 = w` and `V1 = g` (exact `f32` gradient matching `src/opt.rs`); at step exit the updated parameter vector `w'` is `V0`. Persistent registers are `M0`, `V2`, and `V3`, all zero-initialized at the start of every episode (no identity start). All remaining registers (`M1..M3`, `V4..V5`, `s0..s3`) are zeroed before every step. Exported `best.json` records `{"persist_m":1,"persist_v":<0|1|2>,"persist_identity":0,"instrs":[...]}`, where `persist_v` is `2` if `V3` is live across steps, `1` if only `V2` is live, and `0` if neither is live (semantically equivalent to `persist_v=2` on compacted programs because non-live registers are never read before being written in the same step).
+3. **(c) Two element-wise ops (`OPS_OPT`, 22 ops total):** Appends `VecRecip` ($x / (x^2 + 10^{-6})$ element-wise) and `VecSqrt` ($\sqrt{|x|}$ element-wise) to the 20-op `collision3` alphabet, matching `src/program.rs` and `src/opt.rs`. `op_multiset_hash` counts over all 22 ops in `--task opt` mode (and remains over the 20 `collision3` ops in default mode).
+4. **(d) Objective (`eval_opt_program`):** Computes exact `f64` final loss $f(w_T)$ matching `src/opt.rs` and minimizes the mean over episodes of $\mathrm{clamp}(\log_{10}(f(w_T) / f(w_0)), -10, 3)$, where any episode whose $w$ reaches $|w_i| \ge 10^4$ or becomes non-finite immediately stops and counts as `3.0`. Adds the frozen `0.015 * mean(state^2)` penalty over live persistent state entries (`M0` if live: 256 entries, `V2` if live: 16 entries, `V3` if live: 16 entries; `0.0` if no persistent state is live; non-finite live persistent state yields `inf`) and the frozen `5e-4 * len` tie-break.
+5. **(e) Liveness & generic state buckets (`Program::compact`, `analyze`):** Backward liveness starts from step output `V0` (instead of `M0`) and iterates to a fixpoint over the 3 persistent state slots `(M0, V2, V3)`, marking each as live state **only** when a later step reads it before overwriting. Defined-at-entry registers in `analyze` are `{V0, V1, M0, V2, V3}`; residual-insert persistent targets are `{M0, V2, V3}`; empty-program fallback writes `V0`. Generic `(n_written, n_live)` archive buckets keep the exact frozen 5-bucket formula `(n_written.clamp(1,3), n_live.clamp(1,3))` with output `V0` taking the role of `M0`:
+   - Bucket `0` (`w1l1`): `0` persistent states (`V0` only, e.g. SGD)
+   - Bucket `1` (`w1l+`): `0` written persistent states, $\ge 1$ read unwritten persistent slot
+   - Bucket `2` (`w2l2`): `1` written & live persistent state (e.g. momentum, RMSProp, or `M0`-only)
+   - Bucket `3` (`w2l3`): `1` written persistent state, $\ge 2$ live persistent slots
+   - Bucket `4` (`w3l3`): $\ge 2$ written & live persistent states (e.g. Adam `V2+V3`, `M0+V`, or `M0+V2+V3`)
+
 ## Layout
 
-- `v2/memetic/` — Zero-dependency Rust Memetic MAP-Elites search `v3.1` (`Cargo.toml`, `src/main.rs`)
+- `v2/memetic/` — Zero-dependency Rust Memetic MAP-Elites search `v3.1` (`Cargo.toml`, `src/main.rs`) with `--task opt` Testbed 2 adapter
 - `v2/strict_eval.py` — Unified strict auditor (space check, Rust eval, JAX `x64`/`1e-9`, 9-draw v3 `T=256 < 100` + `K=16`, 12 fresh draws)
 - `v2/audit_run.py` — Post-hoc batch auditor over `seed*/best.json`
 - `v2/tune_baselines_bptt.py` — Phase 0 fair BPTT baseline tuner
@@ -174,3 +191,5 @@ Pre-registered in `v2/runs/confirm_801_816/PROTOCOL.md` **before** running any s
 - `v2/runs/frozen_16seeds/` — Phase 3 `PROTOCOL.md`, 16 unseen-task `seed*/{best,summary,meta}.json`, and `strict_audit.json`
 - `v2/runs/ablations_v31/` — Phase 4 `PROTOCOL.md`, 5 arms × 8 unseen-task `seed*/{best,summary,meta}.json`, and per-arm `strict_audit.json`
 - `v2/runs/confirm_801_816/` — Phase 5 `PROTOCOL.md`, 3 arms × 16 unseen-task `seed*/{best,summary,meta}.json`, and per-arm `strict_audit.json`
+- `v2/runs/testbed2_901_916/` — Testbed 2 `PROTOCOL.md`, train/val dumps, 16 counted `seed901..916/{best,summary}.json`, `autoplast eval`, and `verify/opt_structure.py` outputs
+
