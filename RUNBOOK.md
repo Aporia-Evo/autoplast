@@ -637,21 +637,21 @@ For every finished tag:
 
 ### M. Evolutionary baselines on the task seeds of the memetic search (proposed 21 Nov 2026, released on the owner's go) — epyc
 
-Purpose: the frozen memetic search v3.1 (`v2/`) was counted on collision3 task seeds 601 to 616
-(8 of 16; README, "Memetic search v3.1 in the repository"); the
+Purpose: the frozen memetic search (v3.1 `--no-const-tune`, `v2/`) was confirmed on collision3 task
+seeds 801 to 816 (8 of 16; README, "Memetic search: confirmation on 16 fresh task seeds"); the
 evolutionary arms so far ran only on task seed 1. This package runs the plain search and lexicase
-on task seeds 601 to 608 (search seed = task seed), at the budget of packages D, E and J, so
-that the method comparison is on matched tasks. The memetic default counted 4 of these 8
-(601, 602, 604, 606).
+on task seeds 801 to 808 (search seed = task seed), at the budget of packages D, E and J, so
+that the method comparison is on matched tasks. The frozen memetic search counted 5 of these 8
+(802, 803, 804, 805, 806).
 Binary of 6c2f60a or later; the search code has not changed since. Eight seeds per arm, so no
 timing run is required; state the expected total from K (about 60 minutes per seed).
 
 ```bash
-python local_runner.py --seeds 601-608 --task-seed-from-seed --budget 1500000 --tag m-plain --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --val-log --level-acc 0.651 --level-long 0.838"
+python local_runner.py --seeds 801-808 --task-seed-from-seed --budget 1500000 --tag m-plain --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --val-log --level-acc 0.651 --level-long 0.838"
 ```
 
 ```bash
-python local_runner.py --seeds 601-608 --task-seed-from-seed --budget 1500000 --tag m-lexicase --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select lexicase --val-log --level-acc 0.651 --level-long 0.838"
+python local_runner.py --seeds 801-808 --task-seed-from-seed --budget 1500000 --tag m-lexicase --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select lexicase --val-log --level-acc 0.651 --level-long 0.838"
 ```
 
 Per arm as in K: dump, JAX check on the dump, ε check (`verify.py --x64 --norm-eps 1e-9`, then

@@ -206,6 +206,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    v3.1 is deterministic on one machine and across thread counts, not across platforms (seed 601
    on Linux: 0.70 against 0.99): rates carry meaning, single seeds do not. Growth-loop A2 runs
    stopped 21 Nov (owner); the growth-loop line is closed.
+   Confirmation 21 Nov (README, "Memetic search: confirmation on 16 fresh task seeds"): v3.1
+   `--no-const-tune` on task seeds 801 to 816: 8/16 counted, both knockouts 0/16 (liveness-safe
+   mutations, state-class archive; p = 0.0012 each, pre-registered). Method frozen (item 4) at
+   71d7948 with these flags. Ties the classical reference (method result, not discovery).
+   Open: package M on 801 to 808 (owner's go), then testbed 2 (item 5) with the frozen method.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.

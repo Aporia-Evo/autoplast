@@ -2684,3 +2684,36 @@ platform, as CLAUDE.md allows, once its dumps are committed (the per-seed dumps 
 The growth loop's remaining `A2` runs (second version, without taps) were stopped on the owner's
 decision of 21 Nov; finished: task seed 1 only, the others partial (logs in `runs/grow2/`). The
 comparison "taps matter" of the second version stays unmeasured; the line is closed.
+
+### Memetic search: confirmation on 16 fresh task seeds, recounted here (21 Nov 2026)
+
+Design as fixed in this README before the run ("Ablation ... audited result"): the variant
+`--no-const-tune` of v3.1, its two single-component knockouts, 16 fresh task seeds (801 to 816),
+22M episode evaluations per run, one-sided Fisher at α = 0.05. Protocol and audits from the PC in
+`v2/runs/confirm_801_816/` (commit 159132b, merged); binary source unchanged since 71d7948.
+Recount here with this repository's Rust binary and JAX, by the reading fixed before (test > 0.90,
+T128 K8 ≥ 0.838, train − test ≤ 0.03, long probe below 100 in all nine draws, ε within 0.02):
+
+| arm (task seeds 801 to 816) | count | test ≥ 0.99 | on 801 to 808 | PC audit |
+|---|---|---|---|---|
+| `frozen` (`--no-const-tune`) | **8/16** | 5 | 5/8 | 8/16 |
+| `frozen_basic_mut` (liveness-safe mutations off) | **0/16** | 0 | 0/8 | 0/16 |
+| `frozen_no_archive` (state-class archive off) | **0/16** | 0 | 0/8 | 0/16 |
+
+- Both pre-registered tests are met: `frozen` above `frozen_basic_mut`, p = 0.0012, and above
+  `frozen_no_archive`, p = 0.0012 (Bonferroni over the two, 0.0024). On fresh task seeds, with the
+  variant fixed first, the liveness-safe structural mutations and the state-class archive are each
+  necessary for the effect. This is the first component result of the project shown on held-out
+  task seeds at the level of the best rule.
+- The 8 counted rules reach 0.960 to 0.999 on the collision3 test; JAX float32 and float64 at ε 1e-9
+  agree to the fourth digit for all 8; 7 of 8 use no Recip. Seed 805 holds the long probe at 50.5
+  (thin margin); seeds 809 and 814 (test 0.998, 0.989) diverge on it and are not counted.
+- The level: the classical reference reaches 1.000 here, so the found rules tie it at best. This is
+  a method result (finding the best rule of the regime from the empty program), not a discovery.
+- Against the evolutionary search the comparison is still unmatched (0/160 above 0.90, task seed 1
+  only). Package M (RUNBOOK) is moved to task seeds 801 to 808, where `frozen` counted 5 of 8.
+
+**Freeze (CLAUDE.md item 4).** The search method is frozen as memetic MAP-Elites v3.1 with
+`--no-const-tune --max-ep-evals 22000000 --batch 1024 --st-l2 0.015`, source `v2/memetic/src/main.rs`
+at commit 71d7948. No change to mutations, selection or hyperparameters may be tuned on testbed 2.
+The task, ops and reading of testbed 2 go into README before any run on it.
