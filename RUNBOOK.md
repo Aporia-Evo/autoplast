@@ -635,7 +635,7 @@ For every finished tag:
 - Any use of Modal.
 - The university machine is busy or its use is questioned.
 
-### M. Evolutionary baselines on the task seeds of the memetic search (proposed 21 Nov 2026, released on the owner's go) — epyc
+### M. Evolutionary baselines on the task seeds of the memetic search (released 21 Nov 2026 by the owner) — epyc
 
 Purpose: the frozen memetic search (v3.1 `--no-const-tune`, `v2/`) was confirmed on collision3 task
 seeds 801 to 816 (8 of 16; README, "Memetic search: confirmation on 16 fresh task seeds"); the

@@ -2717,3 +2717,77 @@ T128 K8 ≥ 0.838, train − test ≤ 0.03, long probe below 100 in all nine dra
 `--no-const-tune --max-ep-evals 22000000 --batch 1024 --st-l2 0.015`, source `v2/memetic/src/main.rs`
 at commit 71d7948. No change to mutations, selection or hyperparameters may be tuned on testbed 2.
 The task, ops and reading of testbed 2 go into README before any run on it.
+
+## Testbed 2: optimizer update rules (fixed 21 Nov 2026, before any implementation or run)
+
+Purpose (CLAUDE.md item 5): a held-out target for the frozen method. Nothing of the search method
+changes; what changes is the task, its objective, two generic ops and the register convention.
+Owner's go of 21 Nov. The research agent writes the task generator, dump, evaluation and the
+hand-written ladder in this repository's Rust binary and JAX; the memetic binary reads the dumps,
+as for collision3, so both implementations see the same data and the counted numbers come from an
+implementation the search did not use.
+
+**Program interface.** One step of an optimizer: on entry V0 = w (parameters, dimension d) and
+V1 = g (a stochastic gradient at w); the program's output is V0 at the end of the step. State
+budget: persistent vectors V2 and V3 (zero at the start of an episode) and the persistent matrix M0
+(zero at the start); everything else is temporary. 24 instructions, NM 4, NV 6, NS 4, the 20 ops of
+the collision3 space plus two generic element-wise ops, logged here before use:
+`VecRecip` (x / (x² + 1e-6), element-wise, the vector form of `Recip`) and `VecSqrt` (√|x|,
+element-wise). The empty program is w' = w. No op or mutation knows of momentum, second moments,
+bias correction or any optimizer.
+
+**Task family (train).** d = 16, T = 50 steps per episode, w₀ and the optimum w* drawn so that
+‖w₀ − w*‖ = 1. Two kinds of problem, half of the episodes each:
+- quadratic: f(w) = ½ (w − w*)ᵀ A (w − w*), A = Q diag(λ) Qᵀ with eigenvalues log-uniform in [1/κ, 1];
+  Q = I in half of these episodes (axis-aligned) and a random rotation in the other half; gradient
+  g = A (w − w*) + σ ξ, ξ ~ N(0, I/d);
+- linear regression: n = 64 rows, features with covariance of the same spectrum, targets
+  y = X w* + 0.1 noise, f the full-batch mean squared error over 2, g the gradient on a minibatch
+  of 8 rows drawn per step.
+κ ∈ {10, 100} and σ ∈ {0, 0.1}, balanced over episodes; 128 train episodes per task seed; validation
+dumps from task seed 2000 + t as for collision3. Episode objective: log₁₀(f(w_T) / f(w₀)), clipped to
+[−10, 3], and 3 for an episode whose w leaves |wᵢ| < 1e4 or becomes non-finite. The search
+minimises the mean over episodes (in place of the MSE of collision3), plus the frozen 0.015 ·
+mean(state²) and the length tie-break.
+
+**Held-out suites** (fixed seed 99, 512 episodes each, never loaded by a search): (1) the train
+distribution; (2) κ = 1000; (3) d = 32; (4) d = 8; (5) σ = 0.3; (6) T = 200; (7) the gradient and the
+loss scaled by 10 and by 0.1 (half each). Reported per suite: mean objective and the fraction of
+diverged episodes.
+
+**References, hand-written, tuned on the train task by grid** (rule 6: references only): SGD (η),
+momentum (η, β), RMSProp (η, β, ε), Adam (η, β₁, β₂, ε; without bias correction, which needs a step
+counter the program does not get), and for the ceiling, not expressible in the space: exact Newton
+w' = w − A⁻¹ g on the quadratics and the least-squares solution on regression, plus conjugate
+gradients on noise-free quadratics. Every number is reported next to tuned Adam and the ceiling.
+
+**Structural test.** A found rule is run on train episodes; each ladder member, with its constants
+fitted by least squares to the rule's own per-step updates Δw on the same gradient sequences, is
+scored by R². The rule is assigned to the simplest member with R² ≥ 0.95 (SGD < momentum < RMSProp <
+Adam), otherwise "unclassified". Accuracy levels alone do not count as rediscovery.
+
+**What is counted** (task seeds 901 to 916, one search seed each, the frozen method unchanged at
+22M episode evaluations):
+- Level: a seed reaches the Adam level if its rule's mean objective on suite (1) is at most that of
+  tuned Adam plus 0.05, no episode diverges on any suite including T = 200, and train − suite (1) is
+  at most 0.1.
+- Rediscovery: the structural class of each rule; counted separately for momentum, RMSProp and
+  Adam.
+- Baseline searches on the same task seeds and episode-evaluation budget: the plain evolutionary
+  search of this repository (regularized evolution as in AutoML-Zero; the executing agent, epyc) and
+  random search. Method result: memetic against plain evolution on the level count, one-sided
+  Fisher, α = 0.05.
+- Degenerate wins (rule 3): divergence at T = 200, dependence on the scale suite (7), train ≫ test.
+  A rule better than tuned Adam is a candidate only; it needs the full rule-2 analogue (ladder
+  retuned per suite, ceiling, JAX, a rate over 8 or more seeds) and a literature check before
+  anything is claimed.
+
+**Neighbours to cite and check** (search again before any claim): symbolic optimizer discovery by
+program search, Lion (Chen et al. 2023, "Symbolic Discovery of Optimization Algorithms"); Neural
+Optimizer Search (Bello et al. 2017; PowerSign, AddSign); learned optimizers (VeLO and others).
+Lion was found by evolutionary program search with a funnel of proxy tasks, the closest precedent
+of this testbed; the claim here can only be about the search method on a fixed space and budget.
+
+**Predictions of the research agent:** the frozen method reaches the Adam level in 8 or more of 16
+with probability 0.35; plain evolution does so with 0.15; the method result (p < 0.05) with 0.35;
+momentum is rediscovered in 8 or more of 16 with 0.6.
