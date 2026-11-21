@@ -1,0 +1,7 @@
+{
+  "arm": "frozen",
+  "task_seed": 804,
+  "val_task_seed": 2804,
+  "search_seed": 804,
+  "max_ep_evals": 22000000
+}

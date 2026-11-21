@@ -1,0 +1,7 @@
+{
+  "arm": "frozen_basic_mut",
+  "task_seed": 809,
+  "val_task_seed": 2809,
+  "search_seed": 809,
+  "max_ep_evals": 22000000
+}
