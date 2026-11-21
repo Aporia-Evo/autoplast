@@ -4,7 +4,7 @@
 //! Reads ONLY exact Rust train and val dumps (`--train-dump`, `--val-dump`).
 //! Test data is never loaded. Exports exact `best.json` for post-hoc audit via `v2/strict_eval.py`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -16,7 +16,20 @@ const MAX_LEN: usize = 24;
 const PM_MAX: usize = 3;
 const N_BUCKETS: usize = 5; // (w1/l1, w1/l2+, w2/l2, w2/l3, w3/l3)
 const CELL_K: usize = 4;
+const FLAT_K: usize = 64;
 const LEN_PENALTY: f32 = 5e-4;
+
+/// Thread-count-invariant deterministic uniform draw in [0, 1) for (batch_seed, cand_idx).
+#[inline]
+fn det_uniform(batch_seed: u64, cand_idx: u64) -> f32 {
+    let mut z = batch_seed
+        .wrapping_add(cand_idx.wrapping_mul(0x9e3779b97f4a7c15))
+        .wrapping_add(0x9e3779b97f4a7c15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+    z ^= z >> 31;
+    ((z >> 40) as f32) * (1.0 / (1u64 << 24) as f32)
+}
 
 // --- Fast deterministic Xoshiro256** PRNG ---
 
@@ -861,9 +874,26 @@ impl Regs16 {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct EvalCounter {
+    calls: u64,
+    ep_evals: u64,
+    ep_evals_nominal: u64,
+    write_steps: u64,
+}
+
+impl EvalCounter {
+    fn add(&mut self, other: EvalCounter) {
+        self.calls += other.calls;
+        self.ep_evals += other.ep_evals;
+        self.ep_evals_nominal += other.ep_evals_nominal;
+        self.write_steps += other.write_steps;
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct EvalMetrics {
-    obj: f32, // mse + st_l2 * mean(st^2) + LEN_PENALTY * len
+    obj: f32, // loss + st_l2 * mean(st^2) + LEN_PENALTY * len
     mse: f32,
     acc: f32,
     max_st: f32,
@@ -888,6 +918,8 @@ fn eval_program(
     regs: &mut Regs16,
     st_l2: f32,
     compute_acc: bool,
+    use_acc_fitness: bool,
+    ctr: &mut EvalCounter,
 ) -> EvalMetrics {
     assert_eq!(task.d, D16, "Regs16 expects d=16");
     let mut o = [0.0f32; D16];
@@ -898,13 +930,19 @@ fn eval_program(
     let mut max_st = 0.0f32;
     let n_eps = ep_indices.map(|s| s.len()).unwrap_or(task.episodes.len());
     let inv_pm_d2 = 1.0 / (pm * D16SQ) as f32;
+    let need_acc = compute_acc || use_acc_fitness;
+
+    ctr.calls += 1;
+    ctr.ep_evals_nominal += n_eps as u64;
 
     for idx_pos in 0..n_eps {
+        ctr.ep_evals += 1;
         let ei = ep_indices.map(|s| s[idx_pos]).unwrap_or(idx_pos);
         let ep = &task.episodes[ei];
         regs.reset_episode(pm);
         let mut ep_l2 = 0.0f32;
         for &(kid, vid) in &ep.writes {
+            ctr.write_steps += 1;
             if !regs.step(prog, task.key(kid), task.val(vid), pm) {
                 return EvalMetrics::inf();
             }
@@ -945,7 +983,7 @@ fn eval_program(
             mse_sum += sq;
             tot_q += 1;
 
-            if compute_acc && onorm2 > 1e-12 {
+            if need_acc && onorm2 > 1e-12 {
                 let mut best = f32::NEG_INFINITY;
                 let mut best_id = usize::MAX;
                 for j in 0..task.n_vals {
@@ -967,22 +1005,24 @@ fn eval_program(
     }
 
     let mse = mse_sum / tot_q.max(1) as f32;
+    let acc = cor_q as f32 / tot_q.max(1) as f32;
     let l2_mean = l2_ep_sum / n_eps.max(1) as f32;
-    let obj = mse + st_l2 * l2_mean + LEN_PENALTY * prog.instrs.len() as f32;
+    let loss = if use_acc_fitness { 1.0 - acc } else { mse };
+    let obj = loss + st_l2 * l2_mean + LEN_PENALTY * prog.instrs.len() as f32;
     if !obj.is_finite() {
         return EvalMetrics::inf();
     }
     EvalMetrics {
         obj,
         mse,
-        acc: cor_q as f32 / tot_q.max(1) as f32,
+        acc,
         max_st,
     }
 }
 
 // --- 3-Tier Multi-Scale Continuous Constant Optimizer ---
 
-/// Tier 0: 1 micro-eval (12 eps), plus 5-point 1D probe ONLY when a constant was added/changed or eval diverged.
+/// Tier 0: 1 micro-eval (8 eps), plus 5-point 1D probe ONLY when a constant was added/changed or eval diverged.
 fn quick_screen_1d(
     prog: &mut Program,
     pm: usize,
@@ -990,9 +1030,11 @@ fn quick_screen_1d(
     sub: &[usize],
     regs: &mut Regs16,
     st_l2: f32,
+    use_acc_fitness: bool,
     focus_const: Option<usize>,
+    ctr: &mut EvalCounter,
 ) -> EvalMetrics {
-    let mut best = eval_program(prog, pm, task, Some(sub), regs, st_l2, false);
+    let mut best = eval_program(prog, pm, task, Some(sub), regs, st_l2, false, use_acc_fitness, ctr);
     let cidx = prog.const_indices();
     if cidx.is_empty() || (focus_const.is_none() && best.obj.is_finite()) {
         return best;
@@ -1003,7 +1045,7 @@ fn quick_screen_1d(
     let mut best_c = prog.instrs[ci].c;
     for &probe in &[0.005f32, 0.05, 0.5, -0.05, -0.5] {
         prog.instrs[ci].c = probe;
-        let m = eval_program(prog, pm, task, Some(sub), regs, st_l2, false);
+        let m = eval_program(prog, pm, task, Some(sub), regs, st_l2, false, use_acc_fitness, ctr);
         if m.obj + 1e-6 < best.obj {
             best = m;
             best_c = probe;
@@ -1021,10 +1063,12 @@ fn tune_constants(
     ep_indices: Option<&[usize]>,
     regs: &mut Regs16,
     st_l2: f32,
+    use_acc_fitness: bool,
     full_polish: bool,
+    ctr: &mut EvalCounter,
 ) -> EvalMetrics {
     let cidx = prog.const_indices();
-    let mut best = eval_program(prog, pm, task, ep_indices, regs, st_l2, false);
+    let mut best = eval_program(prog, pm, task, ep_indices, regs, st_l2, false, use_acc_fitness, ctr);
     if cidx.is_empty() {
         return best;
     }
@@ -1035,7 +1079,7 @@ fn tune_constants(
             for (&ci, &ov) in cidx.iter().zip(&orig) {
                 prog.instrs[ci].c = ov * scale;
             }
-            let m = eval_program(prog, pm, task, ep_indices, regs, st_l2, false);
+            let m = eval_program(prog, pm, task, ep_indices, regs, st_l2, false, use_acc_fitness, ctr);
             if m.obj < best.obj {
                 best = m;
             }
@@ -1064,7 +1108,7 @@ fn tune_constants(
                 };
                 for p in probes {
                     prog.instrs[ci].c = p;
-                    let m = eval_program(prog, pm, task, ep_indices, regs, st_l2, false);
+                    let m = eval_program(prog, pm, task, ep_indices, regs, st_l2, false, use_acc_fitness, ctr);
                     if m.obj + 1e-6 < best.obj {
                         best = m;
                         c0 = p;
@@ -1078,7 +1122,7 @@ fn tune_constants(
                 for &dir in &[1.0f32, -1.0f32] {
                     let cand = c0 + dir * st;
                     prog.instrs[ci].c = cand;
-                    let m = eval_program(prog, pm, task, ep_indices, regs, st_l2, false);
+                    let m = eval_program(prog, pm, task, ep_indices, regs, st_l2, false, use_acc_fitness, ctr);
                     if m.obj + 1e-6 < best.obj {
                         best = m;
                         c0 = cand;
@@ -1106,7 +1150,7 @@ fn tune_constants(
             for (&ci, &xv) in cidx.iter().zip(xs) {
                 prog.instrs[ci].c = xv;
             }
-            eval_program(prog, pm, task, ep_indices, regs, st_l2, false)
+            eval_program(prog, pm, task, ep_indices, regs, st_l2, false, use_acc_fitness, ctr)
         };
 
         let mut simplex: Vec<(Vec<f32>, EvalMetrics)> = Vec::with_capacity(k + 1);
@@ -1664,7 +1708,103 @@ fn mutate_program(parent: &Program, partner: Option<&Program>, rng: &mut Rng) ->
     (p, focus)
 }
 
-// --- MAP-Elites Archive ---
+fn random_instr_unconstrained(rng: &mut Rng) -> Instr {
+    let op = OPS[rng.below(OPS.len())];
+    let (ot, ins_t) = op.sig();
+    let out = rng.below(n_regs(ot)) as u8;
+    let a = ins_t.first().map(|&t| rng.below(n_regs(t)) as u8).unwrap_or(0);
+    let b = ins_t.get(1).map(|&t| rng.below(n_regs(t)) as u8).unwrap_or(0);
+    Instr {
+        op,
+        out,
+        a,
+        b,
+        c: random_const(rng),
+    }
+}
+
+/// Basic v1-style mutation ablation (--basic-mut): no residual/chain/wrap inserts,
+/// no liveness-aware register selection, no length>=18 bloat shedding.
+fn mutate_program_basic(parent: &Program, partner: Option<&Program>, rng: &mut Rng) -> (Program, Option<usize>) {
+    let mut p = parent.clone();
+    let n_edits = if rng.uniform() < 0.75 { 1 } else { 2 };
+    let mut focus: Option<usize> = None;
+
+    for _ in 0..n_edits {
+        let n = p.instrs.len();
+        let roll = rng.uniform();
+        if n == 0 {
+            let ins = random_instr_unconstrained(rng);
+            if ins.op == Op::Const {
+                focus = Some(0);
+            }
+            p.instrs.push(ins);
+        } else if roll < 0.25 {
+            let idx = rng.below(n);
+            let ins = random_instr_unconstrained(rng);
+            if ins.op == Op::Const {
+                focus = Some(idx);
+            }
+            p.instrs[idx] = ins;
+        } else if roll < 0.45 {
+            let idx = rng.below(n);
+            let (ot, it) = p.instrs[idx].op.sig();
+            if it.is_empty() {
+                p.instrs[idx].c += rng.normal() * 0.2;
+                focus = Some(idx);
+            } else {
+                match rng.below(it.len() + 1) {
+                    0 => p.instrs[idx].out = rng.below(n_regs(ot)) as u8,
+                    1 => p.instrs[idx].a = rng.below(n_regs(it[0])) as u8,
+                    _ => p.instrs[idx].b = rng.below(n_regs(it[1])) as u8,
+                }
+            }
+        } else if roll < 0.60 {
+            let cis = p.const_indices();
+            if !cis.is_empty() {
+                let ci = cis[rng.below(cis.len())];
+                if rng.below(2) == 0 {
+                    p.instrs[ci].c *= 10.0f32.powf(rng.normal() * 0.4);
+                } else {
+                    p.instrs[ci].c += rng.normal() * 0.25;
+                }
+                focus = Some(ci);
+            } else {
+                let idx = rng.below(n);
+                let ins = random_instr_unconstrained(rng);
+                if ins.op == Op::Const {
+                    focus = Some(idx);
+                }
+                p.instrs[idx] = ins;
+            }
+        } else if roll < 0.75 && n > 1 {
+            let idx = rng.below(n);
+            p.instrs.remove(idx);
+        } else if roll < 0.90 && n < MAX_LEN {
+            let pos = rng.below(n + 1);
+            let ins = random_instr_unconstrained(rng);
+            if ins.op == Op::Const {
+                focus = Some(pos);
+            }
+            p.instrs.insert(pos, ins);
+        } else if let Some(b) = partner {
+            if !b.instrs.is_empty() {
+                let cut_a = rng.below(n + 1);
+                let cut_b = rng.below(b.instrs.len() + 1);
+                let mut child = Vec::with_capacity(MAX_LEN);
+                child.extend_from_slice(&p.instrs[..cut_a]);
+                child.extend_from_slice(&b.instrs[cut_b..]);
+                if child.len() > MAX_LEN {
+                    child.truncate(MAX_LEN);
+                }
+                p.instrs = child;
+            }
+        }
+    }
+    (p, focus)
+}
+
+// --- MAP-Elites Archive (BTreeMap for deterministic iteration order) ---
 
 #[derive(Clone)]
 struct Elite {
@@ -1673,21 +1813,27 @@ struct Elite {
     n_live_states: usize,
     metrics: EvalMetrics,
     op_sig: u64,
+    struct_hash: u64,
 }
 
 struct Archive {
-    cells: HashMap<(usize, usize), Vec<Elite>>,
+    flat: bool,
+    cells: BTreeMap<(usize, usize), Vec<Elite>>,
 }
 
 impl Archive {
-    fn new() -> Self {
-        Archive { cells: HashMap::new() }
+    fn new(flat: bool) -> Self {
+        Archive {
+            flat,
+            cells: BTreeMap::new(),
+        }
     }
 
     fn cell_threshold(&self, len: usize, n_live: usize) -> f32 {
-        match self.cells.get(&(len, n_live)) {
+        let (key, cap) = if self.flat { ((0, 0), FLAT_K) } else { ((len, n_live), CELL_K) };
+        match self.cells.get(&key) {
             None => f32::INFINITY,
-            Some(v) if v.len() < CELL_K => f32::INFINITY,
+            Some(v) if v.len() < cap => f32::INFINITY,
             Some(v) => v.last().unwrap().metrics.obj,
         }
     }
@@ -1697,9 +1843,18 @@ impl Archive {
         if len == 0 || len > MAX_LEN || !e.metrics.obj.is_finite() {
             return false;
         }
-        let key = (len, e.n_live_states);
+        let (key, cap) = if self.flat {
+            ((0, 0), FLAT_K)
+        } else {
+            ((len, e.n_live_states), CELL_K)
+        };
         let bucket = self.cells.entry(key).or_default();
-        if let Some(pos) = bucket.iter().position(|x| x.op_sig == e.op_sig) {
+        let dup_pos = if self.flat {
+            bucket.iter().position(|x| x.struct_hash == e.struct_hash)
+        } else {
+            bucket.iter().position(|x| x.op_sig == e.op_sig)
+        };
+        if let Some(pos) = dup_pos {
             if e.metrics.obj + 1e-6 < bucket[pos].metrics.obj {
                 bucket[pos] = e;
                 bucket.sort_by(|a, b| a.metrics.obj.total_cmp(&b.metrics.obj));
@@ -1707,10 +1862,10 @@ impl Archive {
             }
             return false;
         }
-        if bucket.len() < CELL_K || e.metrics.obj + 1e-6 < bucket.last().unwrap().metrics.obj {
+        if bucket.len() < cap || e.metrics.obj + 1e-6 < bucket.last().unwrap().metrics.obj {
             bucket.push(e);
             bucket.sort_by(|a, b| a.metrics.obj.total_cmp(&b.metrics.obj));
-            bucket.truncate(CELL_K);
+            bucket.truncate(cap);
             return true;
         }
         false
@@ -1758,36 +1913,43 @@ fn run_self_test(train_path: &str, st_l2: f32) {
         ],
     };
     let (kc, _, _, pm) = kalman.compact();
-    let m_ref = eval_program(&kc, pm, &task, None, &mut regs, st_l2, true);
+    let mut ref_ctr = EvalCounter::default();
+    let m_ref = eval_program(&kc, pm, &task, None, &mut regs, st_l2, true, false, &mut ref_ctr);
+    assert_eq!(ref_ctr.calls, 1);
+    assert_eq!(ref_ctr.ep_evals, task.episodes.len() as u64);
     println!(
-        "1. Exact Kalman-2p check: tr_acc={:.4} mse={:.4} obj={:.4} max_st={:.2}",
-        m_ref.acc, m_ref.mse, m_ref.obj, m_ref.max_st
+        "1. Exact Kalman-2p check: tr_acc={:.4} mse={:.4} obj={:.4} max_st={:.2} (ep_evals={}, write_steps={})",
+        m_ref.acc, m_ref.mse, m_ref.obj, m_ref.max_st, ref_ctr.ep_evals, ref_ctr.write_steps
     );
 
     kalman.instrs[2].c = 1.0;
     kalman.instrs[12].c = 0.5;
     let t0 = Instant::now();
-    let _ = tune_constants(&mut kalman, 3, &task, None, &mut regs, st_l2, true);
+    let mut tune_ctr = EvalCounter::default();
+    let _ = tune_constants(&mut kalman, 3, &task, None, &mut regs, st_l2, false, true, &mut tune_ctr);
     let dt = t0.elapsed().as_secs_f64();
-    let m_rec = eval_program(&kalman, 3, &task, None, &mut regs, st_l2, true);
+    let m_rec = eval_program(&kalman, 3, &task, None, &mut regs, st_l2, true, false, &mut tune_ctr);
     println!(
-        "2. Scrambled Kalman [1.0, 0.5] -> [{:.5}, {:.5}] acc={:.4} mse={:.4} in {:.3}s",
-        kalman.instrs[2].c, kalman.instrs[12].c, m_rec.acc, m_rec.mse, dt
+        "2. Scrambled Kalman [1.0, 0.5] -> [{:.5}, {:.5}] acc={:.4} mse={:.4} in {:.3}s (calls={}, ep_evals={})",
+        kalman.instrs[2].c, kalman.instrs[12].c, m_rec.acc, m_rec.mse, dt, tune_ctr.calls, tune_ctr.ep_evals
     );
     assert!(m_rec.acc >= 0.92);
 
     let sub = task.subset(8, 4);
     let t1 = Instant::now();
     let n_it = 5000;
+    let mut bench_ctr = EvalCounter::default();
     for _ in 0..n_it {
-        std::hint::black_box(eval_program(&kc, 3, &task, Some(&sub), &mut regs, st_l2, false));
+        std::hint::black_box(eval_program(&kc, 3, &task, Some(&sub), &mut regs, st_l2, false, false, &mut bench_ctr));
     }
     let dt1 = t1.elapsed().as_secs_f64();
+    assert_eq!(bench_ctr.ep_evals, (n_it * sub.len()) as u64);
     println!(
-        "3. Micro-subset ({} eps) single-thread speed: {:.0} evals/sec ({:.3} ms/eval)",
+        "3. Micro-subset ({} eps) single-thread speed: {:.0} evals/sec ({:.3} ms/eval, ep_evals={})",
         sub.len(),
         n_it as f64 / dt1,
-        1000.0 * dt1 / n_it as f64
+        1000.0 * dt1 / n_it as f64,
+        bench_ctr.ep_evals
     );
 }
 
@@ -1799,6 +1961,7 @@ fn main() {
             .map(|w| w[1].clone())
             .unwrap_or_else(|| def.to_string())
     };
+    let has_flag = |flag: &str| -> bool { args.iter().any(|a| a == flag) };
     let arg_usize = |flag: &str, def: usize| -> usize { arg_str(flag, &def.to_string()).parse().unwrap() };
     let arg_u64 = |flag: &str, def: u64| -> u64 { arg_str(flag, &def.to_string()).parse().unwrap() };
     let arg_f32 = |flag: &str, def: f32| -> f32 { arg_str(flag, &def.to_string()).parse().unwrap() };
@@ -1807,7 +1970,7 @@ fn main() {
     let val_path = arg_str("--val-dump", "v2/data/collision3_val_s2001.json");
     let st_l2 = arg_f32("--st-l2", 0.015);
 
-    if args.iter().any(|a| a == "--self-test") {
+    if has_flag("--self-test") {
         run_self_test(&train_path, st_l2);
         return;
     }
@@ -1815,8 +1978,18 @@ fn main() {
     let seed = arg_u64("--seed", 0);
     let seconds = arg_f32("--seconds", 120.0) as f64;
     let max_cands = arg_usize("--max-cands", 0);
+    let max_ep_evals = arg_u64("--max-ep-evals", 0);
     let threads = arg_usize("--threads", 16).max(1);
     let batch_size = arg_usize("--batch", 512).max(threads);
+    let fitness_mode = arg_str("--fitness", "mse");
+    let use_acc_fitness = match fitness_mode.as_str() {
+        "mse" => false,
+        "acc" => true,
+        other => panic!("unknown --fitness '{other}' (expected 'mse' or 'acc')"),
+    };
+    let no_const_tune = has_flag("--no-const-tune");
+    let flat_archive = has_flag("--no-archive");
+    let basic_mut = has_flag("--basic-mut");
     let out_dir = PathBuf::from(arg_str("--out", &format!("v2/runs/memetic_dev/seed{seed}")));
     fs::create_dir_all(&out_dir).expect("mkdir out_dir");
 
@@ -1825,62 +1998,113 @@ fn main() {
     let micro_sub = train_task.subset(4, 4); // 8 eps: ultra-fast Tier 0/1 screen
 
     println!(
-        "Memetic MAP-Elites v3 | seed={} max_cands={} seconds={:.0} threads={} batch={} st_l2={} | train={} ({} eps) val={} ({} eps)",
-        seed, max_cands, seconds, threads, batch_size, st_l2, train_path, train_task.episodes.len(), val_path, val_task.episodes.len()
+        "Memetic MAP-Elites v3.1 | seed={} max_cands={} max_ep_evals={} seconds={:.0} threads={} batch={} st_l2={} | fitness={} const_tune={} archive={} mut={} | train={} ({} eps) val={} ({} eps)",
+        seed,
+        max_cands,
+        max_ep_evals,
+        seconds,
+        threads,
+        batch_size,
+        st_l2,
+        fitness_mode,
+        !no_const_tune,
+        if flat_archive { "flat" } else { "map_elites" },
+        if basic_mut { "basic" } else { "full" },
+        train_path,
+        train_task.episodes.len(),
+        val_path,
+        val_task.episodes.len()
     );
 
     let t_start = Instant::now();
     let mut master_rng = Rng::new(seed ^ 0xA5A5_5A5A_1234_5678);
-    let mut archive = Archive::new();
+    let mut archive = Archive::new(flat_archive);
     let mut seen_structs: HashSet<u64> = HashSet::new();
     let mut polished_leaders: HashSet<u64> = HashSet::new();
+    let mut train_ctr = EvalCounter::default();
+    let mut val_ctr = EvalCounter::default();
 
     let mut init_progs: Vec<(Program, Option<usize>)> = Vec::with_capacity(512);
     for _ in 0..512 {
         let mut p = Program { instrs: Vec::new() };
         let len = 1 + master_rng.below(6);
         for _ in 0..len {
-            let an = analyze(&p, [true, false, false]);
-            let pos = p.instrs.len();
-            p.instrs.push(random_instr_at(&mut master_rng, &an, pos, None, None));
+            if basic_mut {
+                p.instrs.push(random_instr_unconstrained(&mut master_rng));
+            } else {
+                let an = analyze(&p, [true, false, false]);
+                let pos = p.instrs.len();
+                p.instrs.push(random_instr_at(&mut master_rng, &an, pos, None, None));
+            }
         }
         init_progs.push((p, None));
     }
 
     let eval_batch = |cands: Vec<(Program, Option<usize>)>,
-                      cell_thresh: &HashMap<(usize, usize), f32>,
+                      cell_thresh: &BTreeMap<(usize, usize), f32>,
                       best_by_bkt_obj: [f32; N_BUCKETS],
                       seen_snapshot: &HashSet<u64>,
                       batch_seed: u64|
-     -> (Vec<Elite>, usize, usize) {
-        let chunk = (cands.len() + threads - 1) / threads;
+     -> (Vec<Elite>, usize, usize, EvalCounter) {
+        let chunk = ((cands.len() + threads - 1) / threads).max(1);
         std::thread::scope(|sc| {
             let mut handles = Vec::new();
-            for (ti, slice) in cands.chunks(chunk.max(1)).enumerate() {
+            for (ti, slice) in cands.chunks(chunk).enumerate() {
                 let train_ref = &train_task;
                 let sub_ref = &micro_sub;
+                let base_idx = ti * chunk;
                 handles.push(sc.spawn(move || {
                     let mut regs = Regs16::new();
-                    let mut lrng = Rng::new(batch_seed.wrapping_add((ti as u64 + 1) * 0x9e3779b9));
+                    let mut ctr = EvalCounter::default();
                     let mut winners = Vec::new();
                     let mut t1_cnt = 0usize;
                     let mut t2_cnt = 0usize;
-                    for (raw, focus) in slice {
+                    for (offset, (raw, focus)) in slice.iter().enumerate() {
+                        let cand_idx = (base_idx + offset) as u64;
                         let (mut prog, _, bucket, pm) = raw.compact();
                         if prog.instrs.is_empty() || prog.instrs.len() > MAX_LEN {
                             continue;
                         }
                         let sh = prog.struct_hash();
-                        if seen_snapshot.contains(&sh) && lrng.uniform() > 0.02 {
+                        if seen_snapshot.contains(&sh) && det_uniform(batch_seed, cand_idx) > 0.02 {
                             continue;
                         }
-                        // Tier 0: 1..6 micro-evals (8 eps)
-                        let m0 = quick_screen_1d(&mut prog, pm, train_ref, sub_ref, &mut regs, st_l2, *focus);
+                        // Tier 0: 8-ep micro-screen (+ 5-pt 1D probe when const tuning enabled)
+                        let m0 = if no_const_tune {
+                            eval_program(
+                                &prog,
+                                pm,
+                                train_ref,
+                                Some(sub_ref),
+                                &mut regs,
+                                st_l2,
+                                false,
+                                use_acc_fitness,
+                                &mut ctr,
+                            )
+                        } else {
+                            quick_screen_1d(
+                                &mut prog,
+                                pm,
+                                train_ref,
+                                sub_ref,
+                                &mut regs,
+                                st_l2,
+                                use_acc_fitness,
+                                *focus,
+                                &mut ctr,
+                            )
+                        };
                         if !m0.obj.is_finite() {
                             continue;
                         }
+                        let thresh_key = if flat_archive {
+                            (0, 0)
+                        } else {
+                            (prog.instrs.len(), bucket)
+                        };
                         let c_thr = cell_thresh
-                            .get(&(prog.instrs.len(), bucket))
+                            .get(&thresh_key)
                             .copied()
                             .unwrap_or(f32::INFINITY);
                         let b_best = best_by_bkt_obj[bucket];
@@ -1888,15 +2112,39 @@ fn main() {
                         if m0.obj > gate_t1 {
                             continue;
                         }
-                        t1_cnt += 1;
                         // Tier 1: 1-sweep multi-scale coordinate tune on 8-ep micro-subset.
-                        let m1 = tune_constants(&mut prog, pm, train_ref, Some(sub_ref), &mut regs, st_l2, false);
+                        let m1 = if no_const_tune {
+                            m0
+                        } else {
+                            t1_cnt += 1;
+                            tune_constants(
+                                &mut prog,
+                                pm,
+                                train_ref,
+                                Some(sub_ref),
+                                &mut regs,
+                                st_l2,
+                                use_acc_fitness,
+                                false,
+                                &mut ctr,
+                            )
+                        };
                         if !m1.obj.is_finite() || m1.obj > c_thr.min(b_best + 0.09) + 0.015 {
                             continue;
                         }
                         t2_cnt += 1;
                         // Tier 2: exact 144-ep evaluation (fast, NO Nelder-Mead in inner loop).
-                        let full_m = eval_program(&prog, pm, train_ref, None, &mut regs, st_l2, true);
+                        let full_m = eval_program(
+                            &prog,
+                            pm,
+                            train_ref,
+                            None,
+                            &mut regs,
+                            st_l2,
+                            true,
+                            use_acc_fitness,
+                            &mut ctr,
+                        );
                         if full_m.obj.is_finite() && full_m.obj < c_thr + 1e-4 {
                             let op_sig = prog.op_multiset_hash();
                             winners.push(Elite {
@@ -1905,58 +2153,83 @@ fn main() {
                                 n_live_states: bucket,
                                 metrics: full_m,
                                 op_sig,
+                                struct_hash: sh,
                             });
                         }
                     }
-                    (winners, t1_cnt, t2_cnt)
+                    (winners, t1_cnt, t2_cnt, ctr)
                 }));
             }
             let mut all = Vec::new();
             let (mut tot_t1, mut tot_t2) = (0, 0);
+            let mut tot_ctr = EvalCounter::default();
             for h in handles {
-                let (w, a, b) = h.join().unwrap();
+                let (w, a, b, c) = h.join().unwrap();
                 all.extend(w);
                 tot_t1 += a;
                 tot_t2 += b;
+                tot_ctr.add(c);
             }
-            (all, tot_t1, tot_t2)
+            (all, tot_t1, tot_t2, tot_ctr)
         })
     };
 
-    let empty_thresh = HashMap::new();
-    let (init_w, _, _) = eval_batch(init_progs, &empty_thresh, [f32::INFINITY; N_BUCKETS], &seen_structs, seed);
+    let empty_thresh = BTreeMap::new();
+    let (init_w, init_t1, init_t2, init_ctr) =
+        eval_batch(init_progs, &empty_thresh, [f32::INFINITY; N_BUCKETS], &seen_structs, seed);
+    train_ctr.add(init_ctr);
     for e in init_w {
-        seen_structs.insert(e.prog.struct_hash());
+        seen_structs.insert(e.struct_hash);
         archive.insert(e);
     }
 
     let mut total_cands = 512usize;
-    let mut total_t1 = 0usize;
-    let mut total_t2 = 0usize;
+    let mut total_t1 = init_t1;
+    let mut total_t2 = init_t2;
     let mut batch_idx = 0u64;
     let mut last_log = Instant::now();
     let mut val_regs = Regs16::new();
 
-    while if max_cands > 0 { total_cands < max_cands } else { t_start.elapsed().as_secs_f64() < seconds } {
+    loop {
+        let keep_going = if max_ep_evals > 0 || max_cands > 0 {
+            let under_ep = max_ep_evals == 0 || train_ctr.ep_evals < max_ep_evals;
+            let under_cands = max_cands == 0 || total_cands < max_cands;
+            under_ep && under_cands
+        } else {
+            t_start.elapsed().as_secs_f64() < seconds
+        };
+        if !keep_going {
+            break;
+        }
         batch_idx += 1;
         let elites = archive.all_elites();
         let mut cands = Vec::with_capacity(batch_size);
 
-        let mut cell_thresh = HashMap::new();
-        for len in 1..=MAX_LEN {
-            for b in 0..N_BUCKETS {
-                cell_thresh.insert((len, b), archive.cell_threshold(len, b));
+        let mut cell_thresh = BTreeMap::new();
+        if flat_archive {
+            cell_thresh.insert((0, 0), archive.cell_threshold(0, 0));
+        } else {
+            for len in 1..=MAX_LEN {
+                for b in 0..N_BUCKETS {
+                    cell_thresh.insert((len, b), archive.cell_threshold(len, b));
+                }
             }
         }
 
         let mut by_bkt: [Vec<&Elite>; N_BUCKETS] = std::array::from_fn(|_| Vec::new());
         let mut best_by_bkt_obj = [f32::INFINITY; N_BUCKETS];
-        for e in &elites {
-            let bi = e.n_live_states;
-            if e.metrics.obj < best_by_bkt_obj[bi] {
-                best_by_bkt_obj[bi] = e.metrics.obj;
+        if flat_archive {
+            if let Some(first) = elites.first() {
+                best_by_bkt_obj = [first.metrics.obj; N_BUCKETS];
             }
-            by_bkt[bi].push(e);
+        } else {
+            for e in &elites {
+                let bi = e.n_live_states;
+                if e.metrics.obj < best_by_bkt_obj[bi] {
+                    best_by_bkt_obj[bi] = e.metrics.obj;
+                }
+                by_bkt[bi].push(e);
+            }
         }
         let compact_elites: Vec<&Elite> = elites.iter().filter(|e| e.prog.instrs.len() <= 18).collect();
 
@@ -1965,15 +2238,26 @@ fn main() {
                 let mut p = Program { instrs: Vec::new() };
                 let len = 1 + master_rng.below(6);
                 for _ in 0..len {
-                    let an = analyze(&p, [true, false, false]);
-                    let pos = p.instrs.len();
-                    p.instrs.push(random_instr_at(&mut master_rng, &an, pos, None, None));
+                    if basic_mut {
+                        p.instrs.push(random_instr_unconstrained(&mut master_rng));
+                    } else {
+                        let an = analyze(&p, [true, false, false]);
+                        let pos = p.instrs.len();
+                        p.instrs.push(random_instr_at(&mut master_rng, &an, pos, None, None));
+                    }
                 }
                 cands.push((p, None));
                 continue;
             }
             let r = master_rng.uniform();
-            let parent = if r < 0.25 {
+            let parent = if flat_archive {
+                if r < 0.25 {
+                    let top_k = elites.len().min(10);
+                    &elites[master_rng.below(top_k)].prog
+                } else {
+                    &elites[master_rng.below(elites.len())].prog
+                }
+            } else if r < 0.25 {
                 let top_k = elites.len().min(10);
                 &elites[master_rng.below(top_k)].prog
             } else if r < 0.40 && !compact_elites.is_empty() {
@@ -1997,79 +2281,134 @@ fn main() {
             } else {
                 None
             };
-            cands.push(mutate_program(parent, partner, &mut master_rng));
+            let child = if basic_mut {
+                mutate_program_basic(parent, partner, &mut master_rng)
+            } else {
+                mutate_program(parent, partner, &mut master_rng)
+            };
+            cands.push(child);
         }
 
         total_cands += cands.len();
         let bseed = seed.wrapping_mul(1_000_003).wrapping_add(batch_idx * 97);
-        let (winners, t1, t2) = eval_batch(cands, &cell_thresh, best_by_bkt_obj, &seen_structs, bseed);
+        let (winners, t1, t2, b_ctr) = eval_batch(cands, &cell_thresh, best_by_bkt_obj, &seen_structs, bseed);
         total_t1 += t1;
         total_t2 += t2;
+        train_ctr.add(b_ctr);
         for e in winners {
-            seen_structs.insert(e.prog.struct_hash());
+            seen_structs.insert(e.struct_hash);
             archive.insert(e);
         }
 
-        // Periodic/on-new-leader full 144-ep Nelder-Mead polish for the 5 bucket leaders (parallel, <= 5 progs).
-        let mut to_polish: Vec<Elite> = Vec::new();
-        for b in 0..N_BUCKETS {
-            if let Some(leader) = archive
-                .cells
-                .iter()
-                .filter(|&(&(_, bk), _)| bk == b)
-                .flat_map(|(_, v)| v.iter())
-                .min_by(|a, b| a.metrics.obj.total_cmp(&b.metrics.obj))
-            {
-                let sh = leader.prog.struct_hash();
-                if !polished_leaders.contains(&sh) {
-                    polished_leaders.insert(sh);
-                    to_polish.push(leader.clone());
+        // Periodic/on-new-leader full 144-ep Nelder-Mead polish for bucket leaders (or single global leader in flat mode).
+        if !no_const_tune {
+            let mut to_polish: Vec<Elite> = Vec::new();
+            if flat_archive {
+                if let Some(leader) = archive.best() {
+                    let sh = leader.struct_hash;
+                    if !polished_leaders.contains(&sh) {
+                        polished_leaders.insert(sh);
+                        to_polish.push(leader.clone());
+                    }
+                }
+            } else {
+                for b in 0..N_BUCKETS {
+                    if let Some(leader) = archive
+                        .cells
+                        .iter()
+                        .filter(|&(&(_, bk), _)| bk == b)
+                        .flat_map(|(_, v)| v.iter())
+                        .min_by(|a, b| a.metrics.obj.total_cmp(&b.metrics.obj))
+                    {
+                        let sh = leader.struct_hash;
+                        if !polished_leaders.contains(&sh) {
+                            polished_leaders.insert(sh);
+                            to_polish.push(leader.clone());
+                        }
+                    }
                 }
             }
-        }
-        if !to_polish.is_empty() {
-            let polished: Vec<Elite> = std::thread::scope(|sc| {
-                let mut hs = Vec::new();
-                for mut e in to_polish {
-                    let train_ref = &train_task;
-                    hs.push(sc.spawn(move || {
-                        let mut regs = Regs16::new();
-                        let _ = tune_constants(&mut e.prog, e.export_pm, train_ref, None, &mut regs, st_l2, true);
-                        e.metrics = eval_program(&e.prog, e.export_pm, train_ref, None, &mut regs, st_l2, true);
-                        e
-                    }));
+            if !to_polish.is_empty() {
+                let polished: Vec<(Elite, EvalCounter)> = std::thread::scope(|sc| {
+                    let mut hs = Vec::new();
+                    for mut e in to_polish {
+                        let train_ref = &train_task;
+                        hs.push(sc.spawn(move || {
+                            let mut regs = Regs16::new();
+                            let mut p_ctr = EvalCounter::default();
+                            let _ = tune_constants(
+                                &mut e.prog,
+                                e.export_pm,
+                                train_ref,
+                                None,
+                                &mut regs,
+                                st_l2,
+                                use_acc_fitness,
+                                true,
+                                &mut p_ctr,
+                            );
+                            e.metrics = eval_program(
+                                &e.prog,
+                                e.export_pm,
+                                train_ref,
+                                None,
+                                &mut regs,
+                                st_l2,
+                                true,
+                                use_acc_fitness,
+                                &mut p_ctr,
+                            );
+                            (e, p_ctr)
+                        }));
+                    }
+                    hs.into_iter().map(|h| h.join().unwrap()).collect()
+                });
+                for (e, p_ctr) in polished {
+                    train_ctr.add(p_ctr);
+                    archive.insert(e);
                 }
-                hs.into_iter().map(|h| h.join().unwrap()).collect()
-            });
-            for e in polished {
-                archive.insert(e);
             }
         }
 
         if last_log.elapsed().as_secs_f64() >= 5.0 {
             last_log = Instant::now();
             if let Some(best) = archive.best() {
-                let vm = eval_program(&best.prog, best.export_pm, &val_task, None, &mut val_regs, st_l2, true);
+                // Diagnostic progress log only: does NOT affect train_ctr or val_ctr.
+                let mut diag_ctr = EvalCounter::default();
+                let vm = eval_program(
+                    &best.prog,
+                    best.export_pm,
+                    &val_task,
+                    None,
+                    &mut val_regs,
+                    st_l2,
+                    true,
+                    use_acc_fitness,
+                    &mut diag_ctr,
+                );
                 let labels = ["w1l1", "w1l+", "w2l2", "w2l3", "w3l3"];
                 let best_by_st: Vec<String> = (0..N_BUCKETS)
                     .map(|b| {
                         archive
                             .cells
                             .iter()
-                            .filter(|&(&(_, bk), _)| bk == b)
                             .flat_map(|(_, v)| v.iter())
+                            .filter(|e| e.n_live_states == b)
                             .min_by(|a, b| a.metrics.obj.total_cmp(&b.metrics.obj))
                             .map(|e| format!("{}:{:.3}({:.3},L{})", labels[b], e.metrics.obj, e.metrics.acc, e.prog.instrs.len()))
                             .unwrap_or_else(|| format!("{}:-", labels[b]))
                     })
                     .collect();
+                let n_elites: usize = archive.cells.values().map(|v| v.len()).sum();
                 println!(
-                    "  [{:5.1}s | cands={:7} t1={:5} t2={:4} cells={:3}/120] best tr={:.4}({:.3},L{},pm{}) val={:.4}({:.3},mx={:.2}) | {}",
+                    "  [{:5.1}s | cands={:7} ep={:9} t1={:5} t2={:4} cells={:3} el={:3}] best tr={:.4}({:.3},L{},pm{}) val={:.4}({:.3},mx={:.2}) | {}",
                     t_start.elapsed().as_secs_f64(),
                     total_cands,
+                    train_ctr.ep_evals,
                     total_t1,
                     total_t2,
                     archive.cells.len(),
+                    n_elites,
                     best.metrics.obj,
                     best.metrics.acc,
                     best.prog.instrs.len(),
@@ -2087,7 +2426,17 @@ fn main() {
     let elites = archive.all_elites();
     let mut best_val_elite: Option<(Elite, EvalMetrics)> = None;
     for e in elites {
-        let vm = eval_program(&e.prog, e.export_pm, &val_task, None, &mut val_regs, st_l2, true);
+        let vm = eval_program(
+            &e.prog,
+            e.export_pm,
+            &val_task,
+            None,
+            &mut val_regs,
+            st_l2,
+            true,
+            use_acc_fitness,
+            &mut val_ctr,
+        );
         if vm.obj.is_finite() {
             if best_val_elite.as_ref().map(|b| vm.obj < b.1.obj).unwrap_or(true) {
                 best_val_elite = Some((e, vm));
@@ -2097,12 +2446,27 @@ fn main() {
 
     let (win, vm) = best_val_elite.expect("no valid elite found");
     let wall = t_start.elapsed().as_secs_f64();
+    let total_ep_evals = train_ctr.ep_evals + val_ctr.ep_evals;
     fs::write(out_dir.join("best.json"), win.prog.to_json(win.export_pm)).expect("write best.json");
     let summary = format!(
-        "{{\n  \"seed\": {},\n  \"wall_seconds\": {:.2},\n  \"total_cands\": {},\n  \"n_instrs\": {},\n  \"persist_m\": {},\n  \"train_obj\": {:.5},\n  \"train_mse\": {:.5},\n  \"train_acc\": {:.4},\n  \"val_obj\": {:.5},\n  \"val_mse\": {:.5},\n  \"val_acc\": {:.4},\n  \"max_abs_state_val\": {:.3}\n}}\n",
+        "{{\n  \"seed\": {},\n  \"wall_seconds\": {:.2},\n  \"total_cands\": {},\n  \"total_t1\": {},\n  \"total_t2\": {},\n  \"train_eval_calls\": {},\n  \"train_ep_evals\": {},\n  \"train_ep_evals_nominal\": {},\n  \"train_write_steps\": {},\n  \"val_eval_calls\": {},\n  \"val_ep_evals\": {},\n  \"val_write_steps\": {},\n  \"total_ep_evals\": {},\n  \"fitness\": \"{}\",\n  \"const_tune\": {},\n  \"archive\": \"{}\",\n  \"mutations\": \"{}\",\n  \"n_instrs\": {},\n  \"persist_m\": {},\n  \"train_obj\": {:.5},\n  \"train_mse\": {:.5},\n  \"train_acc\": {:.4},\n  \"val_obj\": {:.5},\n  \"val_mse\": {:.5},\n  \"val_acc\": {:.4},\n  \"max_abs_state_val\": {:.3}\n}}\n",
         seed,
         wall,
         total_cands,
+        total_t1,
+        total_t2,
+        train_ctr.calls,
+        train_ctr.ep_evals,
+        train_ctr.ep_evals_nominal,
+        train_ctr.write_steps,
+        val_ctr.calls,
+        val_ctr.ep_evals,
+        val_ctr.write_steps,
+        total_ep_evals,
+        fitness_mode,
+        !no_const_tune,
+        if flat_archive { "flat" } else { "map_elites" },
+        if basic_mut { "basic" } else { "full" },
         win.prog.instrs.len(),
         win.export_pm,
         win.metrics.obj,
@@ -2116,10 +2480,15 @@ fn main() {
     fs::write(out_dir.join("summary.json"), summary).expect("write summary.json");
 
     println!(
-        "\n[FINAL seed {}] time={:.1}s cands={} (t1={}, t2={}) | len={} pm={} | tr_acc={:.4} (mse={:.4}) | val_acc={:.4} (mse={:.4}, obj={:.4}, max={:.2})",
+        "\n[FINAL seed {}] time={:.1}s cands={} ep_evals={} (train={}, nominal={}, val={}, steps={}) (t1={}, t2={}) | len={} pm={} | tr_acc={:.4} (mse={:.4}) | val_acc={:.4} (mse={:.4}, obj={:.4}, max={:.2})",
         seed,
         wall,
         total_cands,
+        total_ep_evals,
+        train_ctr.ep_evals,
+        train_ctr.ep_evals_nominal,
+        val_ctr.ep_evals,
+        train_ctr.write_steps,
         total_t1,
         total_t2,
         win.prog.instrs.len(),

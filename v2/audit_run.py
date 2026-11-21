@@ -44,14 +44,15 @@ def is_valid_discovery(r: dict) -> tuple[bool, list[str]]:
 def infer_train_task_seed(run_dir: pathlib.Path, seed_dir: pathlib.Path, explicit: int | None) -> int | None:
     if explicit is not None:
         return explicit
-    sp = seed_dir / "summary.json"
-    if sp.exists():
-        try:
-            meta = json.loads(sp.read_text(encoding="utf-8"))
-            if isinstance(meta.get("task_seed"), int):
-                return meta["task_seed"]
-        except Exception:
-            pass
+    for fname in ("meta.json", "summary.json"):
+        sp = seed_dir / fname
+        if sp.exists():
+            try:
+                meta = json.loads(sp.read_text(encoding="utf-8"))
+                if isinstance(meta.get("task_seed"), int):
+                    return meta["task_seed"]
+            except Exception:
+                pass
     m = re.match(r"^s(\d+)$", run_dir.name)
     if m:
         return int(m.group(1))
@@ -94,16 +95,28 @@ def main():
         res["compiled"] = True
         res["valid"] = ok
         res["reasons"] = reasons
+        sp = sd / "summary.json"
+        if sp.exists():
+            try:
+                sm = json.loads(sp.read_text(encoding="utf-8"))
+                for k in ("wall_seconds", "total_cands", "train_ep_evals", "val_ep_evals", "total_ep_evals", "train_write_steps"):
+                    if k in sm:
+                        res[k] = sm[k]
+            except Exception:
+                pass
         rows.append(res)
         t256_mx = max(res["t256_std_max"], res["t256_col_max"])
+        k16_mx = res.get("t256_k16_col_max", 0.0)
+        fmt_mx = lambda x: f"{x:.2f}" if (x < 1000.0) else f"{x:.2e}"
         d_str = (
             f" 12d={res['draws_12_gap0_mean']:.3f} gap4={res['draws_12_gap4_mean']:.3f}"
             if "draws_12_gap0_mean" in res else ""
         )
         print(
-            f"  {sd.name:6s} (ts={res['train_task_seed']}) | len={res['n_instrs']:2d} ok={str(res['space_ok']):5s} | "
+            f"  {sd.name:7s} (ts={res['train_task_seed']:3d}) | len={res['n_instrs']:2d} ok={str(res['space_ok']):5s} | "
             f"tr={res['rust_train']:.3f} te={res['rust_test_col3']:.3f} (e9={res['jax_x64_e9']:.3f}) | "
-            f"d32={res['rust_d32']:.3f} T128={res['rust_t128']:.3f} T256({args.stab_draws}d)={t256_mx:.2f} |{d_str} | "
+            f"d32={res['rust_d32']:.3f} T128={res['rust_t128']:.3f} "
+            f"T256({args.stab_draws}d)={fmt_mx(t256_mx)} k16={fmt_mx(k16_mx)} |{d_str} | "
             f"VALID={ok} {reasons}",
             flush=True,
         )

@@ -1,2 +1,4 @@
 memetic/target/
 __pycache__/
+*.pyc
+data/seeds_*/

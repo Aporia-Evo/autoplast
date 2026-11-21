@@ -171,6 +171,7 @@ def v3_stability_check(prog: dict, seed: int = 77777, n_draws: int = 9) -> dict[
 
     acc_std, mx_std, std_draws = run_cfg(dict(d=16, n_keys=64, n_vals=64, T=256, p_ow=0.3, n_ep=64, max_keys=8))
     acc_col, mx_col, col_draws = run_cfg(dict(d=16, n_keys=64, n_vals=64, T=256, p_ow=0.3, n_ep=64, max_keys=8, clusters=8, cluster_cos=0.85))
+    acc_k16, mx_k16, k16_draws = run_cfg(dict(d=16, n_keys=64, n_vals=64, T=256, p_ow=0.3, n_ep=64, max_keys=16, clusters=8, cluster_cos=0.85))
     mx = max(mx_std, mx_col)
     return {
         "t256_std_acc": acc_std,
@@ -178,8 +179,12 @@ def v3_stability_check(prog: dict, seed: int = 77777, n_draws: int = 9) -> dict[
         "t256_col_acc": acc_col,
         "t256_col_max": mx_col,
         "t256_col_draws_max": [round(x, 3) if np.isfinite(x) else float("inf") for x in col_draws],
+        "t256_k16_col_acc": acc_k16,
+        "t256_k16_col_max": mx_k16,
+        "t256_k16_col_draws_max": [round(x, 3) if np.isfinite(x) else float("inf") for x in k16_draws],
         "t256_n_draws": n_draws,
         "stable_lt100": bool(np.isfinite(mx) and mx < 100.0),
+        "stable_k16_lt100": bool(np.isfinite(mx_k16) and mx_k16 < 100.0),
     }
 
 
