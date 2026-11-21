@@ -2552,3 +2552,29 @@ on the suites and hold across horizons where the reference, in this space, needs
 chosen after seeing the rules, and the gap comes from the epsilon of the reciprocal op, which a
 reviewer can remove. Before it is used, a mixed regime with very long episodes is fixed in advance
 and the reference families are tuned on it.
+
+### The memetic search in the repository (`v2/`, merged 21 Nov from branch `v2`)
+
+The owner's collaborator pushed the stack to branch `v2` (commits 5241a3e and ac3fe4a), merged here.
+Checked:
+- Rule 1: the search starts from 512 random programs of 1 to 6 instructions; the Kalman oracle
+  appears only in `--self-test`; no known rule enters a population or a mutation. The search loads
+  only the train and validation dumps.
+- Data: `v2/data/` equals the dumps of this repository's binary up to the last float32 bit (at
+  most 7e-8, Windows against Linux), with identical episodes. The validation dumps are train-split
+  dumps of task seeds 2001 and 2501 (192 episodes).
+- All 8 counted `best.json` reproduce their reported numbers in this repository's Rust binary
+  (s1 seeds 10, 11, 12: 0.995, 0.999, 1.000). The bytecode of s1 seed 12 is the formula rebuilt
+  above. The audit slip (train on the wrong task seed) is fixed in ac3fe4a; the verdicts do not
+  change.
+- **The search is not deterministic.** The same seed and flags twice on the same machine gave
+  validation 0.942 and 0.630 at 30k candidates. Cause: the archive is a `HashMap` with a random
+  hash seed per process, so the order of `all_elites()` among elites of equal objective (frequent:
+  neutral variants of one function) changes from run to run, and parent selection by index follows
+  it. With `BTreeMap` for `Archive.cells` (two lines, no change to the algorithm) the two runs are
+  identical. The counted results stay valid as draws of the method, but no seed of them can be
+  re-run exactly; a rerun of s501 seed 100 here gave a different rule (train 0.982, test 0.987,
+  T128 1.000) after the same 300,544 candidates. Every counted run from now on uses the fixed
+  binary, and the original 8 are reported as they are, not replaced by reruns.
+- Cost is logged as candidates and wall time only (92 s on 16 threads for s501 seed 100); the
+  comparison with the evolutionary arms needs episode evaluations, which the binary does not count.
