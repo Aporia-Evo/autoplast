@@ -1,0 +1,3 @@
+runs/k-plain2m/seed9/best.json: median max|S|  eps 1e-6: 2.15  eps 1e-3: 2.01  ratio 0.936
+runs/d-kalman/seed9/best.json: median max|S|  eps 1e-6: 2.15  eps 1e-3: 2.01  ratio 0.936
+runs/j-lexicase/seed6/best.json: median max|S|  eps 1e-6: 1.18e-06  eps 1e-3: 0.00118  ratio 1e+03
