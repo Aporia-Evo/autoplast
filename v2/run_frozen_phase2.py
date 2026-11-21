@@ -12,13 +12,13 @@ EXE = _BIN_DIR / ("autoplast_memetic.exe" if (_BIN_DIR / "autoplast_memetic.exe"
 PY = sys.executable
 
 ARMS = [
-    ("s1", ROOT / "v2/data/collision3_train_s1.json", ROOT / "v2/data/collision3_val_s2001.json", [10, 11, 12, 13]),
-    ("s501", ROOT / "v2/data/collision3_train_s501.json", ROOT / "v2/data/collision3_val_s2501.json", [100, 101, 102, 103]),
+    ("s1", 1, ROOT / "v2/data/collision3_train_s1.json", ROOT / "v2/data/collision3_val_s2001.json", [10, 11, 12, 13]),
+    ("s501", 501, ROOT / "v2/data/collision3_train_s501.json", ROOT / "v2/data/collision3_val_s2501.json", [100, 101, 102, 103]),
 ]
 
 
 def main():
-    for arm_name, tr, va, seeds in ARMS:
+    for arm_name, _task_seed, tr, va, seeds in ARMS:
         arm_dir = ROOT / "v2" / "runs" / "frozen_memetic_v1" / arm_name
         arm_dir.mkdir(parents=True, exist_ok=True)
         for seed in seeds:
@@ -40,10 +40,13 @@ def main():
             )
 
     print("\n================ POST-HOC STRICT AUDIT (FROZEN PHASE 2) ================", flush=True)
-    for arm_name, _, _, _ in ARMS:
+    for arm_name, task_seed, _, _, _ in ARMS:
         arm_dir = ROOT / "v2" / "runs" / "frozen_memetic_v1" / arm_name
-        print(f"\n--- Auditing arm={arm_name} ({arm_dir}) ---", flush=True)
-        subprocess.run([PY, "-u", str(ROOT / "v2" / "audit_run.py"), str(arm_dir)], check=True)
+        print(f"\n--- Auditing arm={arm_name} (train_task_seed={task_seed}, {arm_dir}) ---", flush=True)
+        subprocess.run(
+            [PY, "-u", str(ROOT / "v2" / "audit_run.py"), str(arm_dir), "--train-task-seed", str(task_seed)],
+            check=True,
+        )
 
 
 if __name__ == "__main__":
