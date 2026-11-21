@@ -635,27 +635,30 @@ For every finished tag:
 - Any use of Modal.
 - The university machine is busy or its use is questioned.
 
-### M. Evolutionary baselines on the task seeds of the memetic ablation (proposed 21 Nov 2026, released on the owner's go) — epyc
+### M. Evolutionary baselines on the task seeds of the memetic search (proposed 21 Nov 2026, released on the owner's go) — epyc
 
-Purpose: the memetic search (`v2/`) is measured on collision3 task seeds 701 to 708; the
+Purpose: the frozen memetic search v3.1 (`v2/`) was counted on collision3 task seeds 601 to 616
+(8 of 16; README, "Memetic search v3.1 in the repository"); the
 evolutionary arms so far ran only on task seed 1. This package runs the plain search and lexicase
-on the same eight task seeds (search seed = task seed), at the budget of packages D, E and J, so
-that the method comparison is on matched tasks (README, "Ablation of the memetic search").
+on task seeds 601 to 608 (search seed = task seed), at the budget of packages D, E and J, so
+that the method comparison is on matched tasks. The memetic default counted 4 of these 8
+(601, 602, 604, 606).
 Binary of 6c2f60a or later; the search code has not changed since. Eight seeds per arm, so no
 timing run is required; state the expected total from K (about 60 minutes per seed).
 
 ```bash
-python local_runner.py --seeds 701-708 --task-seed-from-seed --budget 1500000 --tag m-plain --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --val-log --level-acc 0.651 --level-long 0.838"
+python local_runner.py --seeds 601-608 --task-seed-from-seed --budget 1500000 --tag m-plain --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --val-log --level-acc 0.651 --level-long 0.838"
 ```
 
 ```bash
-python local_runner.py --seeds 701-708 --task-seed-from-seed --budget 1500000 --tag m-lexicase --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select lexicase --val-log --level-acc 0.651 --level-long 0.838"
+python local_runner.py --seeds 601-608 --task-seed-from-seed --budget 1500000 --tag m-lexicase --parallel 2 --threads 8 --regime collision3 --recip --extra="--persist-m 3 --persist-init identity --select lexicase --val-log --level-acc 0.651 --level-long 0.838"
 ```
 
 Per arm as in K: dump, JAX check on the dump, ε check (`verify.py --x64 --norm-eps 1e-9`, then
 `verify/eps_scale.py` for any seed that moves by more than 0.02), and the long-episode probe of
-each best rule on its own task seed (`autoplast evalmany --split long --regime collision3 --recip
---persist-m 3 --persist-init identity --task-seed N`, first column). Report in
+each best rule in nine draws: its own task seed and 1 to 8 (`autoplast evalmany --split long
+--regime collision3 --recip --persist-m 3 --persist-init identity --task-seed N`, first column; the
+largest of the nine counts). Report in
 `runs/<tag>/m_report.md`: per seed train, collision3 test, T64 K8, T128 K8, long probe, real
 evaluations, minutes; the counts of the README reading (test > 0.90 with the other conditions;
 test ≥ 0.99). Predictions of the research agent: `m-plain` 0/8 above 0.90 with probability 0.85,

@@ -196,6 +196,13 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    at most tie (method result, not discovery). The memetic MAP-Elites search on the owner's PC
    (`v2/memetic`, not yet in the repository) reached 1.000 on validation in development; its
    counted run (task seeds 1 and 501, 4 seeds each) is read as fixed in that README section.
+   Memetic search v3.1 in the repository (`v2/`, merged 21 Nov; README, "Memetic search v3.1 in
+   the repository"): deterministic, episode evaluations counted. Frozen default on unseen task
+   seeds 601 to 616: 8/16 counted (recounted here, 4 at ≥ 0.99); ablation on 701 to 708 at 22M
+   episode evaluations: no component shown at 8 seeds, post hoc the liveness-safe mutations
+   carry the effect and constant tuning makes rules unstable. Evolution: 0/160 above 0.90, on task
+   seed 1 only, at about 5 times the episode evaluations. Package M (RUNBOOK; plain and lexicase
+   on task seeds 601 to 608) makes the comparison matched; awaiting the owner's go.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.

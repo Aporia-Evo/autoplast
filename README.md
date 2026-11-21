@@ -2630,3 +2630,44 @@ reference arm was made after seeing the results, so task seeds 701 to 708 are sp
 claim needs the variant fixed first (`no_const_tune`), its ablations taken from that variant
 (mutations off, archive off), 16 fresh task seeds, and package M on the same seeds.
 Descriptive: every audited rule above 0.90 uses Normalize and none uses Recip (24 of 24, PC count).
+
+### Memetic search v3.1 in the repository: 16 unseen task seeds and the ablation, recounted here (21 Nov 2026)
+
+Pushed to branch `v2` (71d7948) and merged: binary v3.1 (deterministic `BTreeMap` archive,
+episode-evaluation counter, ablation flags), the run `v2/runs/frozen_16seeds` (task seeds 601 to
+616, default flags, 300k candidates, about 21.7M episode evaluations and 450 s on 16 threads per
+seed) and `v2/runs/ablations_v31`. Both have a `PROTOCOL.md` written on the PC before the runs; they
+reached the repository in one commit after the results, so the time of writing is the PC's word.
+A partial v3.0 run on 601 to 610 was discarded untested when v3.1 was built.
+
+Recount here, with this repository's Rust binary: collision3 test > 0.90, T128 K8 ≥ 0.838,
+train − test ≤ 0.03 on the rule's own task seed, the long probe below 100 in all of nine draws
+(own task seed and 1 to 8), JAX float32 and float64 at ε 1e-9 within 0.02.
+
+| run | count | test ≥ 0.99 among them | PC audit | difference |
+|---|---|---|---|---|
+| `frozen_16seeds` (v3.1 default) | **8/16** | 4 | 8/16 | none |
+| ablation `full` | 2/8 | 2 | 2/8 | none |
+| ablation `no_const_tune` | 4/8 | 3 | 5/8 | seed 704: T128 K8 0.676, not checked on the PC |
+| ablation `acc_fitness` | 3/8 | 3 | 3/8 | none |
+| ablation `no_archive` | 1/8 | 0 | 1/8 | none |
+| ablation `basic_mut` | 0/8 | 0 | 0/8 | none |
+
+All 18 counted rules agree between JAX float32 and float64 at ε 1e-9 to the fourth digit (no
+ε trick). One rule of `frozen_16seeds` (seed 607, test 0.985) passes the long probe on its own task
+seed (20.9) and diverges in five of the other eight draws; it is not counted, which is why a single
+draw is not enough. Seed 614 (test 0.994) diverges on every draw.
+
+Reading:
+- The frozen v3.1 default finds a rule at the ceiling level on unseen task seeds in 8 of 16 (4 at
+  ≥ 0.99), and 2 of 8 on 701 to 708; pooled 10 of 24. The evolutionary arms of this space reached
+  0.90 in 0 of 160 seeds, at about 5 times the episode evaluations, but on task seed 1 only. The
+  method comparison becomes a result with package M on the same task seeds (RUNBOOK; moved to
+  601 to 608, where the frozen default was counted).
+- The ablation recount does not change its reading above: no component shown at 8 seeds against
+  `full`; post hoc, `basic_mut` 0/8 against `no_const_tune` 4/8 (p = 0.04).
+- Literature to check before the method claim: liveness-safe ("effective") mutations are a known
+  device of linear GP (Brameier and Banzhaf 2007, effective mutations and intron detection);
+  memetic constant tuning in GP (e.g. Topchy and Punch 2001; Kommenda et al. 2020); MAP-Elites
+  (Mouret and Clune 2015). The contribution is their combination and its measured effect here,
+  not any of them alone.
