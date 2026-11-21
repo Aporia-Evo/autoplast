@@ -2578,3 +2578,27 @@ Checked:
   binary, and the original 8 are reported as they are, not replaced by reruns.
 - Cost is logged as candidates and wall time only (92 s on 16 threads for s501 seed 100); the
   comparison with the evolutionary arms needs episode evaluations, which the binary does not count.
+
+### Ablation of the memetic search (`ablations_v31`, running on the owner's PC; recorded 21 Nov before its end)
+
+As reported from the PC (protocol `v2/runs/ablations_v31/PROTOCOL.md`, not yet in the repository):
+5 arms (`full`, `no_const_tune`, `acc_fitness`, `no_archive`, and a fifth, presumably the new
+mutations off) × 8 unseen task seeds 701 to 708, each run stopped at 22M episode evaluations, binary
+v3.1 (said to contain the deterministic archive and the episode counter). Validation accuracies
+reported so far: `full` 5/8 above 0.94 and 4/8 above 0.99; `no_const_tune` 5/8 above 0.97;
+`acc_fitness` 3/8 above 0.99; `no_archive` 1/4 above 0.90 on the first four seeds.
+
+How the research agent will read it (fixed now, before the audited results are seen):
+- Per arm, the count of the reading above (Rust test > 0.90, T128 K8 ≥ 0.838, train − test ≤ 0.03,
+  long probe < 100 on its own task seed, ε shift ≤ 0.02), and separately the count at test ≥ 0.99.
+  Validation numbers do not count.
+- Each arm against `full` by one-sided Fisher on the first count. With 8 seeds per arm only large
+  gaps show (6/8 against 1/8 gives p = 0.02; 5/8 against 3/8 gives p = 0.31), so "no difference"
+  here means "not shown at this size". A component is called necessary only if its arm differs at
+  p < 0.05; otherwise the comparison goes to 16 seeds before anything is said.
+- Constant tuning alone had no effect in the evolutionary search either (packages F, G); the
+  archive is a structural diversity mechanism of the kind behaviour selection was (packages H, J).
+- Cost: an evolutionary seed of this space spends about 0.8M real evaluations of 144 episodes each,
+  about 113M episode evaluations (`d-kalman` 785k, `j-lexicase` 807k real evaluations), 5 times the
+  22M of an ablation arm, and reached 0.90 in 0 of 160 seeds, all on task seed 1. The matched
+  comparison on task seeds 701 to 708 is package M (RUNBOOK), proposed to the owner.
