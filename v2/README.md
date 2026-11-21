@@ -143,6 +143,21 @@ Pre-registered in `v2/runs/ablations_v31/PROTOCOL.md`. All 5 arms run on the exa
   - Plausible hypothesis to confirm on fresh seeds (`801..816`): inner-loop constant tuning on `T=64` pushes rules across the `T=256` stability boundary (Rule 3), while liveness-safe structural mutations (and potentially the MAP-Elites archive) drive the breakthrough under equal `22M ep_evals`.
 - **Descriptive note:** Across Phases 2, 3, and 4 combined, 24/24 strictly valid `> 0.90` discoveries use `Normalize` and 0/24 use `Recip`.
 
+## Phase 5: Pre-Registered Confirmatory 3-Arm Evaluation (`v2/runs/confirm_801_816/`, Frozen `no_const_tune`)
+
+Pre-registered in `v2/runs/confirm_801_816/PROTOCOL.md` **before** running any seed on `801..816`. Freezes `Memetic MAP-Elites v3.1` with `--no-const-tune` (`--max-ep-evals 22000000 --batch 1024 --st-l2 0.015`, zero code changes) and tests two single-component knockouts directly from the frozen method across **16 completely fresh unseen task seeds (`801..816`)** (48 runs total; `801..808` aligns 1:1 with epyc Package M):
+
+| Arm (`801..816`, `22.0–22.1M ep_evals`) | `raw > 0.90` | **Valid** | **Counted (`Valid & > 0.90`)** | `>= 0.99` | `801..808` *(Pkg M)* | Med `raw` | Med `eff` *(invalid=0)* | Med `cands` | One-sided Fisher vs. `frozen` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| **`frozen`** (`--no-const-tune`) | **10/16** | **14/16** | **8/16 (50.0%)** | **5/16** | **5/8 (62.5%)** | **0.980** | **0.814** | 2,562k | — *(reference)* |
+| **`frozen_basic_mut`** (`+ --basic-mut`) | 0/16 | 15/16 | **0/16 (0.0%)** | 0/16 | 0/8 | 0.520 | 0.519 | 2,549k | **`p = 0.0012`** *(Bonf `0.0024`)* |
+| **`frozen_no_archive`** (`+ --no-archive`) | 1/16 | 14/16 | **0/16 (0.0%)** | 0/16 | 0/8 | 0.653 | 0.649 | 3,650k | **`p = 0.0012`** *(Bonf `0.0024`)* |
+
+- **Confirmatory statistical result ($\alpha = 0.05$, $N = 16$):** **Both** pre-registered knockouts are statistically confirmed necessary at **$p = 0.00122$** each (Bonferroni-adjusted $p = 0.00245$; paired Wilcoxon on effective `test col3`: $p = 0.0145$ vs. `basic_mut`, $p = 0.0278$ vs. `no_archive`).
+- **Sensitivity checks (worst-case):** Counting borderline `frozen_no_archive/seed812` (`test=0.898`, `12d=0.903`) as `1/16` still yields $p = 0.0077$; simultaneously dropping `frozen/seed805` (`T256=61.9 < 100`) to `7/16` still yields $p = 0.0186 < 0.05$. On `801..808` alone: `5/8` vs. `0/8` ($p = 0.0128$).
+- **Untouched `verify/verify.py --x64 --norm-eps 1e-9`:** `frozen/seed802` achieves **`1.000 ± 0.000`** on **10 of 11** suites (including `collision T12`, `collision T64`, `rewrite8`, `clustered`) and `0.964 ± 0.006` on `full d16 T24`; `seed812` and `seed813` achieve `0.996–1.000` on `collision`/`clustered` and `0.959–0.965` on `full d16 T24`.
+- **Descriptive note:** Among the 8 counted `frozen` rules, 8/8 use `Normalize` and 7/8 are `Recip`-free (1 uses `Recip`). All 8 beat every stable BPTT baseline (`0.960–0.999` vs. `0.952`).
+
 ## Layout
 
 - `v2/memetic/` — Zero-dependency Rust Memetic MAP-Elites search `v3.1` (`Cargo.toml`, `src/main.rs`)
@@ -152,8 +167,10 @@ Pre-registered in `v2/runs/ablations_v31/PROTOCOL.md`. All 5 arms run on the exa
 - `v2/run_frozen_phase2.py` — Reproduces the pre-registered Phase 2 run & audit
 - `v2/run_frozen_16seeds.py` — Reproduces the pre-registered Phase 3 16-seed unseen-task run & audit (`601..616`)
 - `v2/run_ablations_v31.py` — Reproduces the pre-registered Phase 4 compute-fair 5-arm ablation & audit (`701..708`)
+- `v2/run_confirm_801_816.py` — Reproduces the pre-registered Phase 5 confirmatory 3-arm run & audit (`801..816`)
 - `v2/data/` — Exact Rust `autoplast dump` JSONs (`s1`, `s2001`, `s501`, `s2501`, `s9`; `seeds_*/` auto-generated and gitignored)
 - `v2/baselines_bptt/` — Compiled `<= 24`-instruction BPTT-tuned baseline JSONs and `baselines_summary.json`
 - `v2/runs/frozen_memetic_v1/` — Phase 2 `PROTOCOL.md`, 8 counted `seed*/{best,summary}.json`, and `strict_audit.json`
 - `v2/runs/frozen_16seeds/` — Phase 3 `PROTOCOL.md`, 16 unseen-task `seed*/{best,summary,meta}.json`, and `strict_audit.json`
 - `v2/runs/ablations_v31/` — Phase 4 `PROTOCOL.md`, 5 arms × 8 unseen-task `seed*/{best,summary,meta}.json`, and per-arm `strict_audit.json`
+- `v2/runs/confirm_801_816/` — Phase 5 `PROTOCOL.md`, 3 arms × 16 unseen-task `seed*/{best,summary,meta}.json`, and per-arm `strict_audit.json`

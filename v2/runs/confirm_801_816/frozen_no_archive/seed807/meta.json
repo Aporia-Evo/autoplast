@@ -1,0 +1,7 @@
+{
+  "arm": "frozen_no_archive",
+  "task_seed": 807,
+  "val_task_seed": 2807,
+  "search_seed": 807,
+  "max_ep_evals": 22000000
+}
