@@ -2481,3 +2481,46 @@ How the research agent will read it (fixed now, before any counted result is see
   switched off. Constant tuning alone had no effect under the accuracy fitness (packages F, G).
 - Each counted rule is compared in formula with the reference (is it a recursive pseudo-inverse
   in substance?) before anything is said about its structure.
+
+### The memetic MAP-Elites search: counted run as reported, and what was checked here (21 Nov 2026)
+
+Reported by the agent on the owner's PC (Rust `eval` and its audit there; files not yet in the
+repository). 300k candidates per seed, method frozen before the run.
+
+| task seed | search seed | instructions | train | collision3 test | T128 K8 | long probe | counts (reading fixed above) |
+|---|---|---|---|---|---|---|---|
+| 1 (development task) | 10 | 24 | 0.992 | 0.995 | 1.000 | 3.0 | yes |
+| 1 | 11 | 22 | 1.000 | 0.999 | 1.000 | 3.6 | yes |
+| 1 | 12 | 19 | 1.000 | 1.000 | 1.000 | 3.9 | yes |
+| 1 | 13 | 24 | 0.942 | 0.945 | 0.980 | 1.6 | yes |
+| 501 (unseen) | 100 | 23 | 0.999 | 1.000 | 1.000 | 4.0 | yes |
+| 501 | 101 | 23 | 0.834 | 0.839 | 0.965 | 1.7 | no (test ≤ 0.90) |
+| 501 | 102 | 24 | 0.839 | 0.840 | 0.646 | 1.7e120 | no (unstable) |
+| 501 | 103 | 22 | 0.721 | 0.729 | 0.958 | 1.0 | no (test ≤ 0.90) |
+
+Reading, as fixed before the results:
+- Unseen task: 1 of 4. Development task: 4 of 4, not an independent measurement. The gap between
+  the two (Fisher p = 0.07 on 4 + 4) is a warning that the method may be tuned to task seed 1;
+  four seeds settle nothing. No rate is established yet.
+- Level: the counted rules tie the reference at the ceiling (1.000). On collision3 this is a
+  method result at best, not a discovery. Against 0/160 evolutionary seeds above 0.90 (all on task
+  seed 1), the comparison still lacks the ablation at equal cost and matched task seeds.
+- The selection of the search does not look at long episodes: the best rule of seed 102 by train
+  and validation diverges. A generic stability check inside the selection would be a method change,
+  so a new version, measured on fresh task seeds.
+
+Checked here: the rule of task seed 1, search seed 12, was rebuilt from the algebra the agent gave
+(19 instructions, c₁ = 0.1676, c₂ = 6.764; not from its bytecode, which is not in the repository):
+
+    p = P k,   u = p / ‖p‖,   e = v − S k
+    P' = P − (2u − p)(p − c₁u)ᵀ
+    S' = S + e uᵀ + c₂ (e uᵀ) P'³
+
+In the Rust binary of this repository it gives 1.000 on the collision3 test from the train tasks of
+seeds 1 and 501, T128 K8 1.000, d32 1.000, long probe 4.0. The description is consistent with the
+reported numbers. In substance it is the family of the reference: along every direction it writes,
+P is driven to the fixed point c₁ (a novelty filter with a floor, like the small δ_P left in P
+above), and the write runs along the normalised P k with the unseen component amplified about
+45-fold over the seen one through c₂·P'³, an approximate dual vector without a reciprocal. Not
+claimed to be the same function. Post hoc, untuned on the regime: full 0.985 (reference tuned on
+full 0.983), overload 0.864 (0.878), overload48 0.478 (0.603), noisyq 0.970 (0.984).
