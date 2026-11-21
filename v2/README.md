@@ -63,18 +63,18 @@ All known families were tuned with multi-start Adam BPTT on MSE over `v2/data/co
 
 ## Phase 2: Pre-Registered Frozen Evaluation (`v2/runs/frozen_memetic_v1/`)
 
-Protocol pre-registered in `v2/runs/frozen_memetic_v1/PROTOCOL.md` before any test evaluation. Audited via `v2/audit_run.py` (exact Rust `autoplast eval`, JAX `x64` `norm_eps=1e-9`, v3 `T=256 < 100` stability, and 12 paired fresh draws `101..112`):
+Protocol pre-registered in `v2/runs/frozen_memetic_v1/PROTOCOL.md` before any test evaluation. Audited via `v2/audit_run.py` (exact Rust `autoplast eval` with matching `--task-seed` for train, JAX `x64` `norm_eps=1e-9`, 9-draw v3 `T=256 < 100` stability, and 12 paired fresh draws `101..112`):
 
-| Arm / Seed | Instrs | `train` | **`test col3`** | JAX `x64` `1e-9` | `d32` | `T128` | `T256` max (`< 100`) | 12 Draws | `gap=4` | Valid |
+| Arm / Seed | Instrs | `train` | **`test col3`** | JAX `x64` `1e-9` | `d32` | `T128` | `T256` 9d max (`< 100`) | 12 Draws | `gap=4` | Valid |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| `s1/seed10` | 24 | 0.992 | **0.995** | 0.995 | 1.000 | 1.000 | 3.01 | 0.994 | 0.970 | **Yes** |
+| `s1/seed10` | 24 | 0.992 | **0.995** | 0.995 | 1.000 | 1.000 | 3.12 | 0.994 | 0.970 | **Yes** |
 | `s1/seed11` | 22 | 1.000 | **0.999** | 0.999 | 1.000 | 1.000 | 3.61 | 0.999 | 0.983 | **Yes** |
-| `s1/seed12` | **19** | 1.000 | **1.000** | **1.000** | 1.000 | 1.000 | 3.89 | **1.000** | **0.997** | **Yes** |
+| `s1/seed12` | **19** | 1.000 | **1.000** | **1.000** | 1.000 | 1.000 | 4.08 | **1.000** | **0.997** | **Yes** |
 | `s1/seed13` | 24 | 0.942 | **0.945** | 0.945 | 1.000 | 0.980 | 1.63 | 0.946 | 0.865 | **Yes** |
-| `s501/seed100` *(unseen task seed)* | 23 | 0.999 | **1.000** | **1.000** | 1.000 | 1.000 | 4.01 | **1.000** | **0.998** | **Yes** |
-| `s501/seed101` *(unseen task seed)* | 23 | 0.834 | 0.839 | 0.839 | 0.993 | 0.965 | 1.68 | 0.845 | 0.613 | **Yes** |
-| `s501/seed102` *(unseen task seed)* | 24 | 0.839 | 0.840 | 0.840 | 0.990 | 0.646 | `1.72e+120` | 0.848 | 0.469 | **No** (unstable) |
-| `s501/seed103` *(unseen task seed)* | 22 | 0.721 | 0.729 | 0.729 | 0.988 | 0.958 | 1.04 | 0.736 | 0.472 | **Yes** |
+| `s501/seed100` *(unseen task seed)* | 23 | 1.000 | **1.000** | **1.000** | 1.000 | 1.000 | 4.22 | **1.000** | **0.998** | **Yes** |
+| `s501/seed101` *(unseen task seed)* | 23 | 0.842 | 0.839 | 0.839 | 0.993 | 0.965 | 1.68 | 0.845 | 0.613 | **Yes** |
+| `s501/seed102` *(unseen task seed)* | 24 | 0.850 | 0.840 | 0.840 | 0.990 | 0.646 | `1.76e+123` | 0.848 | 0.469 | **No** (unstable) |
+| `s501/seed103` *(unseen task seed)* | 22 | 0.736 | 0.729 | 0.729 | 0.988 | 0.958 | 1.04 | 0.736 | 0.472 | **Yes** |
 
 - **Result:** **7/8** strictly valid, **5/8** valid & `> 0.90` (**4/4** on `task-seed 1`, **1/4** on unseen `task-seed 501`), **4/8** reaching `0.995–1.000` (vs. `0/128` in `v1`).
 - **Untouched `verify/verify.py --x64 --norm-eps 1e-9`:** `s1/seed12` scores **`1.000 ± 0.000`** on 10 of 11 suites and **`0.987 ± 0.003`** on `full d16 T24` (Kalman-2p: `0.870`, DeltaNet: `0.751`).

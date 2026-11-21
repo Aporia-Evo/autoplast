@@ -119,8 +119,9 @@ def jax_dump_check(prog: dict, dump_path: pathlib.Path, norm_eps: float) -> tupl
     return c / max(n, 1), div
 
 
-def v3_stability_check(prog: dict, seed: int = 77777) -> dict[str, float | bool]:
-    """v3 stability bound: 64 episodes x 256 write steps (K=8), all persistent entries < 100."""
+def v3_stability_check(prog: dict, seed: int = 77777, n_draws: int = 9) -> dict[str, float | bool | list]:
+    """v3 stability bound across `n_draws` independent draws: 64 eps x 256 write steps (K=8),
+    all persistent entries < 100 across EVERY draw."""
     V.NORM_EPS = 1e-6
     pm = prog.get("persist_m", 1)
     pv = prog.get("persist_v", 0)
@@ -137,9 +138,8 @@ def v3_stability_check(prog: dict, seed: int = 77777) -> dict[str, float | bool]
             return jnp.max(jnp.stack(vals))
         return jnp.where(jnp.all(jnp.isfinite(st)), jnp.max(jnp.abs(st)), jnp.inf)
 
-    def run_cfg(cfg):
-        rng = np.random.default_rng(seed)
-        keys, vals, W, Q, Qm = V.make_task(rng, **cfg)
+    @jax.jit
+    def eval_batch(keys, vals, W, Q, Qm):
         d = keys.shape[1]
 
         def ep(w, q, qm):
@@ -156,28 +156,45 @@ def v3_stability_check(prog: dict, seed: int = 77777) -> dict[str, float | bool]
             ok = (pred == q[:, 1]) & (jnp.linalg.norm(o, axis=1) > 1e-6) & jnp.all(jnp.isfinite(o), axis=1)
             return jnp.sum(ok & qm), jnp.sum(qm), mx
 
-        c, n, mxs = jax.jit(jax.vmap(ep))(W, Q, Qm)
-        return float(c.sum() / n.sum()), float(jnp.max(mxs))
+        c, n, mxs = jax.vmap(ep)(W, Q, Qm)
+        return c.sum() / n.sum(), jnp.max(mxs)
 
-    acc_std, mx_std = run_cfg(dict(d=16, n_keys=64, n_vals=64, T=256, p_ow=0.3, n_ep=64, max_keys=8))
-    acc_col, mx_col = run_cfg(dict(d=16, n_keys=64, n_vals=64, T=256, p_ow=0.3, n_ep=64, max_keys=8, clusters=8, cluster_cos=0.85))
+    def run_cfg(cfg):
+        accs, mxs = [], []
+        for i in range(n_draws):
+            rng = np.random.default_rng(seed + i)
+            keys, vals, W, Q, Qm = V.make_task(rng, **cfg)
+            a, m = eval_batch(keys, vals, W, Q, Qm)
+            accs.append(float(a))
+            mxs.append(float(m))
+        return float(st.mean(accs)), float(max(mxs)), mxs
+
+    acc_std, mx_std, std_draws = run_cfg(dict(d=16, n_keys=64, n_vals=64, T=256, p_ow=0.3, n_ep=64, max_keys=8))
+    acc_col, mx_col, col_draws = run_cfg(dict(d=16, n_keys=64, n_vals=64, T=256, p_ow=0.3, n_ep=64, max_keys=8, clusters=8, cluster_cos=0.85))
     mx = max(mx_std, mx_col)
     return {
         "t256_std_acc": acc_std,
         "t256_std_max": mx_std,
         "t256_col_acc": acc_col,
         "t256_col_max": mx_col,
+        "t256_col_draws_max": [round(x, 3) if np.isfinite(x) else float("inf") for x in col_draws],
+        "t256_n_draws": n_draws,
         "stable_lt100": bool(np.isfinite(mx) and mx < 100.0),
     }
 
 
-def audit_program(prog_path: str, run_draws: bool = False) -> dict:
+def audit_program(
+    prog_path: str,
+    run_draws: bool = False,
+    train_task_seed: int | None = None,
+    stab_draws: int = 9,
+) -> dict:
     prog = json.loads(pathlib.Path(prog_path).read_text(encoding="utf-8"))
     space_ok, space_errs = check_space(prog)
-    r = rust_eval(prog_path, regime="collision3")
+    r = rust_eval(prog_path, regime="collision3", task_seed=train_task_seed)
     j_e6, j_div6 = jax_dump_check(prog, TEST_DUMP, norm_eps=1e-6)
     j_e9, j_div9 = jax_dump_check(prog, TEST_DUMP, norm_eps=1e-9)
-    stab = v3_stability_check(prog)
+    stab = v3_stability_check(prog, n_draws=stab_draws)
 
     eps_ratio = None
     if abs(j_e6 - j_e9) > 0.02:
@@ -197,6 +214,7 @@ def audit_program(prog_path: str, run_draws: bool = False) -> dict:
 
     out = {
         "path": rel_path,
+        "train_task_seed": train_task_seed if train_task_seed is not None else 1,
         "n_instrs": len(prog.get("instrs", [])),
         "persist_m": prog.get("persist_m", 1),
         "space_ok": space_ok,
@@ -227,9 +245,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("progs", nargs="+")
     ap.add_argument("--draws", action="store_true")
+    ap.add_argument("--train-task-seed", type=int, default=None)
+    ap.add_argument("--stab-draws", type=int, default=9)
     args = ap.parse_args()
     for p in args.progs:
-        res = audit_program(p, run_draws=args.draws)
+        res = audit_program(p, run_draws=args.draws, train_task_seed=args.train_task_seed, stab_draws=args.stab_draws)
         print(json.dumps(res, indent=2))
 
 
