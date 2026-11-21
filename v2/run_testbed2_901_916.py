@@ -13,6 +13,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 _V1_DIR = ROOT / "target" / "release"
@@ -96,13 +97,13 @@ def run_eval_and_structure(t: int) -> None:
         struct_path.write_text(res.stdout, encoding="utf-8")
 
 
-def run_one(t: int, threads: int) -> tuple[int, str]:
+def run_one(t: int, threads: int, slice_secs: float = 0.0) -> tuple[int, str]:
     seed_dir = RUN_DIR / f"seed{t}"
     seed_dir.mkdir(parents=True, exist_ok=True)
     tr_path, va_path = ensure_dumps(t)
 
     if not ((seed_dir / "best.json").exists() and (seed_dir / "summary.json").exists()):
-        print(f"[START] seed{t} (ts={t}, max_ep_evals={MAX_EP_EVALS}, threads={threads})", flush=True)
+        print(f"[START] seed{t} (ts={t}, max_ep_evals={MAX_EP_EVALS}, threads={threads}, slice={slice_secs:.0f}s)", flush=True)
         cmd = [
             str(V2_EXE),
             "--task", "opt",
@@ -116,7 +117,17 @@ def run_one(t: int, threads: int) -> tuple[int, str]:
             "--val-dump", str(va_path),
             "--out", str(seed_dir),
         ]
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
+        if slice_secs > 0.0:
+            ckpt = pathlib.Path(tempfile.gettempdir()) / f"autoplast_opt_seed{t}.ckpt"
+            cmd += ["--checkpoint", str(ckpt), "--slice-secs", str(slice_secs)]
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
+        if proc.returncode == 75:
+            last_line = [ln for ln in proc.stdout.splitlines() if "CHECKPOINT" in ln or "RESUMED" in ln]
+            msg = last_line[-1] if last_line else "checkpointed"
+            print(f"[PAUSE] seed{t}: {msg}", flush=True)
+            return t, "paused"
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(proc.returncode, cmd, output=proc.stdout)
 
     run_eval_and_structure(t)
     sm = json.loads((seed_dir / "summary.json").read_text(encoding="utf-8"))
@@ -210,6 +221,7 @@ def main() -> None:
     ap.add_argument("--seeds", type=int, nargs="*", default=None)
     ap.add_argument("--parallel", type=int, default=2)
     ap.add_argument("--threads", type=int, default=1)
+    ap.add_argument("--slice-secs", type=float, default=0.0)
     ap.add_argument("--report-only", action="store_true")
     args = ap.parse_args()
 
@@ -221,10 +233,10 @@ def main() -> None:
     if not args.report_only:
         if args.parallel <= 1:
             for t in target_seeds:
-                run_one(t, args.threads)
+                run_one(t, args.threads, args.slice_secs)
         else:
             with ThreadPoolExecutor(max_workers=args.parallel) as ex:
-                futs = [ex.submit(run_one, t, args.threads) for t in target_seeds]
+                futs = [ex.submit(run_one, t, args.threads, args.slice_secs) for t in target_seeds]
                 for f in as_completed(futs):
                     f.result()
 

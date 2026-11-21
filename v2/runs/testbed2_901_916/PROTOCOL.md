@@ -65,3 +65,11 @@ Because train and validation episodes use fixed `T = 50`, `d = 16`, `kappa in {1
    - At 22M episode evaluations and length up to 24 with `Normalize`, `Tanh`, `Norm`, `Dot`, `VecSqrt`, and `VecRecip` available, evolved rules tend to combine multiple nonlinearities and score below `0.95` linear `R^2` against canonical ladder forms (as in the uncounted Task-Seed 1 trial run).
    - `P(>= 10/16 classified as unclassified) = 0.70`.
    - `P(>= 2/16 classified as momentum) = 0.35`; `P(>= 1/16 RMSProp) = 0.30`; `P(>= 1/16 Adam) = 0.20`.
+
+## Infrastructure Amendment (Checkpoint/Resume Only, Zero Search Change)
+
+While executing `901..916` on a 2-core Linux VM with a hard ~9m50s per-command timeout, `seed901`–`seed905` completed uninterrupted (`230s`–`562s` on 2 threads), whereas `seed906` exceeded the 9m50s command deadline. Following the repository's existing precedent (`README.md`, 20 Nov amendment for `verify/grow.py`), bit-exact binary checkpoint/resume (`--checkpoint`, `--slice-secs`) was added to `v2/memetic/src/main.rs` and `v2/run_testbed2_901_916.py` to serialize and restore exact batch-boundary state (`master_rng`, `archive`, `seen_structs`, `polished_leaders`, counters, `batch_idx`, `wall_secs`).
+
+- **Zero change to the search method, RNG stream, evaluation, mutations, archive, selection, or stopping criterion.**
+- **Bit-identity test (Task-Seed 1, 500k `ep_evals`, interrupted across 2 checkpoints at `--slice-secs 3`):** `best.json` and every field of `summary.json` (except `wall_seconds`) are bit-for-bit identical to an uninterrupted run (`diff` empty).
+

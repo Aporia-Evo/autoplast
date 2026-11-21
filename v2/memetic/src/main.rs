@@ -2907,6 +2907,216 @@ fn run_eval_opt_progs(train_path: &str, prog_paths: &[String], st_l2: f32) {
     }
 }
 
+// --- Bit-exact binary checkpoint/resume (infrastructure only; zero effect on search) ---
+
+const CKPT_MAGIC: &[u8; 8] = b"APMCKPT1";
+
+fn write_u64(buf: &mut Vec<u8>, v: u64) {
+    buf.extend_from_slice(&v.to_le_bytes());
+}
+fn write_u32(buf: &mut Vec<u8>, v: u32) {
+    buf.extend_from_slice(&v.to_le_bytes());
+}
+fn read_u64(b: &[u8], p: &mut usize) -> u64 {
+    let v = u64::from_le_bytes(b[*p..*p + 8].try_into().unwrap());
+    *p += 8;
+    v
+}
+fn read_u32(b: &[u8], p: &mut usize) -> u32 {
+    let v = u32::from_le_bytes(b[*p..*p + 4].try_into().unwrap());
+    *p += 4;
+    v
+}
+fn read_u8(b: &[u8], p: &mut usize) -> u8 {
+    let v = b[*p];
+    *p += 1;
+    v
+}
+
+#[allow(clippy::too_many_arguments)]
+fn save_checkpoint(
+    path: &str,
+    rng: &Rng,
+    archive: &Archive,
+    seen_structs: &HashSet<u64>,
+    polished_leaders: &HashSet<u64>,
+    train_ctr: &EvalCounter,
+    total_cands: usize,
+    total_t1: usize,
+    total_t2: usize,
+    batch_idx: u64,
+    wall_secs: f64,
+) {
+    let mut buf = Vec::with_capacity(1 << 20);
+    buf.extend_from_slice(CKPT_MAGIC);
+    for &w in &rng.0 {
+        write_u64(&mut buf, w);
+    }
+    write_u64(&mut buf, train_ctr.calls);
+    write_u64(&mut buf, train_ctr.ep_evals);
+    write_u64(&mut buf, train_ctr.ep_evals_nominal);
+    write_u64(&mut buf, train_ctr.write_steps);
+    write_u64(&mut buf, total_cands as u64);
+    write_u64(&mut buf, total_t1 as u64);
+    write_u64(&mut buf, total_t2 as u64);
+    write_u64(&mut buf, batch_idx);
+    write_u64(&mut buf, wall_secs.to_bits());
+
+    write_u64(&mut buf, archive.cells.len() as u64);
+    for (&(k0, k1), vec) in &archive.cells {
+        write_u64(&mut buf, k0 as u64);
+        write_u64(&mut buf, k1 as u64);
+        write_u64(&mut buf, vec.len() as u64);
+        for e in vec {
+            write_u64(&mut buf, e.prog.instrs.len() as u64);
+            for ins in &e.prog.instrs {
+                buf.push(ins.op as u8);
+                buf.push(ins.out);
+                buf.push(ins.a);
+                buf.push(ins.b);
+                write_u32(&mut buf, ins.c.to_bits());
+            }
+            write_u64(&mut buf, e.export_state as u64);
+            buf.push(e.persist_live[0] as u8);
+            buf.push(e.persist_live[1] as u8);
+            buf.push(e.persist_live[2] as u8);
+            write_u64(&mut buf, e.n_live_states as u64);
+            write_u32(&mut buf, e.metrics.obj.to_bits());
+            write_u32(&mut buf, e.metrics.mse.to_bits());
+            write_u32(&mut buf, e.metrics.acc.to_bits());
+            write_u32(&mut buf, e.metrics.max_st.to_bits());
+            write_u64(&mut buf, e.op_sig);
+            write_u64(&mut buf, e.struct_hash);
+        }
+    }
+
+    let mut seen_sorted: Vec<u64> = seen_structs.iter().copied().collect();
+    seen_sorted.sort_unstable();
+    write_u64(&mut buf, seen_sorted.len() as u64);
+    for h in seen_sorted {
+        write_u64(&mut buf, h);
+    }
+
+    let mut pol_sorted: Vec<u64> = polished_leaders.iter().copied().collect();
+    pol_sorted.sort_unstable();
+    write_u64(&mut buf, pol_sorted.len() as u64);
+    for h in pol_sorted {
+        write_u64(&mut buf, h);
+    }
+
+    let tmp = format!("{path}.tmp");
+    fs::write(&tmp, &buf).expect("write checkpoint tmp");
+    fs::rename(&tmp, path).expect("rename checkpoint");
+}
+
+#[allow(clippy::type_complexity)]
+fn load_checkpoint(
+    path: &str,
+    flat: bool,
+) -> (
+    Rng,
+    Archive,
+    HashSet<u64>,
+    HashSet<u64>,
+    EvalCounter,
+    usize,
+    usize,
+    usize,
+    u64,
+    f64,
+) {
+    let b = fs::read(path).expect("read checkpoint");
+    assert!(&b[..8] == CKPT_MAGIC, "invalid checkpoint magic");
+    let mut p = 8usize;
+    let rng = Rng([
+        read_u64(&b, &mut p),
+        read_u64(&b, &mut p),
+        read_u64(&b, &mut p),
+        read_u64(&b, &mut p),
+    ]);
+    let train_ctr = EvalCounter {
+        calls: read_u64(&b, &mut p),
+        ep_evals: read_u64(&b, &mut p),
+        ep_evals_nominal: read_u64(&b, &mut p),
+        write_steps: read_u64(&b, &mut p),
+    };
+    let total_cands = read_u64(&b, &mut p) as usize;
+    let total_t1 = read_u64(&b, &mut p) as usize;
+    let total_t2 = read_u64(&b, &mut p) as usize;
+    let batch_idx = read_u64(&b, &mut p);
+    let wall_secs = f64::from_bits(read_u64(&b, &mut p));
+
+    let n_cells = read_u64(&b, &mut p) as usize;
+    let mut archive = Archive::new(flat);
+    for _ in 0..n_cells {
+        let k0 = read_u64(&b, &mut p) as usize;
+        let k1 = read_u64(&b, &mut p) as usize;
+        let n_el = read_u64(&b, &mut p) as usize;
+        let mut vec = Vec::with_capacity(n_el);
+        for _ in 0..n_el {
+            let n_ins = read_u64(&b, &mut p) as usize;
+            let mut instrs = Vec::with_capacity(n_ins);
+            for _ in 0..n_ins {
+                let op = OPS_OPT[read_u8(&b, &mut p) as usize];
+                let out = read_u8(&b, &mut p);
+                let a = read_u8(&b, &mut p);
+                let bb = read_u8(&b, &mut p);
+                let c = f32::from_bits(read_u32(&b, &mut p));
+                instrs.push(Instr { op, out, a, b: bb, c });
+            }
+            let export_state = read_u64(&b, &mut p) as usize;
+            let persist_live = [
+                read_u8(&b, &mut p) != 0,
+                read_u8(&b, &mut p) != 0,
+                read_u8(&b, &mut p) != 0,
+            ];
+            let n_live_states = read_u64(&b, &mut p) as usize;
+            let metrics = EvalMetrics {
+                obj: f32::from_bits(read_u32(&b, &mut p)),
+                mse: f32::from_bits(read_u32(&b, &mut p)),
+                acc: f32::from_bits(read_u32(&b, &mut p)),
+                max_st: f32::from_bits(read_u32(&b, &mut p)),
+            };
+            let op_sig = read_u64(&b, &mut p);
+            let struct_hash = read_u64(&b, &mut p);
+            vec.push(Elite {
+                prog: Program { instrs },
+                export_state,
+                persist_live,
+                n_live_states,
+                metrics,
+                op_sig,
+                struct_hash,
+            });
+        }
+        archive.cells.insert((k0, k1), vec);
+    }
+
+    let n_seen = read_u64(&b, &mut p) as usize;
+    let mut seen_structs = HashSet::with_capacity(n_seen);
+    for _ in 0..n_seen {
+        seen_structs.insert(read_u64(&b, &mut p));
+    }
+    let n_pol = read_u64(&b, &mut p) as usize;
+    let mut polished_leaders = HashSet::with_capacity(n_pol);
+    for _ in 0..n_pol {
+        polished_leaders.insert(read_u64(&b, &mut p));
+    }
+    assert_eq!(p, b.len(), "trailing checkpoint bytes");
+    (
+        rng,
+        archive,
+        seen_structs,
+        polished_leaders,
+        train_ctr,
+        total_cands,
+        total_t1,
+        total_t2,
+        batch_idx,
+        wall_secs,
+    )
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let arg_str = |flag: &str, def: &str| -> String {
@@ -2938,6 +3148,8 @@ fn main() {
     let train_path = arg_str("--train-dump", def_train);
     let val_path = arg_str("--val-dump", def_val);
     let st_l2 = arg_f32("--st-l2", 0.015);
+    let ckpt_path = arg_str("--checkpoint", "");
+    let slice_secs = arg_f32("--slice-secs", 0.0) as f64;
 
     if has_flag("--self-test") {
         run_self_test(&train_path, st_l2);
@@ -3008,28 +3220,7 @@ fn main() {
     );
 
     let t_start = Instant::now();
-    let mut master_rng = Rng::new(seed ^ 0xA5A5_5A5A_1234_5678);
-    let mut archive = Archive::new(flat_archive);
-    let mut seen_structs: HashSet<u64> = HashSet::new();
-    let mut polished_leaders: HashSet<u64> = HashSet::new();
-    let mut train_ctr = EvalCounter::default();
     let mut val_ctr = EvalCounter::default();
-
-    let mut init_progs: Vec<(Program, Option<usize>)> = Vec::with_capacity(512);
-    for _ in 0..512 {
-        let mut p = Program { instrs: Vec::new() };
-        let len = 1 + master_rng.below(6);
-        for _ in 0..len {
-            if basic_mut {
-                p.instrs.push(random_instr_unconstrained(&mut master_rng, mode));
-            } else {
-                let an = analyze(&p, mode.init_persist_live(), mode);
-                let pos = p.instrs.len();
-                p.instrs.push(random_instr_at(&mut master_rng, &an, pos, None, None, mode));
-            }
-        }
-        init_progs.push((p, None));
-    }
 
     let eval_batch = |cands: Vec<(Program, Option<usize>)>,
                       cell_thresh: &BTreeMap<(usize, usize), f32>,
@@ -3170,19 +3361,69 @@ fn main() {
         })
     };
 
-    let empty_thresh = BTreeMap::new();
-    let (init_w, init_t1, init_t2, init_ctr) =
-        eval_batch(init_progs, &empty_thresh, [f32::INFINITY; N_BUCKETS], &seen_structs, seed);
-    train_ctr.add(init_ctr);
-    for e in init_w {
-        seen_structs.insert(e.struct_hash);
-        archive.insert(e);
-    }
+    let (
+        mut master_rng,
+        mut archive,
+        mut seen_structs,
+        mut polished_leaders,
+        mut train_ctr,
+        mut total_cands,
+        mut total_t1,
+        mut total_t2,
+        mut batch_idx,
+        prior_wall,
+    ) = if !ckpt_path.is_empty() && std::path::Path::new(&ckpt_path).exists() {
+        let state = load_checkpoint(&ckpt_path, flat_archive);
+        println!(
+            "  [RESUMED checkpoint: batch={} cands={} ep={} prior_wall={:.1}s]",
+            state.8, state.5, state.4.ep_evals, state.9
+        );
+        state
+    } else {
+        let mut master_rng = Rng::new(seed ^ 0xA5A5_5A5A_1234_5678);
+        let mut archive = Archive::new(flat_archive);
+        let mut seen_structs: HashSet<u64> = HashSet::new();
+        let polished_leaders: HashSet<u64> = HashSet::new();
+        let mut train_ctr = EvalCounter::default();
 
-    let mut total_cands = 512usize;
-    let mut total_t1 = init_t1;
-    let mut total_t2 = init_t2;
-    let mut batch_idx = 0u64;
+        let mut init_progs: Vec<(Program, Option<usize>)> = Vec::with_capacity(512);
+        for _ in 0..512 {
+            let mut p = Program { instrs: Vec::new() };
+            let len = 1 + master_rng.below(6);
+            for _ in 0..len {
+                if basic_mut {
+                    p.instrs.push(random_instr_unconstrained(&mut master_rng, mode));
+                } else {
+                    let an = analyze(&p, mode.init_persist_live(), mode);
+                    let pos = p.instrs.len();
+                    p.instrs.push(random_instr_at(&mut master_rng, &an, pos, None, None, mode));
+                }
+            }
+            init_progs.push((p, None));
+        }
+
+        let empty_thresh = BTreeMap::new();
+        let (init_w, init_t1, init_t2, init_ctr) =
+            eval_batch(init_progs, &empty_thresh, [f32::INFINITY; N_BUCKETS], &seen_structs, seed);
+        train_ctr.add(init_ctr);
+        for e in init_w {
+            seen_structs.insert(e.struct_hash);
+            archive.insert(e);
+        }
+        (
+            master_rng,
+            archive,
+            seen_structs,
+            polished_leaders,
+            train_ctr,
+            512usize,
+            init_t1,
+            init_t2,
+            0u64,
+            0.0f64,
+        )
+    };
+
     let mut last_log = Instant::now();
     let mut val_regs = Regs16::new();
 
@@ -3192,10 +3433,31 @@ fn main() {
             let under_cands = max_cands == 0 || total_cands < max_cands;
             under_ep && under_cands
         } else {
-            t_start.elapsed().as_secs_f64() < seconds
+            prior_wall + t_start.elapsed().as_secs_f64() < seconds
         };
         if !keep_going {
             break;
+        }
+        if !ckpt_path.is_empty() && slice_secs > 0.0 && t_start.elapsed().as_secs_f64() >= slice_secs {
+            let cur_wall = prior_wall + t_start.elapsed().as_secs_f64();
+            save_checkpoint(
+                &ckpt_path,
+                &master_rng,
+                &archive,
+                &seen_structs,
+                &polished_leaders,
+                &train_ctr,
+                total_cands,
+                total_t1,
+                total_t2,
+                batch_idx,
+                cur_wall,
+            );
+            println!(
+                "[CHECKPOINT seed {}] wall={:.1}s batch={} cands={} ep={}",
+                seed, cur_wall, batch_idx, total_cands, train_ctr.ep_evals
+            );
+            std::process::exit(75);
         }
         batch_idx += 1;
         let elites = archive.all_elites();
@@ -3474,9 +3736,12 @@ fn main() {
     }
 
     let (win, vm) = best_val_elite.expect("no valid elite found");
-    let wall = t_start.elapsed().as_secs_f64();
+    let wall = prior_wall + t_start.elapsed().as_secs_f64();
     let total_ep_evals = train_ctr.ep_evals + val_ctr.ep_evals;
     fs::write(out_dir.join("best.json"), win.prog.to_json(mode, win.export_state)).expect("write best.json");
+    if !ckpt_path.is_empty() && std::path::Path::new(&ckpt_path).exists() {
+        let _ = fs::remove_file(&ckpt_path);
+    }
     let summary = match mode {
         TaskMode::Mem => format!(
             "{{\n  \"seed\": {},\n  \"wall_seconds\": {:.2},\n  \"total_cands\": {},\n  \"total_t1\": {},\n  \"total_t2\": {},\n  \"train_eval_calls\": {},\n  \"train_ep_evals\": {},\n  \"train_ep_evals_nominal\": {},\n  \"train_write_steps\": {},\n  \"val_eval_calls\": {},\n  \"val_ep_evals\": {},\n  \"val_write_steps\": {},\n  \"total_ep_evals\": {},\n  \"fitness\": \"{}\",\n  \"const_tune\": {},\n  \"archive\": \"{}\",\n  \"mutations\": \"{}\",\n  \"n_instrs\": {},\n  \"persist_m\": {},\n  \"train_obj\": {:.5},\n  \"train_mse\": {:.5},\n  \"train_acc\": {:.4},\n  \"val_obj\": {:.5},\n  \"val_mse\": {:.5},\n  \"val_acc\": {:.4},\n  \"max_abs_state_val\": {:.3}\n}}\n",
