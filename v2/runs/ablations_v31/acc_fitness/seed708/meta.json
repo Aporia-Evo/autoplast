@@ -1,0 +1,7 @@
+{
+  "arm": "acc_fitness",
+  "task_seed": 708,
+  "val_task_seed": 2708,
+  "search_seed": 708,
+  "max_ep_evals": 22000000
+}

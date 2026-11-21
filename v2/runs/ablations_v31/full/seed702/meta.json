@@ -1,0 +1,7 @@
+{
+  "arm": "full",
+  "task_seed": 702,
+  "val_task_seed": 2702,
+  "search_seed": 702,
+  "max_ep_evals": 22000000
+}

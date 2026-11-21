@@ -1,0 +1,1 @@
+{"persist_m":1,"persist_v":0,"persist_identity":1,"instrs":[{"op":"Tanh","out":3,"a":0,"b":0,"c":-0.0384382},{"op":"MatVec","out":4,"a":0,"b":3,"c":0},{"op":"VecSub","out":1,"a":1,"b":4,"c":0},{"op":"Outer","out":1,"a":1,"b":0,"c":1.36444},{"op":"Const","out":0,"a":0,"b":0,"c":-0.66692597},{"op":"MatScale","out":1,"a":0,"b":1,"c":0},{"op":"MatSub","out":0,"a":0,"b":1,"c":0}]}

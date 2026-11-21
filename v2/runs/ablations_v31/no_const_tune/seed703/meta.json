@@ -1,0 +1,7 @@
+{
+  "arm": "no_const_tune",
+  "task_seed": 703,
+  "val_task_seed": 2703,
+  "search_seed": 703,
+  "max_ep_evals": 22000000
+}
