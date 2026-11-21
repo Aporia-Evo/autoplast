@@ -212,7 +212,10 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    71d7948 with these flags. Ties the classical reference (method result, not discovery).
    Package M released 21 Nov (owner). Testbed 2 specified in README before any implementation
    ("Testbed 2: optimizer update rules"); the research agent builds generator, dumps, evaluation,
-   ladder and JAX in this repository, the memetic binary reads the dumps.
+   ladder and JAX in this repository, the memetic binary reads the dumps. Implemented 21 Nov
+   (README, "Testbed 2: implementation in this repository"): `--task opt`, `--opt-ops`; strict
+   ladder (Adam −3.073 on suite 1), numpy check within 4e-5, structural test; package N (plain
+   and random search, task seeds 901 to 916) prepared in RUNBOOK.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
