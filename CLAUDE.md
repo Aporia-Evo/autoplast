@@ -210,7 +210,9 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    `--no-const-tune` on task seeds 801 to 816: 8/16 counted, both knockouts 0/16 (liveness-safe
    mutations, state-class archive; p = 0.0012 each, pre-registered). Method frozen (item 4) at
    71d7948 with these flags. Ties the classical reference (method result, not discovery).
-   Open: package M on 801 to 808 (owner's go), then testbed 2 (item 5) with the frozen method.
+   Package M released 21 Nov (owner). Testbed 2 specified in README before any implementation
+   ("Testbed 2: optimizer update rules"); the research agent builds generator, dumps, evaluation,
+   ladder and JAX in this repository, the memetic binary reads the dumps.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
