@@ -73,6 +73,9 @@ pub struct Task {
     pub keys: Vec<f32>, // n_keys * d
     pub vals: Vec<f32>, // n_vals * d
     pub episodes: Vec<Episode>,
+    /// Testbed 2 (`--task opt`): when set, `evaluate` scores the program as an optimizer on
+    /// this task instead (fitness = −objective − length penalty, `acc` = −objective).
+    pub opt: Option<std::sync::Arc<crate::opt::OptTask>>,
 }
 
 fn unit_vectors(rng: &mut Rng, n: usize, d: usize) -> Vec<f32> {
@@ -178,7 +181,15 @@ impl Task {
             keys,
             vals,
             episodes,
+            opt: None,
         }
+    }
+
+    /// A task that scores programs as optimizers (testbed 2). The memory part is empty.
+    pub fn for_opt(o: crate::opt::OptTask) -> Task {
+        let mut t = Task::new(TaskCfg { d: o.cfg.d, n_episodes: 0, long_episodes: 0, ..TaskCfg::search_default(o.cfg.seed) });
+        t.opt = Some(std::sync::Arc::new(o));
+        t
     }
 
     /// JSON dump of embeddings and episodes, for offline references (verify/ceiling.py).
@@ -303,6 +314,24 @@ pub fn evaluate(prog: &Program, task: &Task, regs: &mut Regs) -> Score {
 /// As `evaluate`; with `beh`, also writes the number of correct queries per episode (the
 /// behaviour vector used by `--select lexicase` and `--select share`). All zeros if invalid.
 pub fn evaluate_beh(prog: &Program, task: &Task, regs: &mut Regs, mut beh: Option<&mut Vec<u8>>) -> Score {
+    if let Some(o) = &task.opt {
+        // testbed 2: mean episode objective (lower is better) turned into a fitness; the
+        // behaviour vector holds the per-episode objective mapped to 0..255 (higher = better)
+        let mut sum = 0.0f64;
+        if let Some(b) = beh.as_deref_mut() {
+            b.clear();
+        }
+        for ep in &o.episodes {
+            let (w, diverged, _) = crate::opt::run_episode(prog, ep, regs);
+            let obj = ep.objective(&w, diverged);
+            sum += obj;
+            if let Some(b) = beh.as_deref_mut() {
+                b.push((((3.0 - obj) / 13.0) * 255.0).round().clamp(0.0, 255.0) as u8);
+            }
+        }
+        let obj = (sum / o.episodes.len().max(1) as f64) as f32;
+        return Score { fitness: -obj - LEN_PENALTY * prog.total_len() as f32, acc: -obj, margin: 0.0, valid: true, n: o.episodes.len() };
+    }
     if let Some(b) = beh.as_deref_mut() {
         b.clear();
         b.resize(task.episodes.len(), 0);

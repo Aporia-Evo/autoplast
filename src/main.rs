@@ -1,5 +1,6 @@
 mod classify;
 mod evolve;
+mod opt;
 mod program;
 mod reference;
 mod rng;
@@ -17,6 +18,33 @@ static TRAIN_EPISODES: std::sync::atomic::AtomicUsize = std::sync::atomic::Atomi
 
 fn task_seed() -> u64 {
     TRAIN_TASK_SEED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// `--task opt` (testbed 2, README "Testbed 2: optimizer update rules"): optimizer update rules
+/// instead of memory update rules. Default 128 train episodes.
+static TASK_OPT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+fn is_opt() -> bool {
+    TASK_OPT.load(std::sync::atomic::Ordering::Relaxed)
+}
+fn opt_train_cfg() -> opt::OptCfg {
+    let n = match TRAIN_EPISODES.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => 128,
+        n => n,
+    };
+    opt::OptCfg::train(task_seed(), n)
+}
+/// Report of one optimizer program: train objective and every held-out suite.
+fn opt_report(prog: &Program) -> String {
+    let mut out = format!("{}\n\nEffective program ({} instructions):\n", prog.opt_formula(), prog.effective().instrs.len());
+    out += &prog.effective().listing();
+    let prog = &prog.effective();
+    let tr = opt::evaluate(prog, &opt::OptTask::new(opt_train_cfg()));
+    out += &format!("\n\ntrain objective {:.4}  diverged {:.3}  max_state {:.3}\n", tr.objective, tr.diverged, tr.max_state);
+    for (name, cfg) in opt::test_suites() {
+        let sc = opt::evaluate(prog, &opt::OptTask::new(cfg));
+        out += &format!("{name}: objective {:.4}  diverged {:.3}  max_state {:.3}\n", sc.objective, sc.diverged, sc.max_state);
+    }
+    out
 }
 fn train_episodes() -> usize {
     match TRAIN_EPISODES.load(std::sync::atomic::Ordering::Relaxed) {
@@ -100,6 +128,9 @@ fn train_cfg() -> TaskCfg {
 fn task_name() -> String {
     if let Some(r) = REGIME.get() {
         return format!("regime {r}");
+    }
+    if is_opt() {
+        return "opt (testbed 2)".to_string();
     }
     (if TASK_V3.load(std::sync::atomic::Ordering::Relaxed) { "v3" } else { "v2" }).to_string()
 }
@@ -376,6 +407,10 @@ fn sweep(args: &[String]) {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("help");
+    if arg(&args, "--task", String::from("v2")) == "opt" {
+        TASK_OPT.store(true, std::sync::atomic::Ordering::Relaxed);
+        program::OPT_IO.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
     if arg(&args, "--task", String::from("v2")) == "v3" {
         TASK_V3.store(true, std::sync::atomic::Ordering::Relaxed);
     }
@@ -406,16 +441,26 @@ fn main() {
     if args.iter().any(|a| a == "--evolve-readout") {
         program::READ_EVOLVE.store(true, std::sync::atomic::Ordering::Relaxed);
     }
-    if !no_ops.is_empty() || extra || recip {
-        program::set_alphabet(&no_ops, extra, recip);
+    let opt_ops = has(&args, "--opt-ops");
+    if !no_ops.is_empty() || extra || recip || opt_ops {
+        program::set_alphabet(&no_ops, extra, recip, opt_ops);
     }
     let alphabet = format!(
         "{} ops{}{}",
         program::active_ops().len(),
         if no_ops.is_empty() { String::new() } else { format!(", without {}", no_ops.iter().map(|o| o.name()).collect::<Vec<_>>().join(",")) },
         if extra { ", with extra ops" } else { "" }
-    ) + if recip { ", with Recip" } else { "" };
+    ) + if recip { ", with Recip" } else { "" } + if opt_ops { ", with VecRecip, VecSqrt" } else { "" };
     match cmd {
+        "ceiling" if is_opt() => {
+            // testbed 2 ceilings: Newton steps with the exact Hessian, and the optimum itself
+            let (n, o) = opt::ceilings(&opt::OptTask::new(opt_train_cfg()));
+            println!("train: newton {n:.4}  optimum {o:.4}");
+            for (name, cfg) in opt::test_suites() {
+                let (n, o) = opt::ceilings(&opt::OptTask::new(cfg));
+                println!("{name}: newton {n:.4}  optimum {o:.4}");
+            }
+        }
         "baselines" => {
             println!("{}", baseline_table());
             for (name, p) in baselines() {
@@ -426,12 +471,23 @@ fn main() {
         "dump" => {
             // dump the train task or the regime test suite as JSON for offline references
             let split: String = arg(&args, "--split", String::from("train"));
+            let out: String = arg(&args, "--out", String::from("task.json"));
+            if is_opt() {
+                // train dump, or `--split test --suite N` (1..7, README order)
+                let cfg = if split == "train" {
+                    opt_train_cfg()
+                } else {
+                    let i: usize = arg(&args, "--suite", 1usize);
+                    opt::test_suites().into_iter().nth(i - 1).expect("--suite 1..7").1
+                };
+                fs::write(&out, opt::OptTask::new(cfg).to_json()).unwrap();
+                return;
+            }
             let cfg = if split == "train" {
                 train_cfg()
             } else {
                 test_suites().into_iter().find(|(n, _)| n.starts_with("test regime")).expect("--regime needed").1
             };
-            let out: String = arg(&args, "--out", String::from("task.json"));
             fs::write(&out, Task::new(cfg).to_json()).unwrap();
         }
         "evalmany" => {
@@ -443,6 +499,33 @@ fn main() {
             let split: String = arg(&args, "--split", String::from("train"));
             let text = fs::read_to_string(&path).expect("read --in");
             let progs: Vec<Program> = text.lines().filter(|l| !l.trim().is_empty()).map(|l| Program::from_json(l).expect("parse prog")).collect();
+            if is_opt() {
+                // prints "objective diverged max_state" per program, on the train task or on
+                // `--split test --suite N`
+                let cfg = if split == "train" {
+                    opt_train_cfg()
+                } else {
+                    opt::test_suites().into_iter().nth(arg(&args, "--suite", 1usize) - 1).expect("--suite 1..7").1
+                };
+                let task = opt::OptTask::new(cfg);
+                let mut out = vec![(0f64, 0f64, 0f32); progs.len()];
+                let chunk = (progs.len() + threads - 1) / threads.max(1);
+                std::thread::scope(|sc| {
+                    for (ps, os) in progs.chunks(chunk.max(1)).zip(out.chunks_mut(chunk.max(1))) {
+                        let task = &task;
+                        sc.spawn(move || {
+                            for (p, o) in ps.iter().zip(os.iter_mut()) {
+                                let r = opt::evaluate(&p.effective(), task);
+                                *o = (r.objective, r.diverged, r.max_state);
+                            }
+                        });
+                    }
+                });
+                for (a, b, c) in out {
+                    println!("{a:.6} {b:.6} {c:.6}");
+                }
+                return;
+            }
             let cfg = if split == "train" {
                 train_cfg()
             } else if split == "long" {
@@ -548,6 +631,10 @@ fn main() {
             program::PERSIST_IDENTITY.store(pid == 1, std::sync::atomic::Ordering::Relaxed);
             let prog = Program::from_json(&text)
                 .expect("parse prog");
+            if is_opt() {
+                println!("{}", opt_report(&prog));
+                return;
+            }
             println!("{}", report(&prog));
         }
         "search" => {
@@ -581,16 +668,18 @@ fn main() {
             };
             let out: String = arg(&args, "--out", format!("runs/seed{}", cfg.seed));
             fs::create_dir_all(&out).unwrap();
-            let task = Task::new(train_cfg());
+            let task = if is_opt() { Task::for_opt(opt::OptTask::new(opt_train_cfg())) } else { Task::new(train_cfg()) };
             let mut regs = Regs::new(task.cfg.d);
-            let milestones: Vec<(String, f32)> = baselines()
-                .into_iter()
-                .skip(1)
-                .map(|(n, p)| (n.to_string(), evaluate(&p.effective(), &task, &mut regs).acc))
-                .collect();
+            // testbed 2: no memory-rule milestones and no memory-rule classification (the
+            // structural test of the ladder is run afterwards, verify/opt_structure.py)
+            let milestones: Vec<(String, f32)> = if is_opt() {
+                Vec::new()
+            } else {
+                baselines().into_iter().skip(1).map(|(n, p)| (n.to_string(), evaluate(&p.effective(), &task, &mut regs).acc)).collect()
+            };
             let mut log = fs::File::create(format!("{out}/log.csv")).unwrap();
             let ctask = classify_task();
-            let family_of = |p: &Program| classify::classify(p, &ctask).family;
+            let family_of = |p: &Program| if is_opt() { "unclassified".to_string() } else { classify::classify(p, &ctask).family };
             // --val-log: at every log row the best rule is also scored on a validation draw of
             // the train task and on 128-write episodes (both with seeds no suite uses). Logging
             // only; nothing of it reaches the search.
@@ -612,7 +701,7 @@ fn main() {
                 let mut r = Regs::new(val_task.cfg.d);
                 (evaluate(p, &val_task, &mut r).acc, evaluate(p, &long_task, &mut r).acc)
             };
-            let val: Option<&dyn Fn(&Program) -> (f32, f32)> = if has(&args, "--val-log") { Some(&val_fn) } else { None };
+            let val: Option<&dyn Fn(&Program) -> (f32, f32)> = if has(&args, "--val-log") && !is_opt() { Some(&val_fn) } else { None };
             let res = evolve::search(&cfg, &task, milestones, &family_of, val, &mut log);
             fs::write(format!("{out}/best.json"), res.best.prog.effective().to_json()).unwrap();
             let mut summary = format!(
@@ -628,7 +717,7 @@ fn main() {
                 "commit: {}  task seed: {}  train episodes: {}  persistent registers: {} matrix, {} vector, start {}  batch: {}\n\n",
                 git_commit(&args),
                 task.cfg.seed,
-                task.cfg.n_episodes + task.cfg.long_episodes,
+                task.opt.as_ref().map_or(task.cfg.n_episodes + task.cfg.long_episodes, |o| o.episodes.len()),
                 program::PERSIST_M.load(std::sync::atomic::Ordering::Relaxed),
                 program::PERSIST_V.load(std::sync::atomic::Ordering::Relaxed),
                 if program::PERSIST_IDENTITY.load(std::sync::atomic::Ordering::Relaxed) { "identity" } else { "zero" },
@@ -676,7 +765,7 @@ fn main() {
                 );
             }
             summary += "\n## Best rule\n\n```\n";
-            summary += &report(&res.best.prog);
+            summary += &if is_opt() { opt_report(&res.best.prog) } else { report(&res.best.prog) };
             summary += "```\n";
             fs::write(format!("{out}/summary.md"), &summary).unwrap();
             print!("{summary}");

@@ -663,3 +663,35 @@ largest of the nine counts). Report in
 evaluations, minutes; the counts of the README reading (test > 0.90 with the other conditions;
 test ≥ 0.99). Predictions of the research agent: `m-plain` 0/8 above 0.90 with probability 0.85,
 `m-lexicase` 0/8 with 0.8.
+
+### N. Plain evolution and random search on testbed 2 (prepared 21 Nov 2026) — epyc
+
+Purpose: the baseline search arms of testbed 2 (README, "Testbed 2: optimizer update rules" and its
+implementation section), on the counted task seeds 901 to 916, one search seed per task seed.
+Rebuild at the commit of this section (the binary now has `--task opt` and `--opt-ops`; the
+memory search is unchanged, the self-check of `d-kalman` seed 9 to 50,000 must give its usual row).
+Budget: 300,000 candidates, which gives at least as many episode evaluations (real evaluations ×
+128 train episodes) as the memetic arm's 22M; report the real evaluations.
+
+Timing first (16 seeds per arm, so required), 2 seeds each, not committed:
+
+```bash
+python local_runner.py --seeds 901-902 --task-seed-from-seed --budget 30000 --tag time-n-plain --parallel 2 --threads 8 --task opt --extra="--opt-ops --persist-v 2"
+```
+
+Then, if the projection for an arm is at most 30 hours:
+
+```bash
+python local_runner.py --seeds 901-916 --task-seed-from-seed --budget 300000 --tag n-plain --parallel 2 --threads 8 --task opt --extra="--opt-ops --persist-v 2"
+```
+
+```bash
+python local_runner.py --seeds 901-916 --task-seed-from-seed --budget 300000 --tag n-random --parallel 2 --threads 8 --task opt --extra="--opt-ops --persist-v 2 --algo random"
+```
+
+Per seed the summary already holds the train objective and the seven suites. Report in
+`runs/<tag>/n_report.md`: per seed the suite-1 objective, diverged fractions of all suites, the
+train − suite-1 gap, real evaluations, minutes; and the structural class of each best rule
+(`autoplast dump --task opt --split train --task-seed N --out train_N.json`, then
+`python verify/opt_structure.py --task-json train_N.json runs/<tag>/seedN/best.json`). The research
+agent counts the Adam level (suite 1 at most −3.023, no divergence on any suite, gap at most 0.1).

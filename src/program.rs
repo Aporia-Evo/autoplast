@@ -23,6 +23,13 @@ pub static PERSIST_V: AtomicUsize = AtomicUsize::new(0);
 /// episode as the identity instead of zero. M0, the memory, always starts empty. Off by default.
 pub static PERSIST_IDENTITY: AtomicBool = AtomicBool::new(false);
 
+/// Testbed 2 (`--task opt`): the output of a step is V0 (the new parameters), not M0. M0 is
+/// then state like any other persistent register: live only if a later step reads it.
+pub static OPT_IO: AtomicBool = AtomicBool::new(false);
+fn opt_io() -> bool {
+    OPT_IO.load(Ordering::Relaxed)
+}
+
 pub fn persist_m(i: usize) -> bool {
     i < PERSIST_M.load(Ordering::Relaxed).clamp(1, NM)
 }
@@ -99,6 +106,9 @@ pub enum Op {
     SAbs,        // s = |sa|
     // optional scalar reciprocal (`--recip`); off by default
     Recip, // s = sa / (sa² + 1e-6): 1/sa away from zero, 0 at zero
+    // generic element-wise ops of testbed 2 (`--opt-ops`, README "Testbed 2"); off by default
+    VecRecip, // V = Va / (Va² + 1e-6) element-wise, the vector form of Recip
+    VecSqrt,  // V = sqrt(|Va|) element-wise
 }
 
 pub const ALL_OPS: [Op; 19] = [
@@ -142,10 +152,14 @@ static ACTIVE_OPS: OnceLock<Vec<Op>> = OnceLock::new();
 /// EXTRA_OPS if `extra`. Without a call the alphabet is ALL_OPS in its original order
 /// (v2/v3 behaviour). Recip directly follows the 19 base ops, which is the order the
 /// `base-recip` runs (package B, commit 045ea3a) were made with.
-pub fn set_alphabet(exclude: &[Op], extra: bool, recip: bool) {
+pub fn set_alphabet(exclude: &[Op], extra: bool, recip: bool, opt_ops: bool) {
     let mut ops: Vec<Op> = ALL_OPS.iter().copied().filter(|o| !exclude.contains(o)).collect();
     if recip {
         ops.push(Op::Recip);
+    }
+    if opt_ops {
+        ops.push(Op::VecRecip);
+        ops.push(Op::VecSqrt);
     }
     if extra {
         ops.extend(EXTRA_OPS.iter().copied().filter(|o| !exclude.contains(o)));
@@ -183,6 +197,7 @@ impl Op {
             Op::VecSum => (S, &[V]),
             Op::SSub => (S, &[S, S]),
             Op::SAbs | Op::Recip => (S, &[S]),
+            Op::VecRecip | Op::VecSqrt => (V, &[V]),
         }
     }
 
@@ -218,11 +233,13 @@ impl Op {
             Op::SSub => "SSub",
             Op::SAbs => "SAbs",
             Op::Recip => "Recip",
+            Op::VecRecip => "VecRecip",
+            Op::VecSqrt => "VecSqrt",
         }
     }
 
     pub fn from_name(s: &str) -> Option<Op> {
-        ALL_OPS.iter().chain(EXTRA_OPS.iter()).chain([Op::Recip].iter()).copied().find(|o| o.name() == s)
+        ALL_OPS.iter().chain(EXTRA_OPS.iter()).chain([Op::Recip, Op::VecRecip, Op::VecSqrt].iter()).copied().find(|o| o.name() == s)
     }
 }
 
@@ -370,7 +387,8 @@ fn live_persistent(instrs: &[Instr]) -> Vec<Instr> {
 fn live_persistent_mask(instrs: &[Instr]) -> Vec<bool> {
     let mut out_m = [false; NM];
     let mut out_v = [false; NV];
-    out_m[0] = true;
+    out_m[0] = !opt_io();
+    out_v[0] = opt_io();
     loop {
         let mut live_m = out_m;
         let mut live_v = out_v;
@@ -427,7 +445,8 @@ fn live_persistent_mask(instrs: &[Instr]) -> Vec<bool> {
 fn live_at(instrs: &[Instr], pos: usize) -> ([bool; NM], [bool; NV], [bool; NS]) {
     let mut out_m = [false; NM];
     let mut out_v = [false; NV];
-    out_m[0] = true;
+    out_m[0] = !opt_io();
+    out_v[0] = opt_io();
     loop {
         let (mut lm, mut lv, mut ls) = (out_m, out_v, [false; NS]);
         let mut at_pos = None;
@@ -485,7 +504,7 @@ impl Program {
     /// Keep only instructions that can influence the final M0 (and the readout V1, if any).
     pub fn effective(&self) -> Program {
         Program {
-            instrs: if any_persist() { live_persistent(&self.instrs) } else { live(&self.instrs, Ty::M, 0) },
+            instrs: if any_persist() || opt_io() { live_persistent(&self.instrs) } else { live(&self.instrs, Ty::M, 0) },
             read: self.read.as_ref().map(|r| live(r, Ty::V, 1)),
         }
     }
@@ -709,6 +728,23 @@ impl Program {
     }
 
     /// Symbolic formula for the new S (and the evolved readout o), by forward substitution.
+    /// Testbed 2: the new parameters and the persistent state as expressions of w, g and the
+    /// state entering the step (S for M0, u2.. for persistent vectors).
+    pub fn opt_formula(&self) -> String {
+        let eff = self.effective();
+        let (m, v, _) = subst(&eff.instrs, "w", "g", true);
+        let mut out = format!("w' = {}", v[0]);
+        if m[0] != "S" {
+            out += &format!("\nS' = {}", m[0]);
+        }
+        for i in 2..NV {
+            if persist_v(i) && v[i] != format!("u{i}") {
+                out += &format!("\nu{i}' = {}", v[i]);
+            }
+        }
+        out
+    }
+
     pub fn formula(&self) -> String {
         let eff = self.effective();
         let (m, v, _) = subst(&eff.instrs, "k", "v", true);
@@ -869,6 +905,8 @@ fn subst(instrs: &[Instr], v0: &str, v1: &str, persist: bool) -> (Vec<String>, V
             Op::SSub => format!("({} - {})", s[a], s[b]),
             Op::SAbs => format!("abs({})", s[a]),
             Op::Recip => format!("1/({})", s[a]),
+            Op::VecRecip => format!("1/({})", v[a]),
+            Op::VecSqrt => format!("√|{}|", v[a]),
         };
         let e = if e.len() > 400 { "…".to_string() } else { e };
         let o = ins.out as usize;
@@ -1126,6 +1164,13 @@ impl Regs {
                 Op::SSub => self.s[o] = self.s[a] - self.s[b],
                 Op::SAbs => self.s[o] = self.s[a].abs(),
                 Op::Recip => self.s[o] = self.s[a] / (self.s[a] * self.s[a] + 1e-6),
+                Op::VecRecip | Op::VecSqrt => {
+                    for i in 0..d {
+                        let x = self.v[a][i];
+                        self.tv[i] = if ins.op == Op::VecRecip { x / (x * x + 1e-6) } else { x.abs().sqrt() };
+                    }
+                    self.v[o].copy_from_slice(&self.tv);
+                }
             }
         }
     }

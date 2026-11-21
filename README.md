@@ -2791,3 +2791,55 @@ of this testbed; the claim here can only be about the search method on a fixed s
 **Predictions of the research agent:** the frozen method reaches the Adam level in 8 or more of 16
 with probability 0.35; plain evolution does so with 0.15; the method result (p < 0.05) with 0.35;
 momentum is rediscovered in 8 or more of 16 with 0.6.
+
+### Testbed 2: implementation in this repository (21 Nov 2026, before any counted run)
+
+Built by the research agent, as fixed above. Changes to the space and the code (rule 1):
+- Two generic ops, only with `--opt-ops`: `VecRecip` (x / (x² + 1e-6) element-wise) and `VecSqrt`
+  (√|x| element-wise). Without the flag the alphabet is unchanged.
+- `--task opt` (`src/opt.rs`): generator, loss, gradients, objective, held-out suites, ceiling.
+  Under it the output of a step is V0, so dead-code removal (`effective()`) keeps what reaches V0;
+  M0 is then state like any persistent register. `--persist-v 2` gives V2 and V3.
+- The memory search is unchanged: the self-check of `d-kalman` seed 9 gives the same 50,036-
+  candidate row as before (`50036,19778,…,0.50570,0.5094,12,0.3803`).
+
+Commands: `autoplast dump --task opt --split train --task-seed N [--train-episodes 192]`,
+`dump --task opt --split test --suite 1..7`, `eval --task opt --opt-ops --prog rule.json` (train and
+the seven suites), `evalmany --task opt --opt-ops --persist-v 2 [--split test --suite N]`,
+`ceiling --task opt`, and `search --task opt --opt-ops --persist-v 2` (the plain evolutionary search
+on testbed 2; the validation log, the memory-rule milestones and the memory classifier are off).
+
+The ladder, tuned by grid on the train task of task seed 1 (`verify/probe_opt.py`,
+`runs/sweeps/probe_opt.md`; no best value on the edge of its grid; mean log₁₀(f_T / f₀), lower is
+better):
+
+| rule | parameters | train | suite 1 | κ 1000 | d 32 | d 8 | σ 0.3 | T 200 | scale ×10 / ×0.1 |
+|---|---|---|---|---|---|---|---|---|---|
+| SGD | η 1 | −2.013 | −2.072 | −1.437 | −1.018 (4% div.) | −2.206 | −0.957 | −2.762 | 0.927 (50% div.) |
+| momentum | η 0.5, β 0.6 | −2.614 | −2.638 | −1.485 | −2.012 | −2.694 | −1.009 | −2.910 | 0.869 (50% div.) |
+| RMSProp | η 0.02, β₂ 0.99 | −2.717 | −2.679 | −1.588 | −2.376 | −2.726 | −1.279 | −2.634 | −2.512 |
+| Adam | η 0.03, β₁ 0.6, β₂ 0.99 | −3.130 | −3.073 | −1.621 | −2.980 | −3.129 | −1.208 | −3.406 | −2.814 |
+| optimum (ceiling) | | −5.79 | −5.81 | −5.67 | −5.90 | −5.77 | −5.81 | −5.81 | −5.81 |
+
+The ladder is strictly ordered on the train task, and SGD and momentum diverge under the ×10
+gradient scale where RMSProp and Adam do not, as they should. Adam (17 instructions) fits the 24.
+One deviation from the plan above: Newton steps with the exact Hessian on the stochastic gradients
+are no ceiling (−1.13 on train, worse than SGD: the inverse Hessian amplifies the gradient noise),
+so the ceiling reported is the optimum itself (w* on the quadratics, the least-squares solution on
+regression); Newton is kept in the probe output for reference. The Adam level of the counted
+criterion is −3.073 on suite 1 (so a rule must reach −3.023 or lower).
+
+Checks: `verify/verify_opt.py` re-implements machine and episodes in numpy and reads the Rust dumps;
+on suites 1 and 7 the four ladder rules agree with Rust within 4e-5 (float64) and 1e-4 (float32).
+`verify/opt_structure.py` (structural test) assigns each ladder rule to its own family with R² =
+1.000. Smoke test, not counted: the plain search, 20k candidates on task seed 1, finds an SGD-like
+rule (w − tanh²¹(g), structural class SGD, R² 0.961) at −2.106 on train.
+
+For the memetic binary (owner's PC): read the dumps (`dump --task opt`, keys `task, d, t, seed,
+episodes[{kind, kappa, sigma, rotated, scale, f0, w0, wstar, a, noise | x, y, batch}]`), apply the
+register convention and the two ops exactly as `src/opt.rs` and `verify/verify_opt.py`, minimise
+the mean episode objective in place of the MSE (state penalty and length tie-break as frozen),
+and nothing else. Counted runs: task seeds 901 to 916, train dumps of task seed t, validation dumps
+of task seed 2000 + t with 192 episodes, one search seed per task seed, 22M episode evaluations,
+`--no-const-tune`. The counted numbers are taken from this repository's binary
+(`eval --task opt`) and the structural test.
