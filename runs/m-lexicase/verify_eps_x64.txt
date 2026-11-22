@@ -1,0 +1,40 @@
+## task seed 801
+float64: True  Normalize epsilon: 1e-09
+reference: linear attention: acc 0.3852 (2505/6503)
+reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+runs/m-lexicase/seed801/best.json: acc 0.6745 (4386/6503)
+## task seed 802
+float64: True  Normalize epsilon: 1e-09
+reference: linear attention: acc 0.3852 (2505/6503)
+reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+runs/m-lexicase/seed802/best.json: acc 0.6517 (4238/6503)
+## task seed 803
+float64: True  Normalize epsilon: 1e-09
+reference: linear attention: acc 0.3852 (2505/6503)
+reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+runs/m-lexicase/seed803/best.json: acc 0.6312 (4105/6503)
+## task seed 804
+float64: True  Normalize epsilon: 1e-09
+reference: linear attention: acc 0.3852 (2505/6503)
+reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+runs/m-lexicase/seed804/best.json: acc 0.6734 (4379/6503)
+## task seed 805
+float64: True  Normalize epsilon: 1e-09
+reference: linear attention: acc 0.3852 (2505/6503)
+reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+runs/m-lexicase/seed805/best.json: acc 0.6609 (4298/6503)
+## task seed 806
+float64: True  Normalize epsilon: 1e-09
+reference: linear attention: acc 0.3852 (2505/6503)
+reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+runs/m-lexicase/seed806/best.json: acc 0.5644 (3670/6503)
+## task seed 807
+float64: True  Normalize epsilon: 1e-09
+reference: linear attention: acc 0.3852 (2505/6503)
+reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+runs/m-lexicase/seed807/best.json: acc 0.6931 (4507/6503)
+## task seed 808
+float64: True  Normalize epsilon: 1e-09
+reference: linear attention: acc 0.3852 (2505/6503)
+reference: delta rule (beta=0.5): acc 0.6402 (4163/6503)
+runs/m-lexicase/seed808/best.json: acc 0.6677 (4342/6503)
