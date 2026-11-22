@@ -1,0 +1,39 @@
+w' = (… - tanh(((tanh((g + u2)) - |((((u3 + (g + u2)) ⊙ u3) ⊙ (u3 + (g + u2))) - tanh((g + u2)))|·tanh((g + u2))) - |((((u3 + (g + u2)) ⊙ u3) ⊙ (u3 + (g + u2))) - tanh((g + u2)))|·(tanh((g + u2)) - |((((u3 + (g + u2)) ⊙ u3) ⊙ (u3 + (g + u2))) - tanh((g + u2)))|·tanh((g + u2))))))
+u2' = 0.671·tanh(((tanh((g + u2)) - |((((u3 + (g + u2)) ⊙ u3) ⊙ (u3 + (g + u2))) - tanh((g + u2)))|·tanh((g + u2))) - |((((u3 + (g + u2)) ⊙ u3) ⊙ (u3 + (g + u2))) - tanh((g + u2)))|·(tanh((g + u2)) - |((((u3 + (g + u2)) ⊙ u3) ⊙ (u3 + (g + u2))) - tanh((g + u2)))|·tanh((g + u2)))))
+u3' = …
+
+Effective program (24 instructions):
+  s2 = 0.6710
+  V1 = VecAdd(V1, V2)
+  V4 = Tanh(V1)
+  V5 = VecAdd(V3, V1)
+  V1 = VecSub(V4, V5)
+  V2 = Hadamard(V5, V3)
+  V5 = Hadamard(V2, V5)
+  V3 = VecSub(V5, V4)
+  s0 = Norm(V3)
+  V5 = VecScale(s0, V4)
+  V2 = VecSub(V4, V5)
+  V5 = VecScale(s0, V2)
+  V2 = VecSub(V2, V5)
+  V3 = Tanh(V2)
+  V1 = VecAdd(V3, V1)
+  V1 = VecAdd(V3, V1)
+  s3 = 1.2714
+  V2 = VecScale(s3, V3)
+  V0 = VecSub(V0, V2)
+  V2 = VecScale(s2, V3)
+  V0 = VecSub(V0, V3)
+  V0 = VecSub(V0, V3)
+  V4 = VecAdd(V1, V3)
+  V3 = VecAdd(V3, V4)
+
+train objective -3.4115  diverged 0.000  max_state 0.971
+test opt train-distribution: objective -3.2976  diverged 0.000  max_state 59.115
+test opt kappa1000: objective -1.7150  diverged 0.000  max_state 66.054
+test opt d32: objective -3.1410  diverged 0.000  max_state 68.148
+test opt d8: objective -3.2365  diverged 0.000  max_state 53.820
+test opt sigma0.3: objective -1.2492  diverged 0.000  max_state 82.651
+test opt T200: objective -3.7529  diverged 0.000  max_state 135.757
+test opt scale10/0.1: objective -0.1985  diverged 0.000  max_state 1135.179
+

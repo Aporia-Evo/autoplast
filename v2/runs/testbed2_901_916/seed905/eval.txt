@@ -1,0 +1,39 @@
+w' = …
+u2' = …
+u3' = tanh((((g + g) + 0.449·u2) + σ(0.449)·((g + g) + 0.449·u2)))
+
+Effective program (24 instructions):
+  s0 = 0.4486
+  V1 = VecAdd(V1, V1)
+  V5 = VecScale(s0, V2)
+  V4 = VecSub(V3, V1)
+  V1 = VecAdd(V1, V5)
+  s1 = Sigmoid(s0)
+  V5 = VecScale(s1, V1)
+  V1 = VecAdd(V1, V5)
+  V3 = Tanh(V1)
+  V2 = VecSub(V4, V3)
+  V4 = VecSqrt(V2)
+  V5 = Tanh(V4)
+  s1 = Norm(V5)
+  V4 = Tanh(V3)
+  V2 = Tanh(V4)
+  V0 = VecSub(V0, V3)
+  V1 = VecScale(s0, V2)
+  V1 = VecScale(s1, V1)
+  V5 = VecAdd(V1, V0)
+  V2 = VecSub(V2, V1)
+  V1 = VecScale(s0, V2)
+  V1 = VecScale(s1, V1)
+  V0 = VecAdd(V5, V1)
+  V2 = VecSub(V2, V1)
+
+train objective -3.4828  diverged 0.000  max_state 0.999
+test opt train-distribution: objective -3.4675  diverged 0.000  max_state 0.996
+test opt kappa1000: objective -1.7681  diverged 0.000  max_state 0.997
+test opt d32: objective -2.1116  diverged 0.000  max_state 1.458
+test opt d8: objective -3.4659  diverged 0.000  max_state 1.000
+test opt sigma0.3: objective -1.3104  diverged 0.000  max_state 1.000
+test opt T200: objective -3.7091  diverged 0.000  max_state 1.000
+test opt scale10/0.1: objective -0.8873  diverged 0.000  max_state 1.000
+

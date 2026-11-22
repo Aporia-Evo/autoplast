@@ -1,0 +1,38 @@
+w' = (w - …)
+u2' = (σ(σ(1/(((<(u2 - g), norm(g)> + <(u2 - g), norm(g)>) + (<(u2 - g), norm(g)> + <(u2 - g), norm(g)>))))·(1/(<(u2 - g), norm(g)>) + 1/(1/(<(u2 - g), norm(g)>))))·… + σ(σ(1/(((<(u2 - g), norm(g)> + <(u2 - g), norm(g)>) + (<(u2 - g), norm(g)> + <(u2 - g), norm(g)>))))·(1/(<(u2 - g), norm(g)>) + 1/(1/(<(u2 - g), norm(g)>))))·…)
+
+Effective program (24 instructions):
+  V5 = VecSub(V2, V1)
+  V4 = VecAdd(V2, V1)
+  V2 = Normalize(V1)
+  s3 = Dot(V5, V2)
+  s2 = -0.1275
+  V2 = VecScale(s2, V4)
+  s2 = SAdd(s3, s3)
+  s1 = SAdd(s2, s2)
+  s1 = Recip(s1)
+  s2 = Sigmoid(s1)
+  V5 = VecScale(s2, V2)
+  V1 = VecSub(V1, V5)
+  s1 = Recip(s3)
+  s0 = Recip(s1)
+  s0 = SAdd(s1, s0)
+  s0 = SMul(s2, s0)
+  s1 = Sigmoid(s0)
+  V2 = VecScale(s1, V1)
+  s2 = 1.7556
+  s3 = SAdd(s1, s2)
+  V5 = VecScale(s3, V2)
+  V1 = VecScale(s1, V5)
+  V2 = VecAdd(V1, V1)
+  V0 = VecSub(V0, V5)
+
+train objective -3.4910  diverged 0.000  max_state 0.484
+test opt train-distribution: objective -3.4620  diverged 0.000  max_state 0.881
+test opt kappa1000: objective -1.7950  diverged 0.000  max_state 1.010
+test opt d32: objective -3.4100  diverged 0.000  max_state 0.400
+test opt d8: objective -3.5309  diverged 0.000  max_state 2.124
+test opt sigma0.3: objective -1.2367  diverged 0.000  max_state 0.312
+test opt T200: objective -3.7089  diverged 0.000  max_state 0.623
+test opt scale10/0.1: objective -1.2642  diverged 0.000  max_state 0.489
+

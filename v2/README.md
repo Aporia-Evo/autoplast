@@ -175,6 +175,40 @@ Only the five Testbed 2 interface adaptations are added under `--task opt` in `v
    - Bucket `3` (`w2l3`): `1` written persistent state, $\ge 2$ live persistent slots
    - Bucket `4` (`w3l3`): $\ge 2$ written & live persistent states (e.g. Adam `V2+V3`, `M0+V`, or `M0+V2+V3`)
 
+## Phase 6: Testbed 2 Counted Run (`v2/runs/testbed2_901_916/`, Frozen Method Unchanged)
+
+Pre-registered in `v2/runs/testbed2_901_916/PROTOCOL.md` **before** generating any dump or running any seed on unseen task seeds `901..916`. Uses the exact frozen Phase 5 method (`--task opt --no-const-tune --max-ep-evals 22000000 --batch 1024 --st-l2 0.015`, search seed `t`, train dump `task-seed t`, val dump `task-seed 2000+t` with 192 episodes).
+
+- **Stage-Gate verification (Task-Seed 1):** `v2/memetic` agrees to **`0.000000`** (`<= 1e-4` required) with `autoplast evalmany --task opt --opt-ops --persist-v 2 --task-seed 1` across all 4 ladder references (`SGD: -2.013423`, `momentum: -2.613973`, `RMSProp: -2.716799`, `Adam: -3.130259`).
+- **Counted results (`autoplast eval --task opt --opt-ops --prog best.json --task-seed t` and `verify/opt_structure.py`; Adam-level requires `Suite 1 <= -3.023`, `0` divergence on all 7 suites, `|train - Suite 1| <= 0.1`):**
+
+| Seed | Instrs | Live | `ep_evals` | `train` | `Suite 1` | `κ=1000` | `d=32` | `d=8` | `σ=0.3` | `T=200` | `scale` | `tr - S1` | Class | Adam-lvl |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| `seed901` | 24 | V2V3 | 22.10M | -3.434 | -3.373 | -1.710 | -1.056 (d=0.438) | -3.175 (d=0.002) | -1.231 | -3.550 (d=0.004) | 0.265 (d=0.496) | -0.062 | unclassified | No |
+| `seed902` | 16 | V2 | 22.08M | -2.857 | -2.756 | -1.616 | -2.733 | -2.790 | -1.190 | -3.034 | 0.752 (d=0.500) | -0.102 | SGD | No |
+| `seed903` | 24 | V2V3 | 22.10M | -3.268 | -3.222 | -1.608 (d=0.012) | 1.606 (d=0.838) | -2.700 (d=0.031) | -1.184 | -3.010 | -1.495 (d=0.061) | -0.047 | unclassified | No |
+| `seed904` | 24 | V2V3 | 22.10M | -3.258 | -3.195 | -1.704 | 1.964 (d=0.879) | -2.769 | -1.287 | -3.712 | 0.386 (d=0.498) | -0.064 | unclassified | No |
+| `seed905` | 24 | V2V3 | 22.09M | -3.483 | -3.467 | -1.768 | -2.112 | -3.466 | -1.310 | -3.709 | -0.887 | -0.015 | unclassified | **Yes** |
+| `seed906` | 21 | M0V3 | 22.10M | -3.662 | -3.587 | -2.079 | -3.615 | -3.562 | -1.287 | -3.762 | -0.108 (d=0.500) | -0.075 | unclassified | No |
+| `seed907` | 23 | M0V2V3 | 22.09M | -3.250 | -3.219 | -1.789 | -0.048 (d=0.410) | -3.112 | -1.434 | -3.399 | -1.719 | -0.031 | unclassified | No |
+| `seed908` | 24 | V2V3 | 22.09M | -3.412 | -3.298 | -1.715 | -3.141 | -3.236 | -1.249 | -3.753 | -0.199 | -0.114 | unclassified | No |
+| `seed909` | 24 | V2 | 22.08M | -3.183 | -3.147 | -1.708 | -2.822 (d=0.023) | -3.196 | -0.981 (d=0.002) | -3.493 | 0.361 (d=0.500) | -0.036 | unclassified | No |
+| `seed910` | 24 | V2 | 22.09M | -3.491 | -3.462 | -1.795 | -3.410 | -3.531 | -1.237 | -3.709 | -1.264 | -0.029 | unclassified | **Yes** |
+| `seed911` | 24 | V2V3 | 22.09M | -3.583 | -3.535 (d=0.002) | -1.802 (d=0.002) | -2.392 (d=0.219) | -3.455 | -1.051 (d=0.004) | -0.250 (d=0.750) | 0.270 (d=0.500) | -0.048 | unclassified | No |
+| `seed912` | 24 | V2V3 | 22.09M | -3.175 | -3.165 | -1.607 | -1.698 (d=0.242) | -3.118 | -1.016 | -3.419 (d=0.006) | 0.341 (d=0.500) | -0.010 | unclassified | No |
+| `seed913` | 24 | V2 | 22.10M | -3.300 | -3.294 | -1.671 | -0.952 | -3.300 | -1.111 | -3.497 | -0.409 | -0.006 | unclassified | **Yes** |
+| `seed914` | 20 | V3 | 22.08M | -3.425 | -3.433 | -1.814 | -3.391 | -3.426 | -1.253 | -3.684 | 0.300 (d=0.500) | +0.007 | unclassified | No |
+| `seed915` | 24 | V3 | 22.09M | -3.049 | -3.026 | -1.675 | -2.645 | -3.148 | -1.038 | -3.293 | -0.593 | -0.023 | SGD | **Yes** |
+| `seed916` | 23 | V3 | 22.09M | -3.483 | -3.446 | -1.788 | -0.408 (d=0.195) | -3.219 | -1.302 | -3.675 | -0.734 (d=0.158) | -0.037 | unclassified | No |
+| *Tuned Adam (ref)* | *17* | *V2V3* | — | *-3.130* | *-3.073* | *-1.621* | *-2.980* | *-3.129* | *-1.208* | *-3.406* | *-2.814* | *-0.057* | *Adam* | *ref* |
+
+- **Aggregate (`N = 16` unseen task seeds, median `22.09M ep_evals`, median `1,752k` cands):**
+  - **Adam-level criterion:** **4/16 (25.0%)** under strict `|train - Suite 1| <= 0.1` (`seed905`, `seed910`, `seed913`, `seed915`), or **5/16 (31.25%)** under literal signed `train - Suite 1 <= 0.1` (including `seed908`, which has `0` divergence on all 7 suites and `train - Suite 1 = -0.114`).
+  - **Raw Suite 1:** **15/16** reach `<= -3.023` (median **`-3.296`**, range `-3.587..-2.756`); **14/16** satisfy `|train - Suite 1| <= 0.1`.
+  - **Dominant OOD failure modes (Rule 3 honesty):** `scale10/0.1` (`10/16` diverge, mostly ~50% on `×10`) and `d=32` (`8/16` diverge), whereas `T=200` diverges on only `3/16`. Even the `4/16` (`5/16` signed) zero-divergence rules score `-1.264..-0.199` on `scale` (vs. tuned Adam `-2.814`), because training uses fixed `scale = 1.0` and stabilization is achieved via bounded nonlinearities rather than true scale invariance.
+  - **Structural classes (`verify/opt_structure.py`):** `SGD`: **2/16** (`seed902` $R^2=0.993$, `seed915` $R^2=0.991$), `unclassified`: **14/16** (closest to momentum: `seed909` at $R^2=0.948$), `momentum`: **0/16**, `RMSProp`: **0/16**, `Adam`: **0/16**.
+  - **Pre-run predictions (`PROTOCOL.md`):** Raw `Suite 1 <= -3.023` (`15/16` vs. predicted `11..14/16`, `P>=10 = 0.75`), strict Adam-level (`4/16` vs. `P>=4 = 0.65`, `P>=8 = 0.30`), `|train - Suite 1| <= 0.1` (`14/16` vs. `P>=14 = 0.80`), and `unclassified` (`14/16` vs. `P>=10 = 0.70`) all aligned closely with pre-registered expectations.
+
 ## Layout
 
 - `v2/memetic/` — Zero-dependency Rust Memetic MAP-Elites search `v3.1` (`Cargo.toml`, `src/main.rs`) with `--task opt` Testbed 2 adapter
@@ -185,11 +219,12 @@ Only the five Testbed 2 interface adaptations are added under `--task opt` in `v
 - `v2/run_frozen_16seeds.py` — Reproduces the pre-registered Phase 3 16-seed unseen-task run & audit (`601..616`)
 - `v2/run_ablations_v31.py` — Reproduces the pre-registered Phase 4 compute-fair 5-arm ablation & audit (`701..708`)
 - `v2/run_confirm_801_816.py` — Reproduces the pre-registered Phase 5 confirmatory 3-arm run & audit (`801..816`)
+- `v2/run_testbed2_901_916.py` — Reproduces the pre-registered Phase 6 Testbed 2 counted run (`901..916`) & report
 - `v2/data/` — Exact Rust `autoplast dump` JSONs (`s1`, `s2001`, `s501`, `s2501`, `s9`; `seeds_*/` auto-generated and gitignored)
 - `v2/baselines_bptt/` — Compiled `<= 24`-instruction BPTT-tuned baseline JSONs and `baselines_summary.json`
 - `v2/runs/frozen_memetic_v1/` — Phase 2 `PROTOCOL.md`, 8 counted `seed*/{best,summary}.json`, and `strict_audit.json`
 - `v2/runs/frozen_16seeds/` — Phase 3 `PROTOCOL.md`, 16 unseen-task `seed*/{best,summary,meta}.json`, and `strict_audit.json`
 - `v2/runs/ablations_v31/` — Phase 4 `PROTOCOL.md`, 5 arms × 8 unseen-task `seed*/{best,summary,meta}.json`, and per-arm `strict_audit.json`
 - `v2/runs/confirm_801_816/` — Phase 5 `PROTOCOL.md`, 3 arms × 16 unseen-task `seed*/{best,summary,meta}.json`, and per-arm `strict_audit.json`
-- `v2/runs/testbed2_901_916/` — Testbed 2 `PROTOCOL.md`, train/val dumps, 16 counted `seed901..916/{best,summary}.json`, `autoplast eval`, and `verify/opt_structure.py` outputs
+- `v2/runs/testbed2_901_916/` — Phase 6 Testbed 2 `PROTOCOL.md`, `REPORT.md`, train/val dumps, 16 counted `seed901..916/{best,summary}.json`, `eval.txt`, and `structure.txt`
 

@@ -168,7 +168,9 @@ def write_report(seeds: list[int]) -> None:
         ("test opt scale10/0.1", "scale"),
     ]
     rows = []
-    adam_count = 0
+    adam_seeds: list[str] = []
+    signed_only_seeds: list[str] = []
+    raw_s1_count = 0
     class_counts: dict[str, int] = {}
     for t in seeds:
         seed_dir = RUN_DIR / f"seed{t}"
@@ -182,14 +184,18 @@ def write_report(seeds: list[int]) -> None:
         s1_obj, s1_div, _ = ev["test opt train-distribution"]
         max_div = max(ev[k][1] for k, _ in suite_keys)
         gap = tr_obj - s1_obj
-        passes = (s1_obj <= -3.023) and (max_div == 0.0) and (gap <= 0.1)
+        if s1_obj <= -3.023:
+            raw_s1_count += 1
+        passes = (s1_obj <= -3.023) and (max_div == 0.0) and (abs(gap) <= 0.1)
         if passes:
-            adam_count += 1
+            adam_seeds.append(f"seed{t}")
+        elif (s1_obj <= -3.023) and (max_div == 0.0) and (gap <= 0.1):
+            signed_only_seeds.append(f"seed{t} (tr - S1 = {gap:+.3f})")
         live_str = "".join(
             lbl for flag, lbl in [(sm["live_m0"], "M0"), (sm["live_v2"], "V2"), (sm["live_v3"], "V3")] if flag
         ) or "-"
         suite_cells = " | ".join(
-            f"{ev[k][0]:.3f}" + (f" (d={ev[k][1]:.2f})" if ev[k][1] > 0 else "")
+            f"{ev[k][0]:.3f}" + (f" (d={ev[k][1]:.3f})" if ev[k][1] > 0 else "")
             for k, _ in suite_keys
         )
         rows.append(
@@ -197,19 +203,27 @@ def write_report(seeds: list[int]) -> None:
             f"{tr_obj:.3f} | {suite_cells} | {gap:+.3f} | {cls} | {'**Yes**' if passes else 'No'} |"
         )
 
+    signed_count = len(adam_seeds) + len(signed_only_seeds)
+    signed_note = (
+        f"; `{signed_count}/{len(rows)}` under literal signed `tr - S1 <= 0.1` including " + ", ".join(signed_only_seeds)
+        if signed_only_seeds
+        else ""
+    )
+    adam_list = ", ".join(adam_seeds) if adam_seeds else "none"
     lines = [
         "# Testbed 2 Counted Run Report (`testbed2_901_916`)",
         "",
         "Frozen method: `Memetic MAP-Elites v3.1` (`--task opt --no-const-tune --max-ep-evals 22000000 --batch 1024 --st-l2 0.015`).",
         "All suite numbers are produced by `autoplast eval --task opt --opt-ops --prog best.json --task-seed t` and structural classes by `verify/opt_structure.py`.",
         "",
-        "Adam-level criterion: Suite 1 <= -3.023, 0 divergence on all 7 suites (including T=200 and scale), and `train - Suite 1 <= 0.1`.",
+        "Adam-level criterion: `Suite 1 <= -3.023`, `0` divergence on all 7 suites (including `T=200` and `scale`), and `|train - Suite 1| <= 0.1`.",
         "",
         "| Seed | Instrs | Live | `ep_evals` | `train` | `Suite 1` | `κ=1000` | `d=32` | `d=8` | `σ=0.3` | `T=200` | `scale` | `tr - S1` | Class | Adam-lvl |",
         "|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|",
     ] + rows + [
         "",
-        f"- **Adam-level count:** **{adam_count}/{len(rows)}**",
+        f"- **Adam-level count (strict `|tr - S1| <= 0.1`):** **{len(adam_seeds)}/{len(rows)}** (`{adam_list}`{signed_note})",
+        f"- **Raw `Suite 1 <= -3.023`:** **{raw_s1_count}/{len(rows)}**",
         "- **Structural classes:** " + ", ".join(f"`{k}`: {v}" for k, v in sorted(class_counts.items())),
         "",
     ]

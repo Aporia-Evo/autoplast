@@ -1,0 +1,38 @@
+w' = (((|(u2 + u2)|·g + ((w - tanh(g)) - u2)) + -0.069·0.169·norm(0.067·|(u2 + u2)|·g)) + 0.169·g)
+u2' = (u2 + 0.169·((((g - (u2 + u2)) - -0.069·0.169·norm(0.067·|(u2 + u2)|·g)) - (-0.069·0.169·norm(0.067·|(u2 + u2)|·g) + -0.069·0.169·norm(0.067·|(u2 + u2)|·g))) - (-0.069·0.169·norm(0.067·|(u2 + u2)|·g) + -0.069·0.169·norm(0.067·|(u2 + u2)|·g))))
+
+Effective program (24 instructions):
+  V5 = Tanh(V1)
+  V0 = VecSub(V0, V5)
+  V0 = VecSub(V0, V2)
+  V5 = VecAdd(V2, V2)
+  V3 = VecSub(V1, V5)
+  s0 = 0.1685
+  s1 = Norm(V5)
+  V5 = VecScale(s1, V1)
+  V0 = VecAdd(V5, V0)
+  s1 = 0.0670
+  V5 = VecScale(s1, V5)
+  V4 = Normalize(V5)
+  V5 = VecScale(s0, V4)
+  s1 = -0.0688
+  V5 = VecScale(s1, V5)
+  V3 = VecSub(V3, V5)
+  V0 = VecAdd(V0, V5)
+  V1 = VecScale(s0, V1)
+  V0 = VecAdd(V0, V1)
+  V1 = VecAdd(V5, V5)
+  V4 = VecSub(V3, V1)
+  V5 = VecSub(V4, V1)
+  V3 = VecScale(s0, V5)
+  V2 = VecAdd(V2, V3)
+
+train objective -3.1825  diverged 0.000  max_state 0.227
+test opt train-distribution: objective -3.1467  diverged 0.000  max_state 0.158
+test opt kappa1000: objective -1.7077  diverged 0.000  max_state 0.169
+test opt d32: objective -2.8221  diverged 0.023  max_state 2902.007
+test opt d8: objective -3.1962  diverged 0.000  max_state 0.284
+test opt sigma0.3: objective -0.9809  diverged 0.002  max_state 336.707
+test opt T200: objective -3.4928  diverged 0.000  max_state 0.279
+test opt scale10/0.1: objective 0.3606  diverged 0.500  max_state 25655.184
+

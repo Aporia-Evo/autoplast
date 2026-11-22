@@ -1,0 +1,39 @@
+w' = ((w - ((g + (u3 + (g + g))) - (1/(|√|u2||) + 1/(|√|u2||))·1.047·u3)) - -0.102·((|√|u2|| + |√|u2||) + |√|u2||)·((g + (u3 + (g + g))) - (1/(|√|u2||) + 1/(|√|u2||))·1.047·u3))
+u2' = tanh(tanh((((g + (u3 + (g + g))) - (1/(|√|u2||) + 1/(|√|u2||))·1.047·u3) - tanh((((|√|u2|| + |√|u2||) + |√|u2||)·((g + (u3 + (g + g))) - (1/(|√|u2||) + 1/(|√|u2||))·1.047·u3) - (g - ((|√|u2|| + |√|u2||) + |√|u2||)·((g + (u3 + (g + g))) - (1/(|√|u2||) + 1/(|√|u2||))·1.047·u3)))))))
+u3' = -0.102·((|√|u2|| + |√|u2||) + |√|u2||)·((g + (u3 + (g + g))) - (1/(|√|u2||) + 1/(|√|u2||))·1.047·u3)
+
+Effective program (24 instructions):
+  V5 = VecAdd(V1, V1)
+  V4 = VecAdd(V3, V5)
+  V5 = VecAdd(V1, V4)
+  V4 = VecSqrt(V2)
+  s0 = Norm(V4)
+  s2 = Recip(s0)
+  s1 = SAdd(s2, s2)
+  s3 = 1.0468
+  s2 = SMul(s1, s3)
+  V2 = VecScale(s2, V3)
+  V5 = VecSub(V5, V2)
+  s3 = SAdd(s0, s0)
+  s2 = SAdd(s3, s0)
+  V3 = VecScale(s2, V5)
+  V2 = VecSub(V1, V3)
+  V4 = VecSub(V3, V2)
+  V2 = Tanh(V4)
+  V1 = VecSub(V5, V2)
+  V2 = Tanh(V1)
+  V2 = Tanh(V2)
+  V0 = VecSub(V0, V5)
+  s3 = -0.1021
+  V3 = VecScale(s3, V3)
+  V0 = VecSub(V0, V3)
+
+train objective -3.2584  diverged 0.000  max_state 9.665
+test opt train-distribution: objective -3.1948  diverged 0.000  max_state 12.539
+test opt kappa1000: objective -1.7035  diverged 0.000  max_state 7.997
+test opt d32: objective 1.9638  diverged 0.879  max_state 130896.148
+test opt d8: objective -2.7694  diverged 0.000  max_state 24.201
+test opt sigma0.3: objective -1.2873  diverged 0.000  max_state 15.212
+test opt T200: objective -3.7116  diverged 0.000  max_state 22.025
+test opt scale10/0.1: objective 0.3864  diverged 0.498  max_state 830384.812
+

@@ -1,0 +1,35 @@
+w' = (w - (… - -0.430·g))
+u2' = ((((g - -0.430·g) - -0.430·g) + ((g - -0.430·g) - -0.430·g)) + u3)
+u3' = …
+
+Effective program (20 instructions):
+  s3 = -0.4295
+  V5 = VecScale(s3, V1)
+  V2 = VecSub(V1, V5)
+  V4 = VecSub(V2, V5)
+  V4 = VecAdd(V4, V4)
+  V2 = VecAdd(V4, V3)
+  V1 = VecAdd(V3, V5)
+  V3 = Normalize(V1)
+  V3 = VecSub(V3, V2)
+  V1 = VecAdd(V3, V5)
+  V3 = Normalize(V1)
+  V1 = Normalize(V4)
+  V3 = VecSub(V3, V2)
+  V4 = Tanh(V1)
+  V4 = VecAdd(V4, V4)
+  s0 = Dot(V4, V3)
+  s3 = Sigmoid(s0)
+  V3 = VecScale(s3, V2)
+  V4 = VecSub(V3, V5)
+  V0 = VecSub(V0, V4)
+
+train objective -3.4255  diverged 0.000  max_state 2.530
+test opt train-distribution: objective -3.4330  diverged 0.000  max_state 3.297
+test opt kappa1000: objective -1.8137  diverged 0.000  max_state 3.737
+test opt d32: objective -3.3912  diverged 0.000  max_state 3.424
+test opt d8: objective -3.4257  diverged 0.000  max_state 6.255
+test opt sigma0.3: objective -1.2526  diverged 0.000  max_state 5.257
+test opt T200: objective -3.6844  diverged 0.000  max_state 4.904
+test opt scale10/0.1: objective 0.3000  diverged 0.500  max_state 900162.188
+

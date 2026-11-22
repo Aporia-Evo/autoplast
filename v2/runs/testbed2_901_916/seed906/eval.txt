@@ -1,0 +1,37 @@
+w' = ((((S + ((0.325·(u3 + u3) - norm(g)))⊗(0.325·(u3 + u3)))·(0.325·(u3 + u3) - |(0.325·g + 0.325·(u3 + u3))|·(0.325·(u3 + u3) - norm(g))) - 0.325·g) + w) - 0.325·(tanh((0.325·(u3 + u3) - |(0.325·g + 0.325·(u3 + u3))|·(0.325·(u3 + u3) - norm(g)))) - 0.325·g))
+S' = ((S + ((0.325·(u3 + u3) - norm(g)))⊗(0.325·(u3 + u3))) + (((0.325·(u3 + u3) - norm(g)))⊗(0.325·(u3 + u3)))ᵀ)
+u2' = (S + ((0.325·(u3 + u3) - norm(g)))⊗(0.325·(u3 + u3)))·(0.325·(u3 + u3) - |(0.325·g + 0.325·(u3 + u3))|·(0.325·(u3 + u3) - norm(g)))
+u3' = tanh((0.325·(u3 + u3) - |(0.325·g + 0.325·(u3 + u3))|·(0.325·(u3 + u3) - norm(g))))
+
+Effective program (21 instructions):
+  V3 = VecAdd(V3, V3)
+  s0 = 0.3250
+  V3 = VecScale(s0, V3)
+  V4 = VecScale(s0, V1)
+  V1 = Normalize(V1)
+  V2 = VecSub(V3, V1)
+  V1 = VecAdd(V4, V3)
+  s1 = Norm(V1)
+  M2 = Outer(V2, V3)
+  M0 = MatAdd(M0, M2)
+  V2 = VecScale(s1, V2)
+  V1 = VecSub(V3, V2)
+  V3 = Tanh(V1)
+  V2 = MatVec(M0, V1)
+  V1 = VecSub(V2, V4)
+  M1 = Transpose(M2)
+  M0 = MatAdd(M0, M1)
+  V1 = VecAdd(V1, V0)
+  V5 = VecSub(V3, V4)
+  V5 = VecScale(s0, V5)
+  V0 = VecSub(V1, V5)
+
+train objective -3.6619  diverged 0.000  max_state 0.426
+test opt train-distribution: objective -3.5871  diverged 0.000  max_state 0.432
+test opt kappa1000: objective -2.0795  diverged 0.000  max_state 0.674
+test opt d32: objective -3.6153  diverged 0.000  max_state 0.346
+test opt d8: objective -3.5623  diverged 0.000  max_state 0.819
+test opt sigma0.3: objective -1.2869  diverged 0.000  max_state 0.438
+test opt T200: objective -3.7621  diverged 0.000  max_state 0.599
+test opt scale10/0.1: objective -0.1085  diverged 0.500  max_state 4080490.250
+

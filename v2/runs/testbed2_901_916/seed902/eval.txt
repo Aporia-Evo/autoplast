@@ -1,0 +1,30 @@
+w' = (((w + -0.017·0.763·norm(|(g - u2)|·(g - u2))) + ((-0.098 + -0.098)·g + (-0.098 + -0.098)·g)) + (-0.098 + -0.098)·g)
+u2' = tanh((-0.098 + -0.098)·g)
+
+Effective program (16 instructions):
+  s1 = -0.0980
+  s3 = SAdd(s1, s1)
+  V5 = VecScale(s3, V1)
+  V1 = VecSub(V1, V2)
+  V4 = VecAdd(V5, V5)
+  s1 = Norm(V1)
+  V3 = VecScale(s1, V1)
+  V1 = Normalize(V3)
+  s0 = -0.0173
+  s2 = 0.7635
+  s1 = SMul(s0, s2)
+  V1 = VecScale(s1, V1)
+  V0 = VecAdd(V0, V1)
+  V2 = Tanh(V5)
+  V0 = VecAdd(V0, V4)
+  V0 = VecAdd(V0, V5)
+
+train objective -2.8575  diverged 0.000  max_state 0.153
+test opt train-distribution: objective -2.7557  diverged 0.000  max_state 0.172
+test opt kappa1000: objective -1.6156  diverged 0.000  max_state 0.194
+test opt d32: objective -2.7331  diverged 0.000  max_state 0.261
+test opt d8: objective -2.7897  diverged 0.000  max_state 0.318
+test opt sigma0.3: objective -1.1901  diverged 0.000  max_state 0.270
+test opt T200: objective -3.0338  diverged 0.000  max_state 0.255
+test opt scale10/0.1: objective 0.7522  diverged 0.500  max_state 1.000
+

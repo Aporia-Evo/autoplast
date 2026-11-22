@@ -1,0 +1,38 @@
+w' = ((w + 0.245·|tanh((|(S·0 - u3)|·((u2 + (g + g)) + (g + g)) + u2))|·(g + 0.029·tanh((|(S·0 - u3)|·((u2 + (g + g)) + (g + g)) + u2)))) - (g + 0.029·tanh((|(S·0 - u3)|·((u2 + (g + g)) + (g + g)) + u2))))
+u2' = tanh((g + 0.029·tanh((|(S·0 - u3)|·((u2 + (g + g)) + (g + g)) + u2))))
+u3' = (((g ⊙ g) + u3) - norm((g ⊙ g)))
+
+Effective program (23 instructions):
+  V5 = MatVec(M0, V5)
+  V5 = VecSub(V5, V3)
+  s1 = Norm(V5)
+  V5 = VecAdd(V1, V1)
+  V4 = VecAdd(V2, V5)
+  V4 = VecAdd(V4, V5)
+  V5 = VecScale(s1, V4)
+  V5 = VecAdd(V5, V2)
+  V2 = Hadamard(V1, V1)
+  V4 = Normalize(V2)
+  V2 = VecAdd(V2, V3)
+  V3 = VecSub(V2, V4)
+  s0 = 0.0294
+  V2 = Tanh(V5)
+  V5 = VecScale(s0, V2)
+  V1 = VecAdd(V1, V5)
+  s2 = Norm(V2)
+  V4 = VecScale(s2, V1)
+  s0 = 0.2455
+  V4 = VecScale(s0, V4)
+  V0 = VecAdd(V0, V4)
+  V2 = Tanh(V1)
+  V0 = VecSub(V0, V1)
+
+train objective -3.2498  diverged 0.000  max_state 21.300
+test opt train-distribution: objective -3.2188  diverged 0.000  max_state 26.809
+test opt kappa1000: objective -1.7891  diverged 0.000  max_state 29.726
+test opt d32: objective -0.0475  diverged 0.410  max_state 1821002752.000
+test opt d8: objective -3.1121  diverged 0.000  max_state 33.433
+test opt sigma0.3: objective -1.4341  diverged 0.000  max_state 21.075
+test opt T200: objective -3.3989  diverged 0.000  max_state 102.750
+test opt scale10/0.1: objective -1.7194  diverged 0.000  max_state 20185.922
+
