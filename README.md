@@ -2891,7 +2891,7 @@ separates the two readings. Both are reported, and the stricter one is the one u
 Reading:
 - The frozen method transfers in level: 15 of 16 rules beat tuned Adam on the train distribution
   (median −3.30 against −3.07), where plain evolution and random search reach at most the level of
-  momentum (best −2.647). It does not transfer in robustness: 11 of the 15 diverge on a held-out
+  momentum (best −2.647). It does not transfer in robustness: 10 of the 15 diverge on a held-out
   suite, mostly the gradient scale ×10 (10 of 16) and d = 32 (8 of 16). Rules that adapt to the train
   distribution's gradient scale instead of normalising it are the failure (rule 3, scale dependence).
 - Even the four counted rules are below Adam on the scale suite (−0.41 to −1.26 against −2.81) and
