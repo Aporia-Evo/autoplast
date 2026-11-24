@@ -1,0 +1,42 @@
+S' = (S - ((v - S·k))⊗(1.262·P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k)))
+P1' = -0.546·(((P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k))⊗(P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k)) + (((P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k))⊗(P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k)))(P2) - P2)))((P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k))⊗(((P2)(P2))ᵀ·-0.546·k))
+P2' = (P2 + -0.546·(((P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k))⊗(P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k)) + (((P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k))⊗(P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k)))(P2) - P2)))((P2·norm((P2)(P2)·((P2)(P2))ᵀ·P2·((P2)(P2))ᵀ·-0.546·k))⊗(((P2)(P2))ᵀ·-0.546·k)))
+
+Effective program (24 instructions):
+  V4 = MatVec(M0, V0)
+  s1 = -0.5457
+  V5 = VecSub(V1, V4)
+  V0 = VecScale(s1, V0)
+  M1 = MatMul(M2, M2)
+  M3 = Transpose(M1)
+  V4 = MatVec(M3, V0)
+  V3 = MatVec(M2, V4)
+  V2 = MatVec(M3, V3)
+  V1 = MatVec(M1, V2)
+  V3 = Normalize(V1)
+  V3 = MatVec(M2, V3)
+  s2 = 1.2616
+  V1 = VecScale(s2, V3)
+  M1 = Outer(V5, V1)
+  M0 = MatSub(M0, M1)
+  M3 = Outer(V3, V3)
+  M1 = MatMul(M3, M2)
+  M1 = MatSub(M1, M2)
+  M3 = MatAdd(M3, M1)
+  M1 = Outer(V3, V4)
+  M1 = MatMul(M3, M1)
+  M1 = MatScale(s1, M1)
+  M2 = MatAdd(M2, M1)
+
+structure: unclassified  [a=0.990 b=0.869 c=-0.811 g=0.017, erase c/a=0.819, R²=0.5439, 1024 steps]
+
+train acc 0.879 ±0.007
+test regime overload: acc 0.882  margin 0.218  ±0.003
+test d16 T12 ow0.3: acc 1.000  margin 0.440  ±0.000
+test d16 T12 ow0.0: acc 1.000  margin 0.425  ±0.000
+test d16 T12 ow0.6: acc 1.000  margin 0.415  ±0.000
+test d32 T24 ow0.3: acc 1.000  margin 0.526  ±0.000
+test d8 T6 ow0.3: acc 0.995  margin 0.251  ±0.001
+test d16 T64 K8 ow0.3: acc 0.997  margin 0.320  ±0.001
+test d16 T128 K8 ow0.3: acc 0.939  margin 0.232  ±0.007
+

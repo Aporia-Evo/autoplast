@@ -1,0 +1,36 @@
+S' = ((((v - S·k))⊗(norm(P1·P1·norm((P1·k + k)))) + 0.026·(S)((P1 - σ(0.418)·(P1·norm((P1·k + k)))⊗(P1·norm((P1·k + k)))))) + S)
+P1' = (P1 - σ(0.418)·(P1·norm((P1·k + k)))⊗(P1·norm((P1·k + k))))
+
+Effective program (19 instructions):
+  V2 = MatVec(M1, V0)
+  V4 = VecAdd(V2, V0)
+  V5 = Normalize(V4)
+  V3 = MatVec(M0, V0)
+  V1 = VecSub(V1, V3)
+  V2 = MatVec(M1, V5)
+  V3 = MatVec(M1, V2)
+  V0 = Normalize(V3)
+  M3 = Outer(V1, V0)
+  M2 = Outer(V2, V2)
+  s0 = 0.4181
+  s1 = Sigmoid(s0)
+  M2 = MatScale(s1, M2)
+  M1 = MatSub(M1, M2)
+  M2 = MatMul(M0, M1)
+  s1 = 0.0262
+  M2 = MatScale(s1, M2)
+  M3 = MatAdd(M3, M2)
+  M0 = MatAdd(M3, M0)
+
+structure: unclassified  [a=1.006 b=0.788 c=-0.757 g=0.003, erase c/a=0.752, R²=0.6008, 1024 steps]
+
+train acc 0.875 ±0.007
+test regime overload: acc 0.871  margin 0.213  ±0.003
+test d16 T12 ow0.3: acc 1.000  margin 0.436  ±0.000
+test d16 T12 ow0.0: acc 1.000  margin 0.410  ±0.000
+test d16 T12 ow0.6: acc 1.000  margin 0.420  ±0.000
+test d32 T24 ow0.3: acc 1.000  margin 0.524  ±0.000
+test d8 T6 ow0.3: acc 0.993  margin 0.248  ±0.002
+test d16 T64 K8 ow0.3: acc 0.971  margin 0.310  ±0.004
+test d16 T128 K8 ow0.3: acc 0.923  margin 0.260  ±0.008
+

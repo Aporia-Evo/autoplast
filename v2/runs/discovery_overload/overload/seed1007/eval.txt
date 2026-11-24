@@ -1,0 +1,41 @@
+S' = (S - …)
+P1' = …
+P2' = (P2 - 0.062·(((norm(P2·P2·norm(P2·P2·k)) + (P2·P2·norm(P2·P2·k) + P2·P2·k)))⊗((P2·P2·norm(P2·P2·k) + P2·P2·k)) - (((P2·P2·norm(P2·P2·k) + P2·P2·k) - ((norm(P2·P2·norm(P2·P2·k)) + (P2·P2·norm(P2·P2·k) + P2·P2·k)) - P2·P2·k)))⊗(((P2·P2·norm(P2·P2·k) + P2·P2·k) - ((norm(P2·P2·norm(P2·P2·k)) + (P2·P2·norm(P2·P2·k) + P2·P2·k)) - P2·P2·k)))))
+
+Effective program (23 instructions):
+  V2 = MatVec(M0, V0)
+  V3 = MatVec(M2, V0)
+  V0 = MatVec(M2, V3)
+  V3 = Normalize(V0)
+  V5 = MatVec(M2, V3)
+  V3 = MatVec(M2, V5)
+  V4 = VecAdd(V3, V0)
+  V3 = Normalize(V3)
+  V3 = VecAdd(V3, V4)
+  M3 = Outer(V3, V4)
+  V3 = VecSub(V3, V0)
+  s3 = 0.0623
+  V5 = VecSub(V4, V3)
+  M1 = Outer(V5, V5)
+  M3 = MatSub(M3, M1)
+  M3 = MatScale(s3, M3)
+  M2 = MatSub(M2, M3)
+  V1 = VecSub(V1, V2)
+  M3 = Outer(V1, V3)
+  M1 = MatScale(s3, M3)
+  M1 = MatSub(M1, M3)
+  M1 = MatMul(M1, M2)
+  M0 = MatSub(M0, M1)
+
+structure: unclassified  [a=0.991 b=0.833 c=-0.785 g=-0.003, erase c/a=0.793, R²=0.5244, 1024 steps]
+
+train acc 0.882 ±0.007
+test regime overload: acc 0.891  margin 0.211  ±0.003
+test d16 T12 ow0.3: acc 1.000  margin 0.421  ±0.000
+test d16 T12 ow0.0: acc 1.000  margin 0.430  ±0.000
+test d16 T12 ow0.6: acc 1.000  margin 0.364  ±0.000
+test d32 T24 ow0.3: acc 1.000  margin 0.503  ±0.000
+test d8 T6 ow0.3: acc 0.990  margin 0.240  ±0.002
+test d16 T64 K8 ow0.3: acc 0.815  margin 0.130  ±0.009
+test d16 T128 K8 ow0.3: acc 0.464  margin -0.073  ±0.016
+

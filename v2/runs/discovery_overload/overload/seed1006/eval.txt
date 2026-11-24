@@ -1,0 +1,41 @@
+S' = (S + (1.443·((v)⊗(norm(((P1)(P1))(P1)·((P1)(P1))(P1)·k)) - (tanh(S·k))⊗(norm(((P1)(P1))(P1)·((P1)(P1))(P1)·k))))((((P1 + 0.003·P1) + (k)⊗(0.003·k)) - 0.305·(((P1)(P1))(P1)·k)⊗(((P1)(P1))(P1)·k))))
+P1' = (((P1 + 0.003·P1) + (k)⊗(0.003·k)) - 0.305·(((P1)(P1))(P1)·k)⊗(((P1)(P1))(P1)·k))
+
+Effective program (24 instructions):
+  M2 = MatMul(M1, M1)
+  M2 = MatMul(M2, M1)
+  s3 = 0.0031
+  M3 = MatScale(s3, M1)
+  M1 = MatAdd(M1, M3)
+  V2 = MatVec(M2, V0)
+  V5 = MatVec(M2, V2)
+  V5 = Normalize(V5)
+  V4 = VecScale(s3, V0)
+  M3 = Outer(V0, V4)
+  M1 = MatAdd(M1, M3)
+  M3 = Outer(V1, V5)
+  V3 = MatVec(M0, V0)
+  V4 = Tanh(V3)
+  M2 = Outer(V4, V5)
+  M3 = MatSub(M3, M2)
+  s0 = 1.4429
+  M2 = MatScale(s0, M3)
+  M3 = Outer(V2, V2)
+  s3 = 0.3052
+  M3 = MatScale(s3, M3)
+  M1 = MatSub(M1, M3)
+  M3 = MatMul(M2, M1)
+  M0 = MatAdd(M0, M3)
+
+structure: unclassified  [a=0.985 b=0.863 c=-0.777 g=0.004, erase c/a=0.788, R²=0.5105, 1024 steps]
+
+train acc 0.868 ±0.007
+test regime overload: acc 0.859  margin 0.215  ±0.003
+test d16 T12 ow0.3: acc 1.000  margin 0.444  ±0.000
+test d16 T12 ow0.0: acc 1.000  margin 0.421  ±0.000
+test d16 T12 ow0.6: acc 1.000  margin 0.422  ±0.000
+test d32 T24 ow0.3: acc 1.000  margin 0.533  ±0.000
+test d8 T6 ow0.3: acc 0.994  margin 0.251  ±0.002
+test d16 T64 K8 ow0.3: acc 1.000  margin 0.378  ±0.000
+test d16 T128 K8 ow0.3: acc 0.995  margin 0.356  ±0.002
+

@@ -1,0 +1,42 @@
+S' = ((S + (S)(((P2 + P2))(0.004·((P2 + P2))((P2)(P2))))) + ((v - (S + (S)(((P2 + P2))(0.004·((P2 + P2))((P2)(P2)))))·k))⊗(norm(…)))
+P1' = ((v - (S + (S)(((P2 + P2))(0.004·((P2 + P2))((P2)(P2)))))·k))⊗(norm(…))
+P2' = ((P2 + 0.004·((P2 + P2))((P2)(P2))) - 0.022·((((P2 + 0.004·((P2 + P2))((P2)(P2))))((P2 + P2))·k + ((P2 + 0.004·((P2 + P2))((P2)(P2))))((P2 + P2))·k))⊗((((P2 + 0.004·((P2 + P2))((P2)(P2))))((P2 + P2))·k + ((P2 + 0.004·((P2 + P2))((P2)(P2))))((P2 + P2))·k)))
+
+Effective program (24 instructions):
+  M1 = MatAdd(M2, M2)
+  s0 = 0.0044
+  M3 = MatMul(M2, M2)
+  M3 = MatMul(M1, M3)
+  M3 = MatScale(s0, M3)
+  M2 = MatAdd(M2, M3)
+  M3 = MatMul(M1, M3)
+  M3 = MatMul(M0, M3)
+  M0 = MatAdd(M0, M3)
+  M3 = MatMul(M2, M1)
+  V5 = MatVec(M3, V0)
+  V4 = VecAdd(V5, V5)
+  M3 = Outer(V4, V4)
+  s0 = 0.0215
+  M3 = MatScale(s0, M3)
+  M2 = MatSub(M2, M3)
+  V3 = MatVec(M0, V0)
+  V1 = VecSub(V1, V3)
+  V2 = MatVec(M2, V4)
+  V2 = MatVec(M1, V2)
+  V4 = VecAdd(V2, V5)
+  V4 = Normalize(V4)
+  M1 = Outer(V1, V4)
+  M0 = MatAdd(M0, M1)
+
+structure: unclassified  [a=1.005 b=0.803 c=-0.769 g=-0.001, erase c/a=0.765, R²=0.6207, 1024 steps]
+
+train acc 0.881 ±0.007
+test regime overload: acc 0.882  margin 0.225  ±0.003
+test d16 T12 ow0.3: acc 0.999  margin 0.434  ±0.000
+test d16 T12 ow0.0: acc 0.999  margin 0.401  ±0.000
+test d16 T12 ow0.6: acc 1.000  margin 0.426  ±0.000
+test d32 T24 ow0.3: acc 1.000  margin 0.528  ±0.000
+test d8 T6 ow0.3: acc 0.982  margin 0.240  ±0.003
+test d16 T64 K8 ow0.3: acc 0.000  margin 0.000  ±0.000
+test d16 T128 K8 ow0.3: acc 0.000  margin 0.000  ±0.000
+
