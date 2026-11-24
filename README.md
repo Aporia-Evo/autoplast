@@ -2988,3 +2988,56 @@ new. If no seed counts, the discovery claim of the paper is dropped and the resu
 Predictions of the research agent: discovery shown on overload with probability 0.15, on
 overload48 with 0.1; at least one seed counting in either regime with 0.3; the best rule of overload
 above 0.878 on test at all with 0.45.
+
+### Experiment 2a: amendment of 24 Nov, before any run (outside review)
+
+An outside review of the owner (24 Nov, at commit b6aa9c6; dumps made, no search run) found, and
+it is confirmed here: criterion 3 required T128 K8 ≥ 0.838 of a found rule, while none of the
+references in the table meets it (classical reference 0.303 on overload and 0.299 on overload48,
+Kalman delta 0.733, RLS with forgetting 0.662 and 0.294, Gated DeltaNet 0.400 and 0.635). The overload
+regimes have no long episodes in training, and T128 K8 (8 keys rewritten about 16 times) asks for
+aggressive overwriting, the opposite of what the overload optimum does with more keys than
+dimensions. As written, 2a demanded a rule better on overload and also good at a different capability,
+while the references were exempt. Changed before any run (the dumps are unaffected):
+- Criterion 3 becomes: train − test ≤ 0.03; the long probe below 100 in all nine draws (this is the
+  check for growth factors > 1, rule 3); JAX float32 and float64 at ε 1e-9 within 0.02 of Rust.
+  T128 K8 is reported next to the references' values and excludes nothing.
+- Secondary count, reported but not the discovery count: rules that also pass T128 K8 ≥ 0.838,
+  against the best references that pass it too (tuned by train among those; grid in
+  `runs/sweeps/robust_refs_overload*.txt`): overload 0.820 (untied gain with q·I, δ_P 0.03, ε 0.01,
+  q 0.001; T128 K8 0.978), overload48 0.565 (δ_P 0.3, ε 0.1, q 0.003; T128 K8 0.924); Kalman delta 0.800
+  and 0.539; no RLS setting passes. Bar +0.02: 0.840 and 0.585.
+- Considered and not taken: new regimes with long episodes in training (as collision3 is to
+  collision); it needs new references and dumps and stays a follow-up.
+- Noted from the review: in these regimes the frozen Tier-0 screen of the memetic search uses 4
+  episodes (all episodes have more than 24 writes); the references were tuned on 192 train
+  episodes, the search sees 96.
+
+### Corrections from the outside review of 24 Nov (no new runs)
+
+1. The memetic search (v2) starts from 512 random programs of 1 to 6 instructions, not from the
+   empty program (the v1 search does start empty). Where this README says "from the empty program"
+   of the memetic search, read "from short random programs, no seeded rules".
+2. v2 has a one-point crossover with an archive partner in about 5% of mutations (10% under
+   `--basic-mut`); CLAUDE.md's "typed crossover deferred" refers to v1.
+3. The knockouts switch off more than their names say. `--basic-mut`: residual insertion, two-op
+   chain insertion, wrap-input mutation, and liveness-aware register choice with length shedding
+   above 18 (dead-code compaction stays on). `--no-archive`: the archive over effective length
+   (1 to 24) × five written/live state classes × op signature, its equal-attention parent sampling
+   over state classes and its preference for short elites, replaced by a flat top-64 archive. The
+   paper names them "structural mutation operators" and "length × state-class MAP-Elites archive".
+4. Under `--no-const-tune` a candidate whose skeleton (ops and registers, constants ignored) is
+   already known is evaluated only with probability 0.02 (`seen_snapshot` filter, confirmed in the
+   code), so changes of constants alone on known skeletons are mostly skipped. A property of the
+   frozen method; a plausible contributor to the testbed-2 outcome (no precise EMA constants, rules
+   unclassified); not tested.
+5. The smooth MSE fitness with the state penalty and the multi-fidelity screen are part of v2 and
+   were not knocked out under `--no-const-tune` (the 4-arm ablation tested `--fitness acc` with
+   constant tuning, on 8 seeds); the comparison v1 against v2 is between systems.
+6. Confirmation run: `frozen_no_archive` seed 812 reaches 0.898 (fresh draws 0.903, stable), just
+   under the bar; counted, 8/16 against 1/16 still gives p = 0.0077.
+7. Testbed 2: the ε of the RMSProp and Adam references is the 1e-6 inside `VecRecip`, fixed, not
+   tuned as the specification listed.
+8. The reviewer measured how the update scales with the gradient (Δw ∝ c^k for gradients × c): k ≈ 1
+   for all four counted testbed-2 rules, as for SGD and momentum, and 0 for RMSProp and Adam; not
+   recomputed here, and consistent with their failure on the scale suite.

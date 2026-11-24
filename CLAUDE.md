@@ -228,6 +228,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    Ridge Attention, MesaNet, Kalman Delta Networks); nothing claimed as new. Experiment 2a fixed
    24 Nov (README): frozen method on overload (task seeds 1001-1016) and overload48 (1101-1116);
    discovery if 3+/16 seeds beat the best reference (0.878 / 0.603) by 0.02 on test and on fresh draws.
+   Amended 24 Nov before any run (outside review): T128 K8 ≥ 0.838 dropped as an exclusion (no
+   reference meets it; long probe, JAX and train − test stay); secondary count against references
+   that pass T128 K8 (0.820 / 0.565). README also corrects: v2 starts from short random programs,
+   has 5% one-point crossover, knockouts switch off bundles, a 0.02 skeleton filter throttles
+   constant changes under --no-const-tune.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.

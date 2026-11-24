@@ -1,0 +1,4 @@
+overload best by train among T128>=0.838: ('untied+qI', (0.03, 0.01, 0.001), 0.852, 0.82, 0.978)
+   untied+qI ('untied+qI', (0.03, 0.01, 0.001), 0.852, 0.82, 0.978)
+   kalman ('kalman', (0.01, 0.001), 0.828, 0.8, 0.881)
+   rls none
