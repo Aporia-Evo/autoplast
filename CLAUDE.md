@@ -216,6 +216,13 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    (README, "Testbed 2: implementation in this repository"): `--task opt`, `--opt-ops`; strict
    ladder (Adam −3.073 on suite 1), numpy check within 4e-5, structural test; package N (plain
    and random search, task seeds 901 to 916) prepared in RUNBOOK.
+   Results 24 Nov (README, "Packages M and N and testbed 2"): collision3 801 to 808, memetic 5/8
+   against plain 0/8 and lexicase 0/8 (p = 0.013 each): method result on matched tasks. Testbed 2,
+   901 to 916: memetic reaches suite 1 ≤ −3.023 in 15/16 (plain 0/16, random 0/16) but the counted
+   Adam level (no divergence, gap) only in 4/16 under the corrected gap (5/16 literal; the written
+   criterion had a sign error); against plain p = 0.051, so the transfer claim at the fixed bar is
+   not met. Most found rules break on the gradient-scale and d = 32 suites; no structural rediscovery
+   of momentum, RMSProp or Adam (0/16).
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.

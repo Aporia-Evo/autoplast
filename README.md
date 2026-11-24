@@ -2843,3 +2843,68 @@ and nothing else. Counted runs: task seeds 901 to 916, train dumps of task seed 
 of task seed 2000 + t with 192 episodes, one search seed per task seed, 22M episode evaluations,
 `--no-const-tune`. The counted numbers are taken from this repository's binary
 (`eval --task opt`) and the structural test.
+
+## Packages M and N and testbed 2: results and reading (24 Nov 2026)
+
+Merged: the executing agent's packages M (`runs/m-plain`, `runs/m-lexicase`, commit dce11aa, epyc)
+and N (`runs/n-plain`, `runs/n-random`), and the memetic search on testbed 2 from the owner's
+collaborator (`v2/runs/testbed2_901_916`, commits ec5c13f adapter, b0dac36 protocol, 5774c44
+checkpointing, bea07f2 results). Recounted here with this repository's binary; the memetic rules
+were evaluated afresh (`eval --task opt` on each task seed) and agree with the PC's numbers to the
+printed digit; the counted ones agree with the numpy re-implementation on suite 1.
+
+### Collision3, matched task seeds 801 to 808 (package M)
+
+| arm (1.5M candidates, or 22M episode evaluations) | count (test > 0.90 with the conditions) | best test |
+|---|---|---|
+| frozen memetic search (confirmation run) | **5/8** | 0.999 |
+| plain evolution (`m-plain`) | 0/8 | 0.643 |
+| lexicase (`m-lexicase`) | 0/8 | 0.693 |
+
+The method result on matched tasks: 5/8 against 0/8 for each evolutionary arm, one-sided Fisher
+p = 0.013 each (0.0013 against both pooled, not fixed before). The evolutionary arms spent about
+0.78M real evaluations × 144 episodes (about 110M episode evaluations), 5 times the memetic arm.
+Five of eight `m-plain` seeds end below 0.53 (stuck), as on task seed 1. Predictions: the research
+agent's (0/8 with 0.85, 0/8 with 0.8) right.
+
+### Testbed 2, task seeds 901 to 916 (memetic search and package N)
+
+Adam level as fixed: suite 1 at most −3.023, no divergence on train or any of the seven suites,
+and the train/test gap at most 0.1.
+
+| arm | suite 1 ≤ −3.023 | no divergence anywhere | Adam level, gap read as test worse than train (S1 − train ≤ 0.1) | Adam level, gap as literally written (train − S1 ≤ 0.1) | structural class |
+|---|---|---|---|---|---|
+| frozen memetic search (22.1M episode evaluations) | **15/16** | 5/16 | **4/16** (905, 910, 913, 915) | 5/16 (+ 908, gap 0.114) | SGD 2, unclassified 14 |
+| plain evolution (`n-plain`, 26.3M) | 0/16 | 16/16 | 0/16 | 0/16 | SGD 8, momentum 1, unclassified 7 |
+| random search (`n-random`, 21.1M) | 0/16 | 16/16 | 0/16 | 0/16 | SGD 14, unclassified 2 |
+
+**A defect in the criterion, the research agent's.** The text fixed before the run reads "train −
+suite (1) is at most 0.1", copied from the accuracy criterion where higher is better. Here lower is
+better, so the written condition only fails when train is worse than test and does not check
+overfitting at all; the intended check is S1 − train ≤ 0.1. Seed 908 (train −3.412, suite 1 −3.298)
+separates the two readings. Both are reported, and the stricter one is the one used for claims:
+- strict reading: 4/16 against 0/16 for plain evolution, one-sided Fisher **p = 0.051**: the fixed
+  method result (α = 0.05) is **not met**, by the smallest margin;
+- literal reading: 5/16 against 0/16, p = 0.022, met;
+- against plain evolution and random search pooled (0/32, not fixed before): p = 0.009 (strict).
+
+Reading:
+- The frozen method transfers in level: 15 of 16 rules beat tuned Adam on the train distribution
+  (median −3.30 against −3.07), where plain evolution and random search reach at most the level of
+  momentum (best −2.647). It does not transfer in robustness: 11 of the 15 diverge on a held-out
+  suite, mostly the gradient scale ×10 (10 of 16) and d = 32 (8 of 16). Rules that adapt to the train
+  distribution's gradient scale instead of normalising it are the failure (rule 3, scale dependence).
+- Even the four counted rules are below Adam on the scale suite (−0.41 to −1.26 against −2.81) and
+  three of them on d = 32. They are better in distribution and worse under shift; no "better than
+  Adam" can be said, and none is a different rule of equal accuracy across the suites.
+- No rule of the memetic search is structurally momentum, RMSProp or Adam (0/16); 14 are unclassified.
+  Rediscovery of the ladder is not shown on testbed 2; plain evolution rediscovered momentum once.
+- Predictions of the research agent: Adam level in 8 or more of 16 (0.35) no; plain evolution 8 or
+  more (0.15) no; method result at p < 0.05 (0.35) no under the strict reading; momentum rediscovered
+  in 8 or more (0.6) no.
+
+What the two testbeds together support: the frozen memetic search reaches the best rule of
+collision3 where evolution does not (5/8 against 0/8 on matched tasks, 8/16 confirmed with both
+components necessary), and on a held-out testbed it reaches a level no baseline reaches (15/16
+against 0/32 on suite 1) but mostly with rules that break under distribution shift. A transfer
+claim at the fixed bar is not shown (p = 0.051).
