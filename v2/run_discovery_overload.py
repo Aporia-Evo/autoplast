@@ -177,8 +177,14 @@ def main() -> None:
                     r, t = q.get_nowait()
                 except queue.Empty:
                     return
-                sl = min(args.slice_secs, rem) if args.slice_secs > 0.0 else rem
-                run_one(r, t, eff_threads, sl, args.ckpt_dir)
+                while True:
+                    rem = deadline - time.monotonic()
+                    if rem < 30.0:
+                        return
+                    sl = min(args.slice_secs, rem) if args.slice_secs > 0.0 else rem
+                    _, _, status = run_one(r, t, eff_threads, sl, args.ckpt_dir)
+                    if status == "done":
+                        break
 
         with ThreadPoolExecutor(max_workers=eff_workers) as ex:
             futs = [ex.submit(worker) for _ in range(eff_workers)]
