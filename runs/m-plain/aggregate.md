@@ -1,0 +1,38 @@
+# m-plain: 8 seeds
+
+Settings of the first seed (all seeds of a tag must share them except seed and task seed):
+
+    task: regime collision3  alphabet: 20 ops, with Recip  readout: fixed o = S q  add-node mutation: on  candidates: 1500020  real evaluations (after cache): 834511  time: 1350s  pop: 500  tournament: 10
+    commit: dce11aa  task seed: 801  train episodes: 144  persistent registers: 3 matrix, 0 vector, start identity  batch: 128
+
+## Structural rediscovery
+
+| seed | family of final best rule | train acc | wall s | families seen as best rule (first candidate count) | best rule |
+|---|---|---|---|---|---|
+| 801 | unclassified | 0.510 ±0.014 | 1351.0 | decayed linear attention (3,572), unclassified (4,212), delta + Kronecker mix (4,340) | `S' = (P1 - (1.600·v)⊗(((tanh((v - k)) - tanh(((k + 0.248·k) + k))) - tanh(v))))` |
+| 802 | unclassified | 0.580 ±0.014 | 1153.0 | decayed linear attention (4,084), unclassified (5,364), linear attention (24,692) | `S' = ((v)⊗((k + tanh(k))) - <tanh(v), tanh(v)>·(P1 - S))` |
+| 803 | unclassified | 0.642 ±0.014 | 1748.7 | decayed linear attention (884), unclassified (4,980), linear attention (6,516) | `S' = (((v)⊗(k) + (S + (v)⊗(k))) + (tanh(σ(0.670)·P1·(0 - tanh(k))))⊗(tanh(k)))` |
+| 804 | decayed linear attention | 0.537 ±0.014 | 1113.4 | unclassified (4,212), decayed linear attention (5,364) | `S' = ((σ(|((k + k) - tanh(v))|)·((S)ᵀ + ((k + k))⊗(v)) + ((k + k))⊗(v)))ᵀ` |
+| 805 | unclassified | 0.547 ±0.014 | 4958.8 | unclassified (628), decayed linear attention (1,396) | `S' = (<tanh(v), tanh(v)>·S + (v)⊗((k - P1·k)))` |
+| 806 | decayed linear attention | 0.529 ±0.014 | 1147.6 | unclassified (6,260), decayed linear attention (7,028), linear attention (7,668) | `S' = (σ((1/(<(tanh(tanh(v)) + k), v>) + <(tanh(tanh(v)) + k), v>))·S + σ((-0.145 + σ((1/(<(tanh(tanh(v)) + k), v>)` |
+| 807 | unclassified | 0.642 ±0.014 | 1897.1 | decayed linear attention (628), unclassified (3,956), linear attention (8,308), delta rule (16,884) | `S' = ((σ(<k, (0 - S)·k>)·((0 - S)·k + tanh(<tanh(v), tanh(v)>·tanh(tanh(v)))))⊗(tanh(norm(tanh(tanh(k))))) - (0 - ` |
+| 808 | unclassified | 0.666 ±0.014 | 1714.0 | unclassified (3,060), decayed linear attention (4,596), linear attention (24,436) | `S' = ((P2 + S) + (((tanh((v - norm(S·k))) + (((v - norm(S·k)) + v) + ((v - norm(S·k)) + v))) + σ(<(|((v - norm(S·k` |
+
+- decayed linear attention: seen in 8/8 seeds (median 4,084 candidates), final rule in 2/8
+- delta + Kronecker mix: seen in 1/8 seeds (median 4,340 candidates), final rule in 0/8
+- delta rule: seen in 1/8 seeds (median 16,884 candidates), final rule in 0/8
+- linear attention: seen in 5/8 seeds (median 8,308 candidates), final rule in 0/8
+- unclassified: seen in 8/8 seeds (median 4,212 candidates), final rule in 6/8
+
+## Accuracy levels (not rediscovery)
+
+| seed | linear attention | delta rule (beta=1) | delta rule (beta=0.5) | gated delta (alpha=0.9) |
+|---|---|---|---|---|
+| 801 | 14,196 | – | – | 98,164 |
+| 802 | 24,692 | – | – | 1,143,028 |
+| 803 | 6,516 | 137,332 | 137,332 | 108,404 |
+| 804 | 10,868 | – | – | 79,860 |
+| 805 | 34,932 | – | – | 109,940 |
+| 806 | 7,668 | – | – | – |
+| 807 | 8,308 | 16,884 | 20,468 | 16,884 |
+| 808 | 24,436 | 134,516 | 258,164 | 133,748 |

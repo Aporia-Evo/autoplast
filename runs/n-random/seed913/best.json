@@ -1,0 +1,1 @@
+{"persist_m":1,"persist_v":2,"persist_identity":0,"instrs":[{"op":"Tanh","out":3,"a":1,"b":0,"c":0.44569707},{"op":"VecSub","out":0,"a":0,"b":3,"c":-1.3866608}]}
