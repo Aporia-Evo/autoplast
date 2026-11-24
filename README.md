@@ -2908,3 +2908,83 @@ collision3 where evolution does not (5/8 against 0/8 on matched tasks, 8/16 conf
 components necessary), and on a held-out testbed it reaches a level no baseline reaches (15/16
 against 0/32 on suite 1) but mostly with rules that break under distribution shift. A transfer
 claim at the fixed bar is not shown (p = 0.051).
+
+## Literature check of 24 Nov 2026 (rule 5, CLAUDE.md item 6)
+
+Searches on alphaXiv on 24 Nov 2026 (program search for learning rules and optimizers, linear GP
+and quality diversity, recursive least-squares memories); papers read where they are close.
+
+**Method neighbours.**
+- Program search for learning rules without a language model: AutoML-Zero (Real et al. 2020;
+  regularized evolution, our baseline); Lion (Chen et al. 2023; evolutionary program search with a
+  funnel of proxy tasks, a restricted space and known optimizers in the population); fixed-depth
+  symbolic regression of weight-update rules (Finkelstein and Brum, arXiv 2607.21855, Jul 2026): GP
+  over operands that already contain momentum and second-moment quantities, populations seeded with
+  earlier rules, rules better than tuned optimizers in 25 of 30 small benchmarks, no test under
+  distribution shift. Our testbed-2 result is a caution for that kind of claim: in-distribution
+  wins (15 of 16) coexist with failure under gradient scale and dimension.
+- Discovery of linear-attention rules with language-model agents: ASI-Arch; Liu et al. (arXiv
+  2610.28887, Oct 2026), a team of LLM researchers that starts from Gated DeltaNet-2 and finds a
+  variant with a recurrent context vector and a normalised correction, trained at 150M and 1.3B
+  parameters. Different in kind: an LLM proposes, the start is a known rule, the evaluation is
+  language modelling. Ours: no LLM, the empty program, a fixed typed space, synthetic tasks.
+- Components: mutations that touch only effective code are a known device of linear GP (Brameier
+  and Banzhaf, *Linear Genetic Programming*, 2007; known, not found again in this search);
+  semantics-aware and locality-preserving variation (arXiv 2502.04568, 2602.07659); MAP-Elites and
+  behavioural niching in GP (arXiv 2507.02235, 2609.24104); memetic constant optimisation in GP
+  (Topchy and Punch 2001; Kommenda et al. 2020). The archive's descriptor (which persistent registers
+  are written and live) was not found as such, but structural descriptors in QD are common.
+  Conclusion: the method contribution is a component study of a known toolbox in a typed register
+  machine with persistent state, measured against regularized evolution, lexicase and random search
+  at equal cost, not a new algorithm (as found on 17 Nov).
+
+**Neighbours of the found rules.**
+- Collision3 (frozen memetic rules and the classical reference): the recursive least-squares and
+  Kalman family of linear-attention memories: MesaNet, Kalman Delta Networks (arXiv 2609.07816),
+  Preconditioned DeltaNet, and Kernel Ridge Attention (arXiv 2611.23896, 18 Nov 2026), whose update
+  is recursive ridge regression with Ornstein–Uhlenbeck process noise and the regularised gain
+  P k / (1 + kᵀP k), the tied form of our references. The untied write gain of the reference and the
+  normalised, floor-c₁ form of the found rules are variants inside this family; nothing here is
+  claimed as new, and on collision3 nothing can be better than the reference.
+- Testbed 2: the found rules are unclassified and scale-dependent; neighbours are sign-based and
+  normalised SGD and Lion. Nothing is claimed.
+- CLAUDE.md item 6, the state-gated writes of v2 seed 1 and v2-noaddnode seed 4: superseded (both are
+  far below the classical reference) and not pursued.
+
+## Experiment 2a: discovery on overload and overload48 (fixed 24 Nov 2026, before any run)
+
+Owner's go of 24 Nov. The only regimes with measured headroom above the best known rule (README,
+"A classical rule at the ridge ceiling"). The frozen method, unchanged (memetic MAP-Elites v3.1,
+`--no-const-tune --max-ep-evals 22000000 --batch 1024 --st-l2 0.015`, space of D and E as on
+collision3: `--persist-m 3 --persist-init identity --recip`, 24 instructions).
+
+References, tuned on the train task of task seed 1 (test of the regime; `runs/sweeps/overload*.md`,
+`probe_olam_*`, `probe_rls_*`):
+
+| regime | best one-state family | RLS with forgetting | Kalman delta | classical reference (untied gain) | ridge ceiling |
+|---|---|---|---|---|---|
+| overload (32 writes, d 16) | 0.723 (Gated DeltaNet) | 0.811 | 0.820 | **0.878** (δ_P 0.03, ε 0.01) | 0.955 |
+| overload48 (48 writes) | 0.534 (Gated DeltaNet) | 0.588 | 0.596 | **0.603** (δ_P 0.3, ε 0.1) | 0.749 |
+
+Runs: overload on task seeds 1001 to 1016, overload48 on 1101 to 1116, one search seed each (= task
+seed); train dumps `autoplast dump --regime R --split train --task-seed t`, validation dumps of
+task seed 2000 + t with 192 episodes; the test suite is never loaded by the search.
+
+A seed counts as a discovery if its rule, checked here with this repository's binary:
+1. beats the best reference of its regime on the regime's test by at least 0.02 (overload > 0.898,
+   overload48 > 0.623);
+2. beats each of the three strongest references (classical reference, Kalman delta, RLS with
+   forgetting, settings as tuned) on 12 fresh draws of the regime (task seeds 101 to 112, 512 train
+   episodes) by at least 0.01 on the mean and in at least 10 of 12 draws;
+3. passes the stability and honesty checks of collision3: T128 K8 ≥ 0.838, train − test ≤ 0.03 (higher
+   is better here, so this is the overfitting direction), the long probe below 100 in all nine
+   draws, JAX float32 and float64 at ε 1e-9 within 0.02 of Rust (`verify/eps_scale.py` if it moves).
+
+Discovery is shown in a regime if 3 or more of its 16 seeds count (a rate, not one seed). Every
+counted rule is reported with its gain as a fraction of the headroom, (rule − best reference) /
+(ridge − best reference), with its formula, and goes through a literature check before it is called
+new. If no seed counts, the discovery claim of the paper is dropped and the result reported as such.
+
+Predictions of the research agent: discovery shown on overload with probability 0.15, on
+overload48 with 0.1; at least one seed counting in either regime with 0.3; the best rule of overload
+above 0.878 on test at all with 0.45.

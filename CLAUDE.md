@@ -223,6 +223,11 @@ by the owner on 10 Nov 2026; it changes the search space, not the search algorit
    criterion had a sign error); against plain p = 0.051, so the transfer claim at the fixed bar is
    not met. Most found rules break on the gradient-scale and d = 32 suites; no structural rediscovery
    of momentum, RMSProp or Adam (0/16).
+   Literature check 24 Nov (README): method claim is a component study of known devices (effective
+   mutations of linear GP, MAP-Elites); found collision3 rules sit in the RLS/Kalman family (Kernel
+   Ridge Attention, MesaNet, Kalman Delta Networks); nothing claimed as new. Experiment 2a fixed
+   24 Nov (README): frozen method on overload (task seeds 1001-1016) and overload48 (1101-1116);
+   discovery if 3+/16 seeds beat the best reference (0.878 / 0.603) by 0.02 on test and on fresh draws.
    Background:
    Decide with the owner what the method improvement is. Evidence to start from: failed seeds
    stop at linear attention; candidates to the delta rule vary by a factor of 20 between seeds.
